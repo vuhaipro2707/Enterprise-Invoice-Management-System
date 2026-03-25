@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Android Emulator",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "emulator"
+    },
+    {
+      "name": "Chrome Web",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome"
+    },
+  ],
+  "compounds": [
+    {
+      "name": "Run All Devices",
+      "configurations": ["Android Emulator", "Chrome Web"]
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+# Invoice App .gitignore
+# This .gitignore covers the entire project, including Go backend, Flutter frontend, Docker, and nginx.
+# Subprojects (like invoice_app_frontend) have their own .gitignore files for specific ignores.
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+*.tmp
+
+# Environment variables
+.env
+
+# Build artifacts and temporary files
+tmp/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE and editor files
+.idea/
+*.swp
+*.swo
+*~
+
+# Go specific
+vendor/
+bin/
+*.test
+*.out
+
+# Flutter specific (additional to subproject .gitignores)
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+**/ios/Flutter/.last_build_id
+**/doc/api/
+coverage/
+app.*.symbols
+app.*.map.json
+
+# Android specific
+.gradle/
+.kotlin/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+
+# Docker (if any volumes or temp)
+# Usually no ignores needed for Docker files themselves
+
+# nginx
+# No specific ignores
+
+# Miscellaneous
+*.class
+*.pyc
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+*.iml
+*.ipr
+*.iws

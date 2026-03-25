@@ -1,0 +1,30 @@
+server {
+    listen 80;
+    server_name localhost;
+    return 301 DOMAIN_PLACEHOLDER; # Tự động chuyển HTTP sang HTTPS
+}
+
+server {
+    listen 443 ssl;
+    server_name localhost;
+
+    # Đường dẫn tới file Cert (Sẽ mount từ ngoài vào Docker)
+    ssl_certificate /etc/nginx/ssl/live/DOMAIN_PLACEHOLDER/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/live/DOMAIN_PLACEHOLDER/privkey.pem;
+
+    # 1. Điều hướng cho Frontend
+    location / {
+        root /usr/share/nginx/html;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 2. Điều hướng cho Backend Go (API Gateway)
+    location /api/ {
+        proxy_pass http://backend:8080; # Tên service 'backend' trong docker-compose.yml
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
