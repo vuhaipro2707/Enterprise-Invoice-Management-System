@@ -26,14 +26,10 @@ services:
     restart: always
     depends_on:
       - db
-    environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_USER: admin
-      DB_PASSWORD: 123
-      DB_NAME: invoice_management
+    env_file:
+      - ./invoice_app_backend/.env
     expose:
-      - "5432"
+      - "8090"
 
   # 3. Frontend Web (Forward public)
   gateway: # Đây chính là con Nginx làm Gateway

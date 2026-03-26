@@ -10,6 +10,8 @@ echo "Đang khởi tạo thư mục..."
 mkdir -p ./nginx/ssl
 mkdir -p ./nginx/ssl-lib
 mkdir -p ./postgres_data
+mkdir -p ./invoice_app_backend/db/sqlc
+mkdir -p ./invoice_app_backend/db/queries
 
 # 3. Lấy chứng chỉ SSL từ Let's Encrypt (Standalone Mode)
 echo "Đang yêu cầu chứng chỉ SSL cho $DOMAIN..."
@@ -34,7 +36,10 @@ cp ./nginx/nginx.conf.template ./nginx/nginx.conf
 
 sed -i "s|DOMAIN_PLACEHOLDER|$DOMAIN|g" ./nginx/nginx.conf
 
-# 6. Khởi động toàn bộ hệ thống
+# 6. Tạo JWT secret key
+python generate_jwt_key.py
+
+# 7. Khởi động toàn bộ hệ thống
 echo "Đang khởi động Docker Compose..."
 docker-compose up -d
 
