@@ -1,5 +1,11 @@
 - Dev Phase
 
+Generate JWT for Backend:
+
+```
+python generate_jwt_key.py
+```
+
 Run Go Backend (Hot Reload):
 
 ```
@@ -13,6 +19,7 @@ Run Flutter Frontend Engine:
 running emulator device
 
 running by debug (.vscode/launch.json)
+
 
 
 Build Image (Before Deploy):

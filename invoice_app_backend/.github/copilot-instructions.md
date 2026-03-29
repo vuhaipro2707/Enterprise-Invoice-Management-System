@@ -1,7 +1,9 @@
 tham khảo ./db/migrations/000001_create_accounts_table.sql để hiểu về database schema để code cho đúng ý tưởng mô hình. 
-mỗi cấu trúc app của tui là ./app xong có thư mục con là auth, invoice, v.v... Mỗi thư mục con sẽ có handler.go, service.go. Còn repo sẽ import sqlc "invoice_backend/db/sqlc" vào và sử dụng Repo *sqlc.Queries để gọi các function đã được generate bởi sqlc (./db/sqlc).
-nếu cần cập nhật thêm hàm repo thì vào ./db/queries/ thêm file .sql rồi chạy lệnh sqlc generate để tạo lại code trong ./db/sqlc.
+mỗi cấu trúc app của tui là ./app xong có thư mục con là auth, invoice, v.v... Mỗi thư mục con sẽ có handler.go, service.go. Còn repo sẽ import sqlc "invoice_backend/db/sqlc" vào và sử dụng Repo *sqlc.Queries để gọi các function đã được generate bởi sqlc (./db/sqlc) không đc thủ công vào ./db/sqlc mà thông qua ./db/queries.
+nếu cần cập nhật thêm hàm repo thì vào ./db/queries/ thêm file .sql.
 router sẽ được khai báo trong ./app/router.go, route sẽ gọi tất cả handler trong project. route sẽ truyền repo thông qua DI partern, các handler đều phải tự implement interface Handler để router.go có thông qua [SERVICENAME].New[ServiceName]Handler(repo) để tạo handler mới.
 về xác thực người dùng, tui đã có sẵn hàm authHandler.Login để đăng nhập và trả về JWT token, sau này nếu cần thêm route nào cần bảo mật thì chỉ cần tạo group mới và thêm middleware JWT vào là được.
-cái nào mà yêu cầu mà request body, mà client gửi lên json thiếu thì trả về đàng hoàng là json cần những key nào(ghi chuẩn case, ví dụ: key là "aBC" thì response cũng là "aBC") để client dễ sửa lỗi. Hoặc là thiếu header cũng vậy ví dụ thiếu header Authorization thì trả về json {"error": "Thiếu header Authorization"} chuẩn case như cái trên luôn để client dễ sửa lỗi.
+cái nào mà yêu cầu mà request body, mà client gửi lên json thiếu thì trả về đàng hoàng là json cần những key nào và những key nào optional (ghi chuẩn case, ví dụ: key là "aBC" và key là "Def" optional thì response cũng là "Missing required keys: aBC, Def(optional)") để client dễ sửa lỗi. Hoặc là thiếu header cũng vậy ví dụ thiếu header Authorization thì trả về json {"error": "Thiếu header Authorization"} chuẩn case như cái trên luôn để client dễ sửa lỗi.
 Các response là tiếng anh hết, ghi rõ ra là tại sao bị cái này để dễ debug.
+ko đc gọi go build, không cần chạy lệnh sqlc generate. check terminal hiện tại để check lỗi vì tôi hot reload chạy air, nếu có lỗi thì sẽ hiện ở terminal, sửa lỗi rồi nó sẽ tự động reload lại.
+khi cầnsửa lỗi trên terminal, tui đang chạy hot reload nên chỉ đọc thôi ko đc dùng lệnh

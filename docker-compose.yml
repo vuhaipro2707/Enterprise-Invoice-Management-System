@@ -16,9 +16,12 @@ services:
     container_name: pgadmin_dev
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: 123
+      PGADMIN_DEFAULT_PASSWORD: "123"
     ports:
       - "8888:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
 
-# volumes:
-#   postgres_data:
+volumes:
+  pgadmin_data:
+  postgres_data:

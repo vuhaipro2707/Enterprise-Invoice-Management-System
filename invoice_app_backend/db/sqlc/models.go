@@ -70,6 +70,7 @@ type Account struct {
 
 type Buyer struct {
 	BuyerID      uuid.UUID      `json:"buyer_id"`
+	BuyerCode    string         `json:"buyer_code"`
 	BuyerName    string         `json:"buyer_name"`
 	Address      sql.NullString `json:"address"`
 	PhoneNumber  sql.NullString `json:"phone_number"`
@@ -84,6 +85,7 @@ type Invoice struct {
 	InvoiceID           uuid.UUID      `json:"invoice_id"`
 	AccountID           uuid.NullUUID  `json:"account_id"`
 	BuyerID             uuid.NullUUID  `json:"buyer_id"`
+	InvoiceCode         string         `json:"invoice_code"`
 	TotalAmount         int64          `json:"total_amount"`
 	DeviceHoldingID     sql.NullString `json:"device_holding_id"`
 	EditStatus          sql.NullBool   `json:"edit_status"`
@@ -101,7 +103,6 @@ type Item struct {
 	ItemFormalName string                `json:"item_formal_name"`
 	ItemShortNames pqtype.NullRawMessage `json:"item_short_names"`
 	TypeID         uuid.NullUUID         `json:"type_id"`
-	UnitID         uuid.NullUUID         `json:"unit_id"`
 	IsActive       sql.NullBool          `json:"is_active"`
 	CreatedAt      sql.NullTime          `json:"created_at"`
 	UpdatedAt      sql.NullTime          `json:"updated_at"`
@@ -125,6 +126,7 @@ type PrintQueue struct {
 	InvoiceID   uuid.NullUUID       `json:"invoice_id"`
 	PrintStatus NullPrintStatusEnum `json:"print_status"`
 	RetryCount  sql.NullInt32       `json:"retry_count"`
+	PriorityNum sql.NullInt32       `json:"priority_num"`
 	CreatedAt   sql.NullTime        `json:"created_at"`
 	PrintedAt   sql.NullTime        `json:"printed_at"`
 }
@@ -141,7 +143,8 @@ type Type struct {
 type Unit struct {
 	UnitID           uuid.UUID     `json:"unit_id"`
 	UnitName         string        `json:"unit_name"`
-	UnitPriceDefault sql.NullInt64 `json:"unit_price_default"`
+	UnitPriceDefault int64         `json:"unit_price_default"`
+	ItemID           uuid.NullUUID `json:"item_id"`
 	IsActive         sql.NullBool  `json:"is_active"`
 	CreatedAt        sql.NullTime  `json:"created_at"`
 	UpdatedAt        sql.NullTime  `json:"updated_at"`
