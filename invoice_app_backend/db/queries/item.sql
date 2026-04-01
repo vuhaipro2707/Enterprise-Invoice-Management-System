@@ -50,3 +50,25 @@ UPDATE units
 SET item_id = $1, updated_at = NOW()
 WHERE unit_id = $2
 RETURNING *;
+
+-- name: SearchItems :many
+SELECT * FROM items
+WHERE deleted_at IS NULL
+AND (
+  -- ILIKE and trigram similarity can use pg_trgm index on item_formal_name
+  item_formal_name ILIKE '%' || $1 || '%'
+  OR item_formal_name % $1
+  -- Exact short-name match on JSONB array can use GIN index
+  OR (my_unaccent(item_short_names::text)) ILIKE '%' || my_unaccent($1) || '%' -- Note: Make JsonB into part treat it as text for index usage
+)
+ORDER BY
+  -- Rank exact formal-name match highest
+  CASE WHEN item_formal_name = $1 THEN 0 ELSE 1 END,
+  -- Then prefix match
+  CASE WHEN item_formal_name ILIKE $1 || '%' THEN 0 ELSE 1 END,
+  -- Then exact short-name match
+  CASE WHEN (my_unaccent(item_short_names::text)) ILIKE '%' || my_unaccent($1) || '%' THEN 0 ELSE 1 END,
+  -- Then fuzzy relevance for remaining formal-name matches
+  similarity(item_formal_name, $1) DESC,
+  created_at DESC
+LIMIT $2;

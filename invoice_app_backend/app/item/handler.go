@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
+	"strings"
 
 	sqlc "invoice_backend/db/sqlc"
 
@@ -75,6 +77,52 @@ func (h *ItemHandler) GetItems(c *fiber.Ctx) error {
 	items, err := h.service.GetItems(context.Background())
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to get items"})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"data": items})
+}
+
+// example query: GET /items/search?keyword=example&limit=10
+// example response body for SearchItems:
+//
+//	{
+//	    "data": [
+//	        {
+//	            "item_id": "item-uuid",
+//	            "item_formal_name": "Example Item",
+//	            "item_short_names": ["ExItem", "Example"],
+//	            "type_id": "optional-type-uuid",
+//	            "unit_id": "optional-unit-uuid"
+//	        },
+//	        ...
+//	    ]
+//	}
+func (h *ItemHandler) SearchItems(c *fiber.Ctx) error {
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing query parameter: keyword"})
+	}
+
+	replacer := strings.NewReplacer("[", "", "]", "", "\"", "", ",", "")
+	sanitizedKeyword := replacer.Replace(keyword) // JsonB of short names be treated as text, so remove special chars to improve search relevance
+
+	limitStr := c.Query("limit", "10")
+	parsedLimit, err := strconv.ParseInt(limitStr, 10, 32)
+	limit := int32(parsedLimit)
+	if err != nil || limit <= 0 {
+		limit = 10
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	items, err := h.service.SearchItems(context.Background(), sanitizedKeyword, limit)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to search items"})
+	}
+
+	if items == nil {
+		items = []sqlc.Item{}
 	}
 
 	return c.Status(200).JSON(fiber.Map{"data": items})

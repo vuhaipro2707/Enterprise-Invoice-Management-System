@@ -6,56 +6,10 @@ package db
 
 import (
 	"database/sql"
-	"database/sql/driver"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
-
-type PrintStatusEnum string
-
-const (
-	PrintStatusEnumPending   PrintStatusEnum = "Pending"
-	PrintStatusEnumPrinting  PrintStatusEnum = "Printing"
-	PrintStatusEnumCompleted PrintStatusEnum = "Completed"
-	PrintStatusEnumFailed    PrintStatusEnum = "Failed"
-)
-
-func (e *PrintStatusEnum) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = PrintStatusEnum(s)
-	case string:
-		*e = PrintStatusEnum(s)
-	default:
-		return fmt.Errorf("unsupported scan type for PrintStatusEnum: %T", src)
-	}
-	return nil
-}
-
-type NullPrintStatusEnum struct {
-	PrintStatusEnum PrintStatusEnum `json:"print_status_enum"`
-	Valid           bool            `json:"valid"` // Valid is true if PrintStatusEnum is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullPrintStatusEnum) Scan(value interface{}) error {
-	if value == nil {
-		ns.PrintStatusEnum, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.PrintStatusEnum.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullPrintStatusEnum) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.PrintStatusEnum), nil
-}
 
 type Account struct {
 	AccountID uuid.UUID    `json:"account_id"`
@@ -122,13 +76,13 @@ type LineItem struct {
 }
 
 type PrintQueue struct {
-	PrintJobID  uuid.UUID           `json:"print_job_id"`
-	InvoiceID   uuid.NullUUID       `json:"invoice_id"`
-	PrintStatus NullPrintStatusEnum `json:"print_status"`
-	RetryCount  sql.NullInt32       `json:"retry_count"`
-	PriorityNum sql.NullInt32       `json:"priority_num"`
-	CreatedAt   sql.NullTime        `json:"created_at"`
-	PrintedAt   sql.NullTime        `json:"printed_at"`
+	PrintJobID  uuid.UUID     `json:"print_job_id"`
+	InvoiceID   uuid.NullUUID `json:"invoice_id"`
+	PrintStatus interface{}   `json:"print_status"`
+	RetryCount  sql.NullInt32 `json:"retry_count"`
+	PriorityNum sql.NullInt32 `json:"priority_num"`
+	CreatedAt   sql.NullTime  `json:"created_at"`
+	PrintedAt   sql.NullTime  `json:"printed_at"`
 }
 
 type Type struct {

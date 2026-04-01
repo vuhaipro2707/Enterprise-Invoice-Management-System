@@ -2,6 +2,7 @@ package item
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 
 	sqlc "invoice_backend/db/sqlc"
@@ -77,4 +78,22 @@ func (s *ItemService) CreateUnitForItem(ctx context.Context, itemID string, unit
 
 func (s *ItemService) GetUnits(ctx context.Context) ([]sqlc.Unit, error) {
 	return s.Repo.ListUnits(ctx)
+}
+
+func (s *ItemService) SearchItems(ctx context.Context, keyword string, limit int32) ([]sqlc.Item, error) {
+	if keyword == "" {
+		return []sqlc.Item{}, nil
+	}
+
+	// Default limit to 10 if not specified or invalid
+	if limit <= 0 || limit > 100 {
+		limit = 10
+	}
+
+	params := sqlc.SearchItemsParams{
+		Column1: sql.NullString{String: keyword, Valid: true},
+		Limit:   limit,
+	}
+
+	return s.Repo.SearchItems(ctx, params)
 }

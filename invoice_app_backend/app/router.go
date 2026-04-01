@@ -19,13 +19,15 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	authGroup.Post("/register", authHandler.Register)
 	authGroup.Get("/me", auth.JWTMiddleware(), authHandler.GetCurrentUser)
 
-	app.Post("/item", itemHandler.CreateItem)
-	app.Get("/item", itemHandler.GetItems)
+	itemGroup := app.Group("/item", auth.JWTMiddleware())
+	itemGroup.Post("", itemHandler.CreateItem)
+	itemGroup.Get("", itemHandler.GetItems)
+	itemGroup.Get("/search", itemHandler.SearchItems)
 
-	app.Post("/unit/itemId/:itemId", itemHandler.CreateUnitForItem)
-	app.Get("/unit", itemHandler.GetUnits)
+	itemGroup.Post("/unit/itemId/:itemId", itemHandler.CreateUnitForItem)
+	itemGroup.Get("/unit", itemHandler.GetUnits)
 
-	app.Post("/type", itemHandler.CreateType)
-	app.Get("/type", itemHandler.GetTypes)
+	itemGroup.Post("/type", itemHandler.CreateType)
+	itemGroup.Get("/type", itemHandler.GetTypes)
 
 }

@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -227,6 +228,66 @@ func (q *Queries) ListUnits(ctx context.Context) ([]Unit, error) {
 			&i.UnitName,
 			&i.UnitPriceDefault,
 			&i.ItemID,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchItems = `-- name: SearchItems :many
+SELECT item_id, item_formal_name, item_short_names, type_id, is_active, created_at, updated_at, deleted_at FROM items
+WHERE deleted_at IS NULL
+AND (
+  -- ILIKE and trigram similarity can use pg_trgm index on item_formal_name
+  item_formal_name ILIKE '%' || $1 || '%'
+  OR item_formal_name % $1
+  -- Exact short-name match on JSONB array can use GIN index
+  OR (my_unaccent(item_short_names::text)) ILIKE '%' || my_unaccent($1) || '%' -- Note: Make JsonB into part treat it as text for index usage
+)
+ORDER BY
+  -- Rank exact formal-name match highest
+  CASE WHEN item_formal_name = $1 THEN 0 ELSE 1 END,
+  -- Then prefix match
+  CASE WHEN item_formal_name ILIKE $1 || '%' THEN 0 ELSE 1 END,
+  -- Then exact short-name match
+  CASE WHEN (my_unaccent(item_short_names::text)) ILIKE '%' || my_unaccent($1) || '%' THEN 0 ELSE 1 END,
+  -- Then fuzzy relevance for remaining formal-name matches
+  similarity(item_formal_name, $1) DESC,
+  created_at DESC
+LIMIT $2
+`
+
+type SearchItemsParams struct {
+	Column1 sql.NullString `json:"column_1"`
+	Limit   int32          `json:"limit"`
+}
+
+func (q *Queries) SearchItems(ctx context.Context, arg SearchItemsParams) ([]Item, error) {
+	rows, err := q.db.QueryContext(ctx, searchItems, arg.Column1, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Item
+	for rows.Next() {
+		var i Item
+		if err := rows.Scan(
+			&i.ItemID,
+			&i.ItemFormalName,
+			&i.ItemShortNames,
+			&i.TypeID,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
