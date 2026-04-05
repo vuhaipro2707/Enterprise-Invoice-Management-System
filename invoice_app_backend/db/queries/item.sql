@@ -45,6 +45,14 @@ SELECT * FROM items
 WHERE deleted_at IS NULL
 ORDER BY created_at DESC;
 
+-- name: GetItemByID :one
+SELECT * FROM items
+WHERE item_id = $1 AND deleted_at IS NULL;
+
+-- name: GetUnitByID :one
+SELECT * FROM units
+WHERE unit_id = $1 AND deleted_at IS NULL;
+
 -- name: AssignUnitToItem :one
 UPDATE units
 SET item_id = $1, updated_at = NOW()
@@ -72,3 +80,55 @@ ORDER BY
   similarity(item_formal_name, $1) DESC,
   created_at DESC
 LIMIT $2;
+
+-- name: PatchItem :one
+UPDATE items
+SET
+  item_formal_name = CASE
+    WHEN sqlc.arg(set_item_formal_name)::boolean THEN sqlc.arg(item_formal_name)
+    ELSE item_formal_name
+  END,
+  item_short_names = CASE
+    WHEN sqlc.arg(set_item_short_names)::boolean THEN sqlc.narg(item_short_names)
+    ELSE item_short_names
+  END,
+  type_id = CASE
+    WHEN sqlc.arg(set_type_id)::boolean THEN sqlc.narg(type_id)
+    ELSE type_id
+  END,
+  updated_at = NOW()
+WHERE item_id = sqlc.arg(item_id)
+AND deleted_at IS NULL
+RETURNING *;
+
+-- name: PatchUnit :one
+UPDATE units
+SET
+  unit_name = CASE
+    WHEN sqlc.arg(set_unit_name)::boolean THEN sqlc.arg(unit_name)
+    ELSE unit_name
+  END,
+  unit_price_default = CASE
+    WHEN sqlc.arg(set_unit_price_default)::boolean THEN sqlc.arg(unit_price_default)
+    ELSE unit_price_default
+  END,
+  item_id = CASE
+    WHEN sqlc.arg(set_item_id)::boolean THEN sqlc.narg(item_id)
+    ELSE item_id
+  END,
+  updated_at = NOW()
+WHERE unit_id = sqlc.arg(unit_id)
+AND deleted_at IS NULL
+RETURNING *;
+
+-- name: PatchType :one
+UPDATE types
+SET
+  type_name = CASE
+    WHEN sqlc.arg(set_type_name)::boolean THEN sqlc.arg(type_name)
+    ELSE type_name
+  END,
+  updated_at = NOW()
+WHERE type_id = sqlc.arg(type_id)
+AND deleted_at IS NULL
+RETURNING *;

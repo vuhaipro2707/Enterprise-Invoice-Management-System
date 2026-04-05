@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS invoices (
     buyer_id UUID REFERENCES buyers(buyer_id) ON DELETE SET NULL,
     invoice_code VARCHAR(50) UNIQUE NOT NULL,
     total_amount BIGINT NOT NULL,
-    device_holding_id VARCHAR(255),
+    device_holding_id VARCHAR(255) REFERENCES devices(device_holding_id) ON DELETE SET NULL,
     edit_status BOOLEAN DEFAULT FALSE,
     buyer_name_snapshot VARCHAR(255),
     address_snapshot TEXT,
@@ -109,6 +109,12 @@ CREATE TABLE IF NOT EXISTS print_queue (
     priority_num INT DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     printed_at TIMESTAMPTZ
+);
+
+-- 10. Tạo bảng Devices
+CREATE TABLE IF NOT EXISTS devices (
+    device_holding_id VARCHAR(255) PRIMARY KEY,
+    device_name VARCHAR(255)
 );
 
 COMMIT;

@@ -134,6 +134,48 @@ func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, e
 	return i, err
 }
 
+const getItemByID = `-- name: GetItemByID :one
+SELECT item_id, item_formal_name, item_short_names, type_id, is_active, created_at, updated_at, deleted_at FROM items
+WHERE item_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetItemByID(ctx context.Context, itemID uuid.UUID) (Item, error) {
+	row := q.db.QueryRowContext(ctx, getItemByID, itemID)
+	var i Item
+	err := row.Scan(
+		&i.ItemID,
+		&i.ItemFormalName,
+		&i.ItemShortNames,
+		&i.TypeID,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getUnitByID = `-- name: GetUnitByID :one
+SELECT unit_id, unit_name, unit_price_default, item_id, is_active, created_at, updated_at, deleted_at FROM units
+WHERE unit_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetUnitByID(ctx context.Context, unitID uuid.UUID) (Unit, error) {
+	row := q.db.QueryRowContext(ctx, getUnitByID, unitID)
+	var i Unit
+	err := row.Scan(
+		&i.UnitID,
+		&i.UnitName,
+		&i.UnitPriceDefault,
+		&i.ItemID,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const listItems = `-- name: ListItems :many
 SELECT item_id, item_formal_name, item_short_names, type_id, is_active, created_at, updated_at, deleted_at FROM items
 WHERE deleted_at IS NULL
@@ -244,6 +286,149 @@ func (q *Queries) ListUnits(ctx context.Context) ([]Unit, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const patchItem = `-- name: PatchItem :one
+UPDATE items
+SET
+  item_formal_name = CASE
+    WHEN $1::boolean THEN $2
+    ELSE item_formal_name
+  END,
+  item_short_names = CASE
+    WHEN $3::boolean THEN $4
+    ELSE item_short_names
+  END,
+  type_id = CASE
+    WHEN $5::boolean THEN $6
+    ELSE type_id
+  END,
+  updated_at = NOW()
+WHERE item_id = $7
+AND deleted_at IS NULL
+RETURNING item_id, item_formal_name, item_short_names, type_id, is_active, created_at, updated_at, deleted_at
+`
+
+type PatchItemParams struct {
+	SetItemFormalName bool                  `json:"set_item_formal_name"`
+	ItemFormalName    string                `json:"item_formal_name"`
+	SetItemShortNames bool                  `json:"set_item_short_names"`
+	ItemShortNames    pqtype.NullRawMessage `json:"item_short_names"`
+	SetTypeID         bool                  `json:"set_type_id"`
+	TypeID            uuid.NullUUID         `json:"type_id"`
+	ItemID            uuid.UUID             `json:"item_id"`
+}
+
+func (q *Queries) PatchItem(ctx context.Context, arg PatchItemParams) (Item, error) {
+	row := q.db.QueryRowContext(ctx, patchItem,
+		arg.SetItemFormalName,
+		arg.ItemFormalName,
+		arg.SetItemShortNames,
+		arg.ItemShortNames,
+		arg.SetTypeID,
+		arg.TypeID,
+		arg.ItemID,
+	)
+	var i Item
+	err := row.Scan(
+		&i.ItemID,
+		&i.ItemFormalName,
+		&i.ItemShortNames,
+		&i.TypeID,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const patchType = `-- name: PatchType :one
+UPDATE types
+SET
+  type_name = CASE
+    WHEN $1::boolean THEN $2
+    ELSE type_name
+  END,
+  updated_at = NOW()
+WHERE type_id = $3
+AND deleted_at IS NULL
+RETURNING type_id, type_name, is_active, created_at, updated_at, deleted_at
+`
+
+type PatchTypeParams struct {
+	SetTypeName bool      `json:"set_type_name"`
+	TypeName    string    `json:"type_name"`
+	TypeID      uuid.UUID `json:"type_id"`
+}
+
+func (q *Queries) PatchType(ctx context.Context, arg PatchTypeParams) (Type, error) {
+	row := q.db.QueryRowContext(ctx, patchType, arg.SetTypeName, arg.TypeName, arg.TypeID)
+	var i Type
+	err := row.Scan(
+		&i.TypeID,
+		&i.TypeName,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const patchUnit = `-- name: PatchUnit :one
+UPDATE units
+SET
+  unit_name = CASE
+    WHEN $1::boolean THEN $2
+    ELSE unit_name
+  END,
+  unit_price_default = CASE
+    WHEN $3::boolean THEN $4
+    ELSE unit_price_default
+  END,
+  item_id = CASE
+    WHEN $5::boolean THEN $6
+    ELSE item_id
+  END,
+  updated_at = NOW()
+WHERE unit_id = $7
+AND deleted_at IS NULL
+RETURNING unit_id, unit_name, unit_price_default, item_id, is_active, created_at, updated_at, deleted_at
+`
+
+type PatchUnitParams struct {
+	SetUnitName         bool          `json:"set_unit_name"`
+	UnitName            string        `json:"unit_name"`
+	SetUnitPriceDefault bool          `json:"set_unit_price_default"`
+	UnitPriceDefault    int64         `json:"unit_price_default"`
+	SetItemID           bool          `json:"set_item_id"`
+	ItemID              uuid.NullUUID `json:"item_id"`
+	UnitID              uuid.UUID     `json:"unit_id"`
+}
+
+func (q *Queries) PatchUnit(ctx context.Context, arg PatchUnitParams) (Unit, error) {
+	row := q.db.QueryRowContext(ctx, patchUnit,
+		arg.SetUnitName,
+		arg.UnitName,
+		arg.SetUnitPriceDefault,
+		arg.UnitPriceDefault,
+		arg.SetItemID,
+		arg.ItemID,
+		arg.UnitID,
+	)
+	var i Unit
+	err := row.Scan(
+		&i.UnitID,
+		&i.UnitName,
+		&i.UnitPriceDefault,
+		&i.ItemID,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
 const searchItems = `-- name: SearchItems :many

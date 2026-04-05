@@ -3,13 +3,16 @@ package item
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	sqlc "invoice_backend/db/sqlc"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 type ItemHandler struct {
@@ -22,6 +25,31 @@ func NewItemHandler(repo *sqlc.Queries) *ItemHandler {
 		Repo:    repo,
 		service: NewItemService(repo),
 	}
+}
+
+var patchForbiddenKeys = map[string]struct{}{
+	"isActive":  {},
+	"createdAt": {},
+	"updatedAt": {},
+	"deletedAt": {},
+}
+
+func splitPatchKeys(body map[string]json.RawMessage, allowed map[string]struct{}) ([]string, []string) {
+	forbidden := []string{}
+	unknown := []string{}
+
+	for key := range body {
+		if _, blocked := patchForbiddenKeys[key]; blocked {
+			forbidden = append(forbidden, key)
+			continue
+		}
+
+		if _, ok := allowed[key]; !ok {
+			unknown = append(unknown, key)
+		}
+	}
+
+	return forbidden, unknown
 }
 
 // example request body for CreateItem:
@@ -237,4 +265,246 @@ func (h *ItemHandler) GetTypes(c *fiber.Ctx) error {
 	}
 
 	return c.Status(200).JSON(fiber.Map{"data": types})
+}
+
+func (h *ItemHandler) PatchItem(c *fiber.Ctx) error {
+	itemID := c.Params("itemId")
+	if itemID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: itemId"})
+	}
+
+	body := map[string]json.RawMessage{}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Allowed keys: itemFormalName, itemShortNames, typeId"})
+	}
+
+	if len(body) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "No updatable keys provided. Allowed keys: itemFormalName, itemShortNames, typeId"})
+	}
+
+	allowed := map[string]struct{}{
+		"itemFormalName": {},
+		"itemShortNames": {},
+		"typeId":         {},
+	}
+
+	forbidden, unknown := splitPatchKeys(body, allowed)
+	if len(forbidden) > 0 {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Keys are not allowed in patch: %s", strings.Join(forbidden, ", "))})
+	}
+	if len(unknown) > 0 {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Unknown keys in request body: %s", strings.Join(unknown, ", "))})
+	}
+
+	input := PatchItemInput{}
+
+	if raw, ok := body["itemFormalName"]; ok {
+		var value string
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: itemFormalName (must be string)"})
+		}
+		if strings.TrimSpace(value) == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: itemFormalName (must not be empty)"})
+		}
+		input.SetItemFormalName = true
+		input.ItemFormalName = value
+	}
+
+	if raw, ok := body["itemShortNames"]; ok {
+		input.SetItemShortNames = true
+		if string(raw) == "null" {
+			input.ItemShortNamesSet = false
+		} else {
+			var value []string
+			if err := json.Unmarshal(raw, &value); err != nil {
+				return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: itemShortNames (must be array of strings or null)"})
+			}
+			shortNamesJSON, err := json.Marshal(value)
+			if err != nil {
+				return c.Status(400).JSON(fiber.Map{"error": "Failed to parse key: itemShortNames"})
+			}
+			input.ItemShortNames = shortNamesJSON
+			input.ItemShortNamesSet = true
+		}
+	}
+
+	if raw, ok := body["typeId"]; ok {
+		input.SetTypeID = true
+		if string(raw) == "null" {
+			input.TypeID = uuid.NullUUID{Valid: false}
+		} else {
+			var value string
+			if err := json.Unmarshal(raw, &value); err != nil {
+				return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: typeId (must be UUID string or null)"})
+			}
+
+			trimmedValue := strings.TrimSpace(value)
+			if trimmedValue == "" {
+				input.TypeID = uuid.NullUUID{Valid: false}
+			} else {
+				parsedTypeID, err := uuid.Parse(trimmedValue)
+				if err != nil {
+					return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: typeId (must be valid UUID or null)"})
+				}
+				input.TypeID = uuid.NullUUID{UUID: parsedTypeID, Valid: true}
+			}
+		}
+	}
+
+	itemData, err := h.service.PatchItem(context.Background(), itemID, input)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(404).JSON(fiber.Map{"error": "Item not found"})
+		}
+		return c.Status(400).JSON(fiber.Map{"error": "Failed to patch item. Please verify itemId/typeId are valid UUIDs and related records exist"})
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"message": "Item patched successfully",
+		"data":    itemData,
+	})
+}
+
+func (h *ItemHandler) PatchUnit(c *fiber.Ctx) error {
+	unitID := c.Params("unitId")
+	if unitID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: unitId"})
+	}
+
+	body := map[string]json.RawMessage{}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Allowed keys: unitName, unitPriceDefault, itemId(optional)"})
+	}
+
+	if len(body) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "No updatable keys provided. Allowed keys: unitName, unitPriceDefault, itemId(optional)"})
+	}
+
+	allowed := map[string]struct{}{
+		"unitName":         {},
+		"unitPriceDefault": {},
+		"itemId":           {},
+	}
+
+	forbidden, unknown := splitPatchKeys(body, allowed)
+	if len(forbidden) > 0 {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Keys are not allowed in patch: %s", strings.Join(forbidden, ", "))})
+	}
+	if len(unknown) > 0 {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Unknown keys in request body: %s", strings.Join(unknown, ", "))})
+	}
+
+	input := PatchUnitInput{}
+
+	if raw, ok := body["unitName"]; ok {
+		var value string
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: unitName (must be string)"})
+		}
+		if strings.TrimSpace(value) == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: unitName (must not be empty)"})
+		}
+		input.SetUnitName = true
+		input.UnitName = value
+	}
+
+	if raw, ok := body["unitPriceDefault"]; ok {
+		var value int64
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: unitPriceDefault (must be number)"})
+		}
+		input.SetUnitPriceDefault = true
+		input.UnitPriceDefault = value
+	}
+
+	if raw, ok := body["itemId"]; ok {
+		input.SetItemID = true
+		if string(raw) == "null" {
+			input.ItemID = uuid.NullUUID{Valid: false}
+		} else {
+			var value string
+			if err := json.Unmarshal(raw, &value); err != nil {
+				return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: itemId (must be UUID string or null)"})
+			}
+
+			trimmedValue := strings.TrimSpace(value)
+			if trimmedValue == "" {
+				input.ItemID = uuid.NullUUID{Valid: false}
+			} else {
+				parsedItemID, err := uuid.Parse(trimmedValue)
+				if err != nil {
+					return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: itemId (must be valid UUID or null)"})
+				}
+				input.ItemID = uuid.NullUUID{UUID: parsedItemID, Valid: true}
+			}
+		}
+	}
+
+	unitData, err := h.service.PatchUnit(context.Background(), unitID, input)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(404).JSON(fiber.Map{"error": "Unit not found"})
+		}
+		return c.Status(400).JSON(fiber.Map{"error": "Failed to patch unit. Please verify unitId/itemId are valid UUIDs and related records exist"})
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"message": "Unit patched successfully",
+		"data":    unitData,
+	})
+}
+
+func (h *ItemHandler) PatchType(c *fiber.Ctx) error {
+	typeID := c.Params("typeId")
+	if typeID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: typeId"})
+	}
+
+	body := map[string]json.RawMessage{}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Allowed keys: typeName"})
+	}
+
+	if len(body) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "No updatable keys provided. Allowed keys: typeName"})
+	}
+
+	allowed := map[string]struct{}{
+		"typeName": {},
+	}
+
+	forbidden, unknown := splitPatchKeys(body, allowed)
+	if len(forbidden) > 0 {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Keys are not allowed in patch: %s", strings.Join(forbidden, ", "))})
+	}
+	if len(unknown) > 0 {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Unknown keys in request body: %s", strings.Join(unknown, ", "))})
+	}
+
+	input := PatchTypeInput{}
+
+	if raw, ok := body["typeName"]; ok {
+		var value string
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: typeName (must be string)"})
+		}
+		if strings.TrimSpace(value) == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: typeName (must not be empty)"})
+		}
+		input.SetTypeName = true
+		input.TypeName = value
+	}
+
+	typeData, err := h.service.PatchType(context.Background(), typeID, input)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(404).JSON(fiber.Map{"error": "Type not found"})
+		}
+		return c.Status(400).JSON(fiber.Map{"error": "Failed to patch type. Please verify typeId is a valid UUID and typeName is unique"})
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"message": "Type patched successfully",
+		"data":    typeData,
+	})
 }

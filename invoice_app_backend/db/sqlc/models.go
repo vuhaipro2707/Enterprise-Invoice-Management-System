@@ -35,6 +35,11 @@ type Buyer struct {
 	DeletedAt    sql.NullTime   `json:"deleted_at"`
 }
 
+type Device struct {
+	DeviceHoldingID string         `json:"device_holding_id"`
+	DeviceName      sql.NullString `json:"device_name"`
+}
+
 type Invoice struct {
 	InvoiceID           uuid.UUID      `json:"invoice_id"`
 	AccountID           uuid.NullUUID  `json:"account_id"`

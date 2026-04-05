@@ -15,6 +15,30 @@ type ItemService struct {
 	Repo *sqlc.Queries
 }
 
+type PatchItemInput struct {
+	SetItemFormalName bool
+	ItemFormalName    string
+	SetItemShortNames bool
+	ItemShortNamesSet bool
+	ItemShortNames    []byte
+	SetTypeID         bool
+	TypeID            uuid.NullUUID
+}
+
+type PatchUnitInput struct {
+	SetUnitName         bool
+	UnitName            string
+	SetUnitPriceDefault bool
+	UnitPriceDefault    int64
+	SetItemID           bool
+	ItemID              uuid.NullUUID
+}
+
+type PatchTypeInput struct {
+	SetTypeName bool
+	TypeName    string
+}
+
 func NewItemService(repo *sqlc.Queries) *ItemService {
 	return &ItemService{Repo: repo}
 }
@@ -96,4 +120,57 @@ func (s *ItemService) SearchItems(ctx context.Context, keyword string, limit int
 	}
 
 	return s.Repo.SearchItems(ctx, params)
+}
+
+func (s *ItemService) PatchItem(ctx context.Context, itemID string, input PatchItemInput) (sqlc.Item, error) {
+	parsedItemID, err := uuid.Parse(itemID)
+	if err != nil {
+		return sqlc.Item{}, err
+	}
+
+	params := sqlc.PatchItemParams{
+		ItemID:            parsedItemID,
+		SetItemFormalName: input.SetItemFormalName,
+		ItemFormalName:    input.ItemFormalName,
+		SetItemShortNames: input.SetItemShortNames,
+		ItemShortNames:    pqtype.NullRawMessage{RawMessage: input.ItemShortNames, Valid: input.ItemShortNamesSet},
+		SetTypeID:         input.SetTypeID,
+		TypeID:            input.TypeID,
+	}
+
+	return s.Repo.PatchItem(ctx, params)
+}
+
+func (s *ItemService) PatchUnit(ctx context.Context, unitID string, input PatchUnitInput) (sqlc.Unit, error) {
+	parsedUnitID, err := uuid.Parse(unitID)
+	if err != nil {
+		return sqlc.Unit{}, err
+	}
+
+	params := sqlc.PatchUnitParams{
+		UnitID:              parsedUnitID,
+		SetUnitName:         input.SetUnitName,
+		UnitName:            input.UnitName,
+		SetUnitPriceDefault: input.SetUnitPriceDefault,
+		UnitPriceDefault:    input.UnitPriceDefault,
+		SetItemID:           input.SetItemID,
+		ItemID:              input.ItemID,
+	}
+
+	return s.Repo.PatchUnit(ctx, params)
+}
+
+func (s *ItemService) PatchType(ctx context.Context, typeID string, input PatchTypeInput) (sqlc.Type, error) {
+	parsedTypeID, err := uuid.Parse(typeID)
+	if err != nil {
+		return sqlc.Type{}, err
+	}
+
+	params := sqlc.PatchTypeParams{
+		TypeID:      parsedTypeID,
+		SetTypeName: input.SetTypeName,
+		TypeName:    input.TypeName,
+	}
+
+	return s.Repo.PatchType(ctx, params)
 }
