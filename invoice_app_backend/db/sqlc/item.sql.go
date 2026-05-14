@@ -8,9 +8,9 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 )
 
 const assignUnitToItem = `-- name: AssignUnitToItem :one
@@ -43,36 +43,54 @@ func (q *Queries) AssignUnitToItem(ctx context.Context, arg AssignUnitToItemPara
 
 const createItem = `-- name: CreateItem :one
 INSERT INTO items (
-  item_formal_name,
-  item_short_names,
+  item_default_name,
   type_id
 ) VALUES (
   $1,
-  $2,
-  $3
+  $2
 )
-RETURNING item_id, item_formal_name, item_short_names, type_id, is_active, created_at, updated_at, deleted_at
+RETURNING item_id, item_default_name, type_id, is_active, created_at, updated_at, deleted_at
 `
 
 type CreateItemParams struct {
-	ItemFormalName string                `json:"item_formal_name"`
-	ItemShortNames pqtype.NullRawMessage `json:"item_short_names"`
-	TypeID         uuid.NullUUID         `json:"type_id"`
+	ItemDefaultName string        `json:"item_default_name"`
+	TypeID          uuid.NullUUID `json:"type_id"`
 }
 
 func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, error) {
-	row := q.db.QueryRowContext(ctx, createItem, arg.ItemFormalName, arg.ItemShortNames, arg.TypeID)
+	row := q.db.QueryRowContext(ctx, createItem, arg.ItemDefaultName, arg.TypeID)
 	var i Item
 	err := row.Scan(
 		&i.ItemID,
-		&i.ItemFormalName,
-		&i.ItemShortNames,
+		&i.ItemDefaultName,
 		&i.TypeID,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
 	)
+	return i, err
+}
+
+const createItemOtherName = `-- name: CreateItemOtherName :one
+INSERT INTO item_other_names (
+  item_id,
+  name_string
+) VALUES (
+  $1, $2
+)
+RETURNING item_other_name_id, item_id, name_string
+`
+
+type CreateItemOtherNameParams struct {
+	ItemID     uuid.UUID `json:"item_id"`
+	NameString string    `json:"name_string"`
+}
+
+func (q *Queries) CreateItemOtherName(ctx context.Context, arg CreateItemOtherNameParams) (ItemOtherName, error) {
+	row := q.db.QueryRowContext(ctx, createItemOtherName, arg.ItemID, arg.NameString)
+	var i ItemOtherName
+	err := row.Scan(&i.ItemOtherNameID, &i.ItemID, &i.NameString)
 	return i, err
 }
 
@@ -134,23 +152,48 @@ func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, e
 	return i, err
 }
 
-const getItemByID = `-- name: GetItemByID :one
-SELECT item_id, item_formal_name, item_short_names, type_id, is_active, created_at, updated_at, deleted_at FROM items
-WHERE item_id = $1 AND deleted_at IS NULL
+const deleteItemOtherName = `-- name: DeleteItemOtherName :exec
+DELETE FROM item_other_names
+WHERE item_other_name_id = $1
 `
 
-func (q *Queries) GetItemByID(ctx context.Context, itemID uuid.UUID) (Item, error) {
+func (q *Queries) DeleteItemOtherName(ctx context.Context, itemOtherNameID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteItemOtherName, itemOtherNameID)
+	return err
+}
+
+const getItemByID = `-- name: GetItemByID :one
+SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at,
+       COALESCE(JSON_AGG(ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names
+FROM items i
+LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+WHERE i.item_id = $1 AND i.deleted_at IS NULL
+GROUP BY i.item_id
+`
+
+type GetItemByIDRow struct {
+	ItemID          uuid.UUID       `json:"item_id"`
+	ItemDefaultName string          `json:"item_default_name"`
+	TypeID          uuid.NullUUID   `json:"type_id"`
+	IsActive        sql.NullBool    `json:"is_active"`
+	CreatedAt       sql.NullTime    `json:"created_at"`
+	UpdatedAt       sql.NullTime    `json:"updated_at"`
+	DeletedAt       sql.NullTime    `json:"deleted_at"`
+	ItemOtherNames  json.RawMessage `json:"item_other_names"`
+}
+
+func (q *Queries) GetItemByID(ctx context.Context, itemID uuid.UUID) (GetItemByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getItemByID, itemID)
-	var i Item
+	var i GetItemByIDRow
 	err := row.Scan(
 		&i.ItemID,
-		&i.ItemFormalName,
-		&i.ItemShortNames,
+		&i.ItemDefaultName,
 		&i.TypeID,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.ItemOtherNames,
 	)
 	return i, err
 }
@@ -176,30 +219,73 @@ func (q *Queries) GetUnitByID(ctx context.Context, unitID uuid.UUID) (Unit, erro
 	return i, err
 }
 
-const listItems = `-- name: ListItems :many
-SELECT item_id, item_formal_name, item_short_names, type_id, is_active, created_at, updated_at, deleted_at FROM items
-WHERE deleted_at IS NULL
-ORDER BY created_at DESC
+const listItemOtherNames = `-- name: ListItemOtherNames :many
+SELECT item_other_name_id, item_id, name_string FROM item_other_names
+WHERE item_id = $1
 `
 
-func (q *Queries) ListItems(ctx context.Context) ([]Item, error) {
+func (q *Queries) ListItemOtherNames(ctx context.Context, itemID uuid.UUID) ([]ItemOtherName, error) {
+	rows, err := q.db.QueryContext(ctx, listItemOtherNames, itemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ItemOtherName
+	for rows.Next() {
+		var i ItemOtherName
+		if err := rows.Scan(&i.ItemOtherNameID, &i.ItemID, &i.NameString); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listItems = `-- name: ListItems :many
+SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at, 
+       COALESCE(JSON_AGG(ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names
+FROM items i
+LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+WHERE i.deleted_at IS NULL
+GROUP BY i.item_id
+ORDER BY i.created_at DESC
+`
+
+type ListItemsRow struct {
+	ItemID          uuid.UUID       `json:"item_id"`
+	ItemDefaultName string          `json:"item_default_name"`
+	TypeID          uuid.NullUUID   `json:"type_id"`
+	IsActive        sql.NullBool    `json:"is_active"`
+	CreatedAt       sql.NullTime    `json:"created_at"`
+	UpdatedAt       sql.NullTime    `json:"updated_at"`
+	DeletedAt       sql.NullTime    `json:"deleted_at"`
+	ItemOtherNames  json.RawMessage `json:"item_other_names"`
+}
+
+func (q *Queries) ListItems(ctx context.Context) ([]ListItemsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listItems)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Item
+	var items []ListItemsRow
 	for rows.Next() {
-		var i Item
+		var i ListItemsRow
 		if err := rows.Scan(
 			&i.ItemID,
-			&i.ItemFormalName,
-			&i.ItemShortNames,
+			&i.ItemDefaultName,
 			&i.TypeID,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.ItemOtherNames,
 		); err != nil {
 			return nil, err
 		}
@@ -291,40 +377,32 @@ func (q *Queries) ListUnits(ctx context.Context) ([]Unit, error) {
 const patchItem = `-- name: PatchItem :one
 UPDATE items
 SET
-  item_formal_name = CASE
+  item_default_name = CASE
     WHEN $1::boolean THEN $2
-    ELSE item_formal_name
-  END,
-  item_short_names = CASE
-    WHEN $3::boolean THEN $4
-    ELSE item_short_names
+    ELSE item_default_name
   END,
   type_id = CASE
-    WHEN $5::boolean THEN $6
+    WHEN $3::boolean THEN $4
     ELSE type_id
   END,
   updated_at = NOW()
-WHERE item_id = $7
+WHERE item_id = $5
 AND deleted_at IS NULL
-RETURNING item_id, item_formal_name, item_short_names, type_id, is_active, created_at, updated_at, deleted_at
+RETURNING item_id, item_default_name, type_id, is_active, created_at, updated_at, deleted_at
 `
 
 type PatchItemParams struct {
-	SetItemFormalName bool                  `json:"set_item_formal_name"`
-	ItemFormalName    string                `json:"item_formal_name"`
-	SetItemShortNames bool                  `json:"set_item_short_names"`
-	ItemShortNames    pqtype.NullRawMessage `json:"item_short_names"`
-	SetTypeID         bool                  `json:"set_type_id"`
-	TypeID            uuid.NullUUID         `json:"type_id"`
-	ItemID            uuid.UUID             `json:"item_id"`
+	SetItemDefaultName bool          `json:"set_item_default_name"`
+	ItemDefaultName    string        `json:"item_default_name"`
+	SetTypeID          bool          `json:"set_type_id"`
+	TypeID             uuid.NullUUID `json:"type_id"`
+	ItemID             uuid.UUID     `json:"item_id"`
 }
 
 func (q *Queries) PatchItem(ctx context.Context, arg PatchItemParams) (Item, error) {
 	row := q.db.QueryRowContext(ctx, patchItem,
-		arg.SetItemFormalName,
-		arg.ItemFormalName,
-		arg.SetItemShortNames,
-		arg.ItemShortNames,
+		arg.SetItemDefaultName,
+		arg.ItemDefaultName,
 		arg.SetTypeID,
 		arg.TypeID,
 		arg.ItemID,
@@ -332,8 +410,7 @@ func (q *Queries) PatchItem(ctx context.Context, arg PatchItemParams) (Item, err
 	var i Item
 	err := row.Scan(
 		&i.ItemID,
-		&i.ItemFormalName,
-		&i.ItemShortNames,
+		&i.ItemDefaultName,
 		&i.TypeID,
 		&i.IsActive,
 		&i.CreatedAt,
@@ -432,51 +509,68 @@ func (q *Queries) PatchUnit(ctx context.Context, arg PatchUnitParams) (Unit, err
 }
 
 const searchItems = `-- name: SearchItems :many
-SELECT item_id, item_formal_name, item_short_names, type_id, is_active, created_at, updated_at, deleted_at FROM items
-WHERE deleted_at IS NULL
+SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at,
+       COALESCE(JSON_AGG(ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names
+FROM items i
+LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+WHERE i.deleted_at IS NULL
 AND (
-  -- ILIKE and trigram similarity can use pg_trgm index on item_formal_name
-  item_formal_name ILIKE '%' || $1 || '%'
-  OR item_formal_name % $1
-  -- Exact short-name match on JSONB array can use GIN index
-  OR (my_unaccent(item_short_names::text)) ILIKE '%' || my_unaccent($1) || '%' -- Note: Make JsonB into part treat it as text for index usage
+  -- ILIKE and trigram similarity can use pg_trgm index on item_default_name
+  my_unaccent(i.item_default_name) ILIKE '%' || my_unaccent($1) || '%'
+  OR my_unaccent(i.item_default_name) % my_unaccent($1)
+  -- Exact search on other names
+  OR EXISTS (
+    SELECT 1 FROM item_other_names ion2 
+    WHERE ion2.item_id = i.item_id 
+    AND my_unaccent(ion2.name_string) ILIKE '%' || my_unaccent($1) || '%'
+  )
 )
+GROUP BY i.item_id
 ORDER BY
-  -- Rank exact formal-name match highest
-  CASE WHEN item_formal_name = $1 THEN 0 ELSE 1 END,
+  -- Rank exact default-name match highest
+  CASE WHEN my_unaccent(i.item_default_name) = my_unaccent($1) THEN 0 ELSE 1 END,
   -- Then prefix match
-  CASE WHEN item_formal_name ILIKE $1 || '%' THEN 0 ELSE 1 END,
-  -- Then exact short-name match
-  CASE WHEN (my_unaccent(item_short_names::text)) ILIKE '%' || my_unaccent($1) || '%' THEN 0 ELSE 1 END,
-  -- Then fuzzy relevance for remaining formal-name matches
-  similarity(item_formal_name, $1) DESC,
-  created_at DESC
+  CASE WHEN my_unaccent(i.item_default_name) ILIKE my_unaccent($1) || '%' THEN 0 ELSE 1 END,
+  -- Then fuzzy relevance for remaining default-name matches
+  similarity(my_unaccent(i.item_default_name), my_unaccent($1)) DESC,
+  i.created_at DESC
 LIMIT $2
 `
 
 type SearchItemsParams struct {
-	Column1 sql.NullString `json:"column_1"`
-	Limit   int32          `json:"limit"`
+	MyUnaccent string `json:"my_unaccent"`
+	Limit      int32  `json:"limit"`
 }
 
-func (q *Queries) SearchItems(ctx context.Context, arg SearchItemsParams) ([]Item, error) {
-	rows, err := q.db.QueryContext(ctx, searchItems, arg.Column1, arg.Limit)
+type SearchItemsRow struct {
+	ItemID          uuid.UUID       `json:"item_id"`
+	ItemDefaultName string          `json:"item_default_name"`
+	TypeID          uuid.NullUUID   `json:"type_id"`
+	IsActive        sql.NullBool    `json:"is_active"`
+	CreatedAt       sql.NullTime    `json:"created_at"`
+	UpdatedAt       sql.NullTime    `json:"updated_at"`
+	DeletedAt       sql.NullTime    `json:"deleted_at"`
+	ItemOtherNames  json.RawMessage `json:"item_other_names"`
+}
+
+func (q *Queries) SearchItems(ctx context.Context, arg SearchItemsParams) ([]SearchItemsRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchItems, arg.MyUnaccent, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Item
+	var items []SearchItemsRow
 	for rows.Next() {
-		var i Item
+		var i SearchItemsRow
 		if err := rows.Scan(
 			&i.ItemID,
-			&i.ItemFormalName,
-			&i.ItemShortNames,
+			&i.ItemDefaultName,
 			&i.TypeID,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.ItemOtherNames,
 		); err != nil {
 			return nil, err
 		}

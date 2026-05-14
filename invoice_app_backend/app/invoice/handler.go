@@ -227,7 +227,7 @@ func (h *InvoiceHandler) CreateLineItem(c *fiber.Ctx) error {
 	if req.ItemID != nil && (req.ItemNameSnapshot == nil || *req.ItemNameSnapshot == "") {
 		item, err := h.service.GetItemByID(context.Background(), itmID)
 		if err == nil {
-			req.ItemNameSnapshot = &item.ItemFormalName
+			req.ItemNameSnapshot = &item.ItemDefaultName
 		}
 	}
 	if req.UnitID != nil && (req.UnitNameSnapshot == nil || *req.UnitNameSnapshot == "") {

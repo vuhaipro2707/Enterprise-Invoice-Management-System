@@ -30,24 +30,47 @@ ORDER BY created_at DESC;
 
 -- name: CreateItem :one
 INSERT INTO items (
-  item_formal_name,
-  item_short_names,
+  item_default_name,
   type_id
 ) VALUES (
   $1,
-  $2,
-  $3
+  $2
 )
 RETURNING *;
 
+-- name: CreateItemOtherName :one
+INSERT INTO item_other_names (
+  item_id,
+  name_string
+) VALUES (
+  $1, $2
+)
+RETURNING *;
+
+-- name: ListItemOtherNames :many
+SELECT * FROM item_other_names
+WHERE item_id = $1;
+
+-- name: DeleteItemOtherName :exec
+DELETE FROM item_other_names
+WHERE item_other_name_id = $1;
+
 -- name: ListItems :many
-SELECT * FROM items
-WHERE deleted_at IS NULL
-ORDER BY created_at DESC;
+SELECT i.*, 
+       COALESCE(JSON_AGG(ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names
+FROM items i
+LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+WHERE i.deleted_at IS NULL
+GROUP BY i.item_id
+ORDER BY i.created_at DESC;
 
 -- name: GetItemByID :one
-SELECT * FROM items
-WHERE item_id = $1 AND deleted_at IS NULL;
+SELECT i.*,
+       COALESCE(JSON_AGG(ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names
+FROM items i
+LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+WHERE i.item_id = $1 AND i.deleted_at IS NULL
+GROUP BY i.item_id;
 
 -- name: GetUnitByID :one
 SELECT * FROM units
@@ -60,37 +83,39 @@ WHERE unit_id = $2
 RETURNING *;
 
 -- name: SearchItems :many
-SELECT * FROM items
-WHERE deleted_at IS NULL
+SELECT i.*,
+       COALESCE(JSON_AGG(ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names
+FROM items i
+LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+WHERE i.deleted_at IS NULL
 AND (
-  -- ILIKE and trigram similarity can use pg_trgm index on item_formal_name
-  item_formal_name ILIKE '%' || $1 || '%'
-  OR item_formal_name % $1
-  -- Exact short-name match on JSONB array can use GIN index
-  OR (my_unaccent(item_short_names::text)) ILIKE '%' || my_unaccent($1) || '%' -- Note: Make JsonB into part treat it as text for index usage
+  -- ILIKE and trigram similarity can use pg_trgm index on item_default_name
+  my_unaccent(i.item_default_name) ILIKE '%' || my_unaccent($1) || '%'
+  OR my_unaccent(i.item_default_name) % my_unaccent($1)
+  -- Exact search on other names
+  OR EXISTS (
+    SELECT 1 FROM item_other_names ion2 
+    WHERE ion2.item_id = i.item_id 
+    AND my_unaccent(ion2.name_string) ILIKE '%' || my_unaccent($1) || '%'
+  )
 )
+GROUP BY i.item_id
 ORDER BY
-  -- Rank exact formal-name match highest
-  CASE WHEN item_formal_name = $1 THEN 0 ELSE 1 END,
+  -- Rank exact default-name match highest
+  CASE WHEN my_unaccent(i.item_default_name) = my_unaccent($1) THEN 0 ELSE 1 END,
   -- Then prefix match
-  CASE WHEN item_formal_name ILIKE $1 || '%' THEN 0 ELSE 1 END,
-  -- Then exact short-name match
-  CASE WHEN (my_unaccent(item_short_names::text)) ILIKE '%' || my_unaccent($1) || '%' THEN 0 ELSE 1 END,
-  -- Then fuzzy relevance for remaining formal-name matches
-  similarity(item_formal_name, $1) DESC,
-  created_at DESC
+  CASE WHEN my_unaccent(i.item_default_name) ILIKE my_unaccent($1) || '%' THEN 0 ELSE 1 END,
+  -- Then fuzzy relevance for remaining default-name matches
+  similarity(my_unaccent(i.item_default_name), my_unaccent($1)) DESC,
+  i.created_at DESC
 LIMIT $2;
 
 -- name: PatchItem :one
 UPDATE items
 SET
-  item_formal_name = CASE
-    WHEN sqlc.arg(set_item_formal_name)::boolean THEN sqlc.arg(item_formal_name)
-    ELSE item_formal_name
-  END,
-  item_short_names = CASE
-    WHEN sqlc.arg(set_item_short_names)::boolean THEN sqlc.narg(item_short_names)
-    ELSE item_short_names
+  item_default_name = CASE
+    WHEN sqlc.arg(set_item_default_name)::boolean THEN sqlc.arg(item_default_name)
+    ELSE item_default_name
   END,
   type_id = CASE
     WHEN sqlc.arg(set_type_id)::boolean THEN sqlc.narg(type_id)

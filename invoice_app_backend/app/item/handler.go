@@ -55,28 +55,28 @@ func splitPatchKeys(body map[string]json.RawMessage, allowed map[string]struct{}
 // example request body for CreateItem:
 //
 //	{
-//	    "itemFormalName": "Example Item",
-//	    "itemShortNames": ["ExItem", "Example"],
+//	    "itemDefaultName": "Example Item",
+//	    "itemOtherNames": ["ExItem", "Example"],
 //	    "typeId": "optional-type-uuid",
 //	    "unitId": "optional-unit-uuid"
 //	}
 func (h *ItemHandler) CreateItem(c *fiber.Ctx) error {
 	type createItemRequest struct {
-		ItemFormalName string   `json:"itemFormalName"`
-		ItemShortNames []string `json:"itemShortNames"`
-		TypeID         string   `json:"typeId"`
+		ItemDefaultName string   `json:"itemDefaultName"`
+		ItemOtherNames  []string `json:"itemOtherNames"`
+		TypeID          string   `json:"typeId"`
 	}
 
 	var req createItemRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required keys: itemFormalName, itemShortNames, typeId(optional)"})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required keys: itemDefaultName, itemOtherNames, typeId(optional)"})
 	}
 
-	if req.ItemFormalName == "" || len(req.ItemShortNames) == 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: itemFormalName, itemShortNames, typeId(optional)"})
+	if req.ItemDefaultName == "" || len(req.ItemOtherNames) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: itemDefaultName, itemOtherNames, typeId(optional)"})
 	}
 
-	item, err := h.service.CreateItem(context.Background(), req.ItemFormalName, req.ItemShortNames, req.TypeID)
+	item, err := h.service.CreateItem(context.Background(), req.ItemDefaultName, req.ItemOtherNames, req.TypeID)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Failed to create item. Please verify typeId/unitId are valid UUIDs and related records exist"})
 	}
@@ -93,8 +93,8 @@ func (h *ItemHandler) CreateItem(c *fiber.Ctx) error {
 //	    "data": [
 //	        {
 //	            "item_id": "item-uuid",
-//	            "item_formal_name": "Example Item",
-//	            "item_short_names": ["ExItem", "Example"],
+//	            "item_default_name": "Example Item",
+//	            "item_other_names": ["ExItem", "Example"],
 //	            "type_id": "optional-type-uuid",
 //	            "unit_id": "optional-unit-uuid"
 //	        },
@@ -118,7 +118,7 @@ func (h *ItemHandler) GetItems(c *fiber.Ctx) error {
 //	        {
 //	            "item_id": "item-uuid",
 //	            "item_formal_name": "Example Item",
-//	            "item_short_names": ["ExItem", "Example"],
+//	            "item_other_names": ["ExItem", "Example"],
 //	            "type_id": "optional-type-uuid",
 //	            "unit_id": "optional-unit-uuid"
 //	        },
@@ -131,9 +131,6 @@ func (h *ItemHandler) SearchItems(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Missing query parameter: keyword"})
 	}
 
-	replacer := strings.NewReplacer("[", "", "]", "", "\"", "", ",", "")
-	sanitizedKeyword := replacer.Replace(keyword) // JsonB of short names be treated as text, so remove special chars to improve search relevance
-
 	limitStr := c.Query("limit", "10")
 	parsedLimit, err := strconv.ParseInt(limitStr, 10, 32)
 	limit := int32(parsedLimit)
@@ -144,13 +141,13 @@ func (h *ItemHandler) SearchItems(c *fiber.Ctx) error {
 		limit = 100
 	}
 
-	items, err := h.service.SearchItems(context.Background(), sanitizedKeyword, limit)
+	items, err := h.service.SearchItems(context.Background(), keyword, limit)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to search items"})
 	}
 
 	if items == nil {
-		items = []sqlc.Item{}
+		items = []sqlc.SearchItemsRow{}
 	}
 
 	return c.Status(200).JSON(fiber.Map{"data": items})
@@ -267,6 +264,46 @@ func (h *ItemHandler) GetTypes(c *fiber.Ctx) error {
 	return c.Status(200).JSON(fiber.Map{"data": types})
 }
 
+func (h *ItemHandler) AddItemOtherName(c *fiber.Ctx) error {
+	type addOtherNameRequest struct {
+		NameString string `json:"nameString"`
+	}
+
+	itemID := c.Params("itemId")
+	var req addOtherNameRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required key: nameString"})
+	}
+
+	if req.NameString == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing required key: nameString"})
+	}
+
+	otherName, err := h.service.CreateItemOtherName(context.Background(), itemID, req.NameString)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Failed to add other name. Verify itemId is a valid UUID"})
+	}
+
+	return c.Status(201).JSON(fiber.Map{
+		"message": "Other name added successfully",
+		"data":    otherName,
+	})
+}
+
+func (h *ItemHandler) RemoveItemOtherName(c *fiber.Ctx) error {
+	otherNameID := c.Params("otherNameId")
+	if otherNameID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: otherNameId"})
+	}
+
+	err := h.service.DeleteItemOtherName(context.Background(), otherNameID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Failed to remove other name. Verify otherNameId is a valid UUID"})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Other name removed successfully"})
+}
+
 func (h *ItemHandler) PatchItem(c *fiber.Ctx) error {
 	itemID := c.Params("itemId")
 	if itemID == "" {
@@ -275,17 +312,16 @@ func (h *ItemHandler) PatchItem(c *fiber.Ctx) error {
 
 	body := map[string]json.RawMessage{}
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Allowed keys: itemFormalName, itemShortNames, typeId"})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Allowed keys: itemDefaultName, typeId"})
 	}
 
 	if len(body) == 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "No updatable keys provided. Allowed keys: itemFormalName, itemShortNames, typeId"})
+		return c.Status(400).JSON(fiber.Map{"error": "No updatable keys provided. Allowed keys: itemDefaultName, typeId"})
 	}
 
 	allowed := map[string]struct{}{
-		"itemFormalName": {},
-		"itemShortNames": {},
-		"typeId":         {},
+		"itemDefaultName": {},
+		"typeId":          {},
 	}
 
 	forbidden, unknown := splitPatchKeys(body, allowed)
@@ -298,34 +334,16 @@ func (h *ItemHandler) PatchItem(c *fiber.Ctx) error {
 
 	input := PatchItemInput{}
 
-	if raw, ok := body["itemFormalName"]; ok {
+	if raw, ok := body["itemDefaultName"]; ok {
 		var value string
 		if err := json.Unmarshal(raw, &value); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: itemFormalName (must be string)"})
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: itemDefaultName (must be string)"})
 		}
 		if strings.TrimSpace(value) == "" {
-			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: itemFormalName (must not be empty)"})
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: itemDefaultName (must not be empty)"})
 		}
-		input.SetItemFormalName = true
-		input.ItemFormalName = value
-	}
-
-	if raw, ok := body["itemShortNames"]; ok {
-		input.SetItemShortNames = true
-		if string(raw) == "null" {
-			input.ItemShortNamesSet = false
-		} else {
-			var value []string
-			if err := json.Unmarshal(raw, &value); err != nil {
-				return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: itemShortNames (must be array of strings or null)"})
-			}
-			shortNamesJSON, err := json.Marshal(value)
-			if err != nil {
-				return c.Status(400).JSON(fiber.Map{"error": "Failed to parse key: itemShortNames"})
-			}
-			input.ItemShortNames = shortNamesJSON
-			input.ItemShortNamesSet = true
-		}
+		input.SetItemDefaultName = true
+		input.ItemDefaultName = value
 	}
 
 	if raw, ok := body["typeId"]; ok {

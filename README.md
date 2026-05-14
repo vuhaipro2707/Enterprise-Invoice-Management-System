@@ -13,6 +13,10 @@ air init
 air
 ```
 
+Generate SQLC Code:
+```
+sqlc generate
+```
 
 Run Flutter Frontend Engine:
 

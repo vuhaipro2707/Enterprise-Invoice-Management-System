@@ -8,7 +8,6 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 )
 
 type Account struct {
@@ -58,14 +57,19 @@ type Invoice struct {
 }
 
 type Item struct {
-	ItemID         uuid.UUID             `json:"item_id"`
-	ItemFormalName string                `json:"item_formal_name"`
-	ItemShortNames pqtype.NullRawMessage `json:"item_short_names"`
-	TypeID         uuid.NullUUID         `json:"type_id"`
-	IsActive       sql.NullBool          `json:"is_active"`
-	CreatedAt      sql.NullTime          `json:"created_at"`
-	UpdatedAt      sql.NullTime          `json:"updated_at"`
-	DeletedAt      sql.NullTime          `json:"deleted_at"`
+	ItemID          uuid.UUID     `json:"item_id"`
+	ItemDefaultName string        `json:"item_default_name"`
+	TypeID          uuid.NullUUID `json:"type_id"`
+	IsActive        sql.NullBool  `json:"is_active"`
+	CreatedAt       sql.NullTime  `json:"created_at"`
+	UpdatedAt       sql.NullTime  `json:"updated_at"`
+	DeletedAt       sql.NullTime  `json:"deleted_at"`
+}
+
+type ItemOtherName struct {
+	ItemOtherNameID uuid.UUID `json:"item_other_name_id"`
+	ItemID          uuid.UUID `json:"item_id"`
+	NameString      string    `json:"name_string"`
 }
 
 type LineItem struct {
@@ -84,6 +88,7 @@ type PrintQueue struct {
 	PrintJobID  uuid.UUID     `json:"print_job_id"`
 	InvoiceID   uuid.NullUUID `json:"invoice_id"`
 	PrintStatus interface{}   `json:"print_status"`
+	PrintType   interface{}   `json:"print_type"`
 	RetryCount  sql.NullInt32 `json:"retry_count"`
 	PriorityNum sql.NullInt32 `json:"priority_num"`
 	CreatedAt   sql.NullTime  `json:"created_at"`

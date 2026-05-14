@@ -22,7 +22,7 @@ func (s *InvoiceService) GetBuyerByID(ctx context.Context, id uuid.UUID) (sqlc.B
 	return s.Repo.GetBuyerByID(ctx, id)
 }
 
-func (s *InvoiceService) GetItemByID(ctx context.Context, id uuid.UUID) (sqlc.Item, error) {
+func (s *InvoiceService) GetItemByID(ctx context.Context, id uuid.UUID) (sqlc.GetItemByIDRow, error) {
 	return s.Repo.GetItemByID(ctx, id)
 }
 
@@ -129,7 +129,7 @@ func (s *InvoiceService) PatchBuyer(ctx context.Context, id uuid.UUID, input Pat
 		buyer.IDCardNumber = input.IDCardNumber
 	}
 
-	// We need a way to update the buyer. Since I don't have UpdateBuyer in SQLC yet, 
+	// We need a way to update the buyer. Since I don't have UpdateBuyer in SQLC yet,
 	// I should probably add it or use a generic update if available.
 	// For now, I'll assume I need to add it to db/queries/invoice.sql
 	return s.Repo.UpdateBuyer(ctx, sqlc.UpdateBuyerParams{
@@ -143,21 +143,21 @@ func (s *InvoiceService) PatchBuyer(ctx context.Context, id uuid.UUID, input Pat
 }
 
 type PatchInvoiceInput struct {
-	AccountID           uuid.NullUUID
-	SetAccountID        bool
-	BuyerID             uuid.NullUUID
-	SetBuyerID          bool
-	InvoiceCode         string
-	SetInvoiceCode      bool
-	DeviceHoldingID     sql.NullString
-	SetDeviceHoldingID  bool
-	EditStatus          sql.NullBool
-	SetEditStatus       bool
-	BuyerNameSnapshot   sql.NullString
-	SetBuyerNameSnapshot bool
-	AddressSnapshot     sql.NullString
-	SetAddressSnapshot   bool
-	PhoneNumberSnapshot sql.NullString
+	AccountID              uuid.NullUUID
+	SetAccountID           bool
+	BuyerID                uuid.NullUUID
+	SetBuyerID             bool
+	InvoiceCode            string
+	SetInvoiceCode         bool
+	DeviceHoldingID        sql.NullString
+	SetDeviceHoldingID     bool
+	EditStatus             sql.NullBool
+	SetEditStatus          bool
+	BuyerNameSnapshot      sql.NullString
+	SetBuyerNameSnapshot   bool
+	AddressSnapshot        sql.NullString
+	SetAddressSnapshot     bool
+	PhoneNumberSnapshot    sql.NullString
 	SetPhoneNumberSnapshot bool
 }
 
@@ -207,17 +207,17 @@ func (s *InvoiceService) PatchInvoice(ctx context.Context, id uuid.UUID, input P
 }
 
 type PatchLineItemInput struct {
-	ItemID           uuid.NullUUID
-	SetItemID        bool
-	UnitID           uuid.NullUUID
-	SetUnitID        bool
-	Quantity         int32
-	SetQuantity      bool
-	UnitPriceCustom  sql.NullInt64
-	SetUnitPriceCustom bool
-	ItemNameSnapshot sql.NullString
+	ItemID              uuid.NullUUID
+	SetItemID           bool
+	UnitID              uuid.NullUUID
+	SetUnitID           bool
+	Quantity            int32
+	SetQuantity         bool
+	UnitPriceCustom     sql.NullInt64
+	SetUnitPriceCustom  bool
+	ItemNameSnapshot    sql.NullString
 	SetItemNameSnapshot bool
-	UnitNameSnapshot sql.NullString
+	UnitNameSnapshot    sql.NullString
 	SetUnitNameSnapshot bool
 }
 

@@ -2,13 +2,10 @@ package item
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 
 	sqlc "invoice_backend/db/sqlc"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 )
 
 type ItemService struct {
@@ -16,13 +13,10 @@ type ItemService struct {
 }
 
 type PatchItemInput struct {
-	SetItemFormalName bool
-	ItemFormalName    string
-	SetItemShortNames bool
-	ItemShortNamesSet bool
-	ItemShortNames    []byte
-	SetTypeID         bool
-	TypeID            uuid.NullUUID
+	SetItemDefaultName bool
+	ItemDefaultName    string
+	SetTypeID          bool
+	TypeID             uuid.NullUUID
 }
 
 type PatchUnitInput struct {
@@ -51,15 +45,9 @@ func (s *ItemService) GetTypes(ctx context.Context) ([]sqlc.Type, error) {
 	return s.Repo.ListTypes(ctx)
 }
 
-func (s *ItemService) CreateItem(ctx context.Context, itemFormalName string, itemShortNames []string, typeID string) (sqlc.Item, error) {
-	shortNamesJSON, err := json.Marshal(itemShortNames)
-	if err != nil {
-		return sqlc.Item{}, err
-	}
-
+func (s *ItemService) CreateItem(ctx context.Context, itemDefaultName string, itemOtherNames []string, typeID string) (sqlc.Item, error) {
 	params := sqlc.CreateItemParams{
-		ItemFormalName: itemFormalName,
-		ItemShortNames: pqtype.NullRawMessage{RawMessage: shortNamesJSON, Valid: true},
+		ItemDefaultName: itemDefaultName,
 	}
 
 	if typeID != "" {
@@ -75,10 +63,22 @@ func (s *ItemService) CreateItem(ctx context.Context, itemFormalName string, ite
 		return sqlc.Item{}, err
 	}
 
+	// Insert other names
+	for _, name := range itemOtherNames {
+		_, err := s.Repo.CreateItemOtherName(ctx, sqlc.CreateItemOtherNameParams{
+			ItemID:     item.ItemID,
+			NameString: name,
+		})
+		if err != nil {
+			// TODO: In a real app, you might want a transaction here or handle partial success
+			return item, err
+		}
+	}
+
 	return item, nil
 }
 
-func (s *ItemService) GetItems(ctx context.Context) ([]sqlc.Item, error) {
+func (s *ItemService) GetItems(ctx context.Context) ([]sqlc.ListItemsRow, error) {
 	return s.Repo.ListItems(ctx)
 }
 
@@ -104,9 +104,9 @@ func (s *ItemService) GetUnits(ctx context.Context) ([]sqlc.Unit, error) {
 	return s.Repo.ListUnits(ctx)
 }
 
-func (s *ItemService) SearchItems(ctx context.Context, keyword string, limit int32) ([]sqlc.Item, error) {
+func (s *ItemService) SearchItems(ctx context.Context, keyword string, limit int32) ([]sqlc.SearchItemsRow, error) {
 	if keyword == "" {
-		return []sqlc.Item{}, nil
+		return []sqlc.SearchItemsRow{}, nil
 	}
 
 	// Default limit to 10 if not specified or invalid
@@ -115,11 +115,31 @@ func (s *ItemService) SearchItems(ctx context.Context, keyword string, limit int
 	}
 
 	params := sqlc.SearchItemsParams{
-		Column1: sql.NullString{String: keyword, Valid: true},
-		Limit:   limit,
+		MyUnaccent: keyword,
+		Limit:      limit,
 	}
 
 	return s.Repo.SearchItems(ctx, params)
+}
+
+func (s *ItemService) CreateItemOtherName(ctx context.Context, itemID string, nameString string) (sqlc.ItemOtherName, error) {
+	parsedItemID, err := uuid.Parse(itemID)
+	if err != nil {
+		return sqlc.ItemOtherName{}, err
+	}
+
+	return s.Repo.CreateItemOtherName(ctx, sqlc.CreateItemOtherNameParams{
+		ItemID:     parsedItemID,
+		NameString: nameString,
+	})
+}
+
+func (s *ItemService) DeleteItemOtherName(ctx context.Context, otherNameID string) error {
+	parsedID, err := uuid.Parse(otherNameID)
+	if err != nil {
+		return err
+	}
+	return s.Repo.DeleteItemOtherName(ctx, parsedID)
 }
 
 func (s *ItemService) PatchItem(ctx context.Context, itemID string, input PatchItemInput) (sqlc.Item, error) {
@@ -129,13 +149,11 @@ func (s *ItemService) PatchItem(ctx context.Context, itemID string, input PatchI
 	}
 
 	params := sqlc.PatchItemParams{
-		ItemID:            parsedItemID,
-		SetItemFormalName: input.SetItemFormalName,
-		ItemFormalName:    input.ItemFormalName,
-		SetItemShortNames: input.SetItemShortNames,
-		ItemShortNames:    pqtype.NullRawMessage{RawMessage: input.ItemShortNames, Valid: input.ItemShortNamesSet},
-		SetTypeID:         input.SetTypeID,
-		TypeID:            input.TypeID,
+		ItemID:             parsedItemID,
+		SetItemDefaultName: input.SetItemDefaultName,
+		ItemDefaultName:    input.ItemDefaultName,
+		SetTypeID:          input.SetTypeID,
+		TypeID:             input.TypeID,
 	}
 
 	return s.Repo.PatchItem(ctx, params)

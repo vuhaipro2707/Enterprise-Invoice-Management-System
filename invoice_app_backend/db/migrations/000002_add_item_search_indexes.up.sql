@@ -1,9 +1,4 @@
--- Trigram index for fuzzy search support (optional, requires pg_trgm extension)
--- This helps find items even with slight spelling differences
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX IF NOT EXISTS idx_items_formal_name_trgm ON items USING GIN(item_formal_name gin_trgm_ops);
-
-
 CREATE EXTENSION IF NOT EXISTS unaccent;
 
 CREATE OR REPLACE FUNCTION my_unaccent(text)
@@ -14,7 +9,19 @@ $BODY$
   LANGUAGE sql IMMUTABLE
   COST 1;
 
-CREATE INDEX IF NOT EXISTS idx_items_short_names_trgm_txt
-ON items
-USING gin ((my_unaccent(item_short_names::text)) gin_trgm_ops);
+-- Index for searching on default name (unaccent + trigram)
+CREATE INDEX IF NOT EXISTS idx_items_default_name_unaccent_trgm 
+ON items 
+USING gin ((my_unaccent(item_default_name)) gin_trgm_ops);
+
+-- Index for searching on other names (unaccent + trigram)
+CREATE INDEX IF NOT EXISTS idx_item_other_names_name_string_trgm
+ON item_other_names
+USING gin ((my_unaccent(name_string)) gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_buyers_name_unaccent_trgm 
+ON buyers 
+USING gin ((my_unaccent(buyer_name)) gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_buyers_phone ON buyers(phone_number) WHERE deleted_at IS NULL;
 
