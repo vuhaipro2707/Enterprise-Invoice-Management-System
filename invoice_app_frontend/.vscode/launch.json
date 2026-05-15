@@ -5,7 +5,10 @@
       "name": "Android Emulator",
       "request": "launch",
       "type": "dart",
-      "deviceId": "emulator"
+      "deviceId": "emulator-5554",
+      "env": {
+        "JAVA_HOME": "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
+      }
     },
     {
       "name": "Chrome Web",

@@ -82,6 +82,19 @@ func (s *ItemService) GetItems(ctx context.Context) ([]sqlc.ListItemsRow, error)
 	return s.Repo.ListItems(ctx)
 }
 
+func (s *ItemService) GetItemsFiltered(ctx context.Context, typeID *uuid.UUID, limit int32, offset int32, sortBy string, sortOrder string) ([]sqlc.ListItemsFilteredRow, error) {
+	params := sqlc.ListItemsFilteredParams{
+		LimitVal:  limit,
+		OffsetVal: offset,
+		SortBy:    sortBy,
+		SortOrder: sortOrder,
+	}
+	if typeID != nil {
+		params.TypeID = uuid.NullUUID{UUID: *typeID, Valid: true}
+	}
+	return s.Repo.ListItemsFiltered(ctx, params)
+}
+
 func (s *ItemService) CreateUnitForItem(ctx context.Context, itemID string, unitName string, unitPriceDefault *int64) (sqlc.Unit, error) {
 	parsedItemID, err := uuid.Parse(itemID)
 	if err != nil {
@@ -104,7 +117,7 @@ func (s *ItemService) GetUnits(ctx context.Context) ([]sqlc.Unit, error) {
 	return s.Repo.ListUnits(ctx)
 }
 
-func (s *ItemService) SearchItems(ctx context.Context, keyword string, limit int32) ([]sqlc.SearchItemsRow, error) {
+func (s *ItemService) SearchItems(ctx context.Context, keyword string, typeID *uuid.UUID, limit int32) ([]sqlc.SearchItemsRow, error) {
 	if keyword == "" {
 		return []sqlc.SearchItemsRow{}, nil
 	}
@@ -115,8 +128,12 @@ func (s *ItemService) SearchItems(ctx context.Context, keyword string, limit int
 	}
 
 	params := sqlc.SearchItemsParams{
-		MyUnaccent: keyword,
-		Limit:      limit,
+		Keyword:  keyword,
+		LimitVal: limit,
+	}
+
+	if typeID != nil {
+		params.TypeID = uuid.NullUUID{UUID: *typeID, Valid: true}
 	}
 
 	return s.Repo.SearchItems(ctx, params)

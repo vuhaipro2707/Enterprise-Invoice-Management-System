@@ -102,7 +102,34 @@ func (h *ItemHandler) CreateItem(c *fiber.Ctx) error {
 //	    ]
 //	}
 func (h *ItemHandler) GetItems(c *fiber.Ctx) error {
-	items, err := h.service.GetItems(context.Background())
+	typeIDStr := c.Query("typeId")
+	limitStr := c.Query("limit", "20")
+	offsetStr := c.Query("offset", "0")
+	sortBy := c.Query("sortBy", "")
+	sortOrder := c.Query("sortOrder", "asc")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	var typeID *uuid.UUID
+	if typeIDStr != "" {
+		parsedTypeID, err := uuid.Parse(typeIDStr)
+		if err == nil {
+			typeID = &parsedTypeID
+		}
+	}
+
+	items, err := h.service.GetItemsFiltered(context.Background(), typeID, int32(limit), int32(offset), sortBy, sortOrder)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to get items"})
 	}
@@ -131,6 +158,7 @@ func (h *ItemHandler) SearchItems(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Missing query parameter: keyword"})
 	}
 
+	typeIDStr := c.Query("typeId")
 	limitStr := c.Query("limit", "10")
 	parsedLimit, err := strconv.ParseInt(limitStr, 10, 32)
 	limit := int32(parsedLimit)
@@ -141,7 +169,15 @@ func (h *ItemHandler) SearchItems(c *fiber.Ctx) error {
 		limit = 100
 	}
 
-	items, err := h.service.SearchItems(context.Background(), keyword, limit)
+	var typeID *uuid.UUID
+	if typeIDStr != "" {
+		parsedTypeID, err := uuid.Parse(typeIDStr)
+		if err == nil {
+			typeID = &parsedTypeID
+		}
+	}
+
+	items, err := h.service.SearchItems(context.Background(), keyword, typeID, limit)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to search items"})
 	}

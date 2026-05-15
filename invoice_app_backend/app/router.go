@@ -35,7 +35,7 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	itemGroup.Patch("/unit/:unitId", itemHandler.PatchUnit)
 
 	itemGroup.Post("/type", itemHandler.CreateType)
-	itemGroup.Get("/type", itemHandler.GetTypes)
+	itemGroup.Get("/types", itemHandler.GetTypes)
 	itemGroup.Patch("/type/:typeId", itemHandler.PatchType)
 
 	invoiceGroup := app.Group("/invoice", auth.JWTMiddleware())

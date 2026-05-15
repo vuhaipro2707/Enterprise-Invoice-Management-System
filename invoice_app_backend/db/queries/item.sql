@@ -57,18 +57,30 @@ WHERE item_other_name_id = $1;
 
 -- name: ListItems :many
 SELECT i.*, 
-       COALESCE(JSON_AGG(ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names
+       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'unit_id', u.unit_id,
+         'unit_name', u.unit_name,
+         'unit_price_default', u.unit_price_default
+       )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+LEFT JOIN units u ON i.item_id = u.item_id AND u.deleted_at IS NULL
 WHERE i.deleted_at IS NULL
 GROUP BY i.item_id
 ORDER BY i.created_at DESC;
 
 -- name: GetItemByID :one
 SELECT i.*,
-       COALESCE(JSON_AGG(ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names
+       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'unit_id', u.unit_id,
+         'unit_name', u.unit_name,
+         'unit_price_default', u.unit_price_default
+       )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+LEFT JOIN units u ON i.item_id = u.item_id AND u.deleted_at IS NULL
 WHERE i.item_id = $1 AND i.deleted_at IS NULL
 GROUP BY i.item_id;
 
@@ -84,31 +96,38 @@ RETURNING *;
 
 -- name: SearchItems :many
 SELECT i.*,
-       COALESCE(JSON_AGG(ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names
+       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'unit_id', u.unit_id,
+         'unit_name', u.unit_name,
+         'unit_price_default', u.unit_price_default
+       )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+LEFT JOIN units u ON i.item_id = u.item_id AND u.deleted_at IS NULL
 WHERE i.deleted_at IS NULL
+AND (sqlc.narg('type_id')::UUID IS NULL OR i.type_id = sqlc.narg('type_id')::UUID)
 AND (
   -- ILIKE and trigram similarity can use pg_trgm index on item_default_name
-  my_unaccent(i.item_default_name) ILIKE '%' || my_unaccent($1) || '%'
-  OR my_unaccent(i.item_default_name) % my_unaccent($1)
+  my_unaccent(i.item_default_name) ILIKE '%' || my_unaccent(sqlc.arg('keyword')) || '%'
+  OR my_unaccent(i.item_default_name) % my_unaccent(sqlc.arg('keyword'))
   -- Exact search on other names
   OR EXISTS (
     SELECT 1 FROM item_other_names ion2 
     WHERE ion2.item_id = i.item_id 
-    AND my_unaccent(ion2.name_string) ILIKE '%' || my_unaccent($1) || '%'
+    AND my_unaccent(ion2.name_string) ILIKE '%' || my_unaccent(sqlc.arg('keyword')) || '%'
   )
 )
 GROUP BY i.item_id
 ORDER BY
   -- Rank exact default-name match highest
-  CASE WHEN my_unaccent(i.item_default_name) = my_unaccent($1) THEN 0 ELSE 1 END,
+  CASE WHEN my_unaccent(i.item_default_name) = my_unaccent(sqlc.arg('keyword')) THEN 0 ELSE 1 END,
   -- Then prefix match
-  CASE WHEN my_unaccent(i.item_default_name) ILIKE my_unaccent($1) || '%' THEN 0 ELSE 1 END,
+  CASE WHEN my_unaccent(i.item_default_name) ILIKE my_unaccent(sqlc.arg('keyword')) || '%' THEN 0 ELSE 1 END,
   -- Then fuzzy relevance for remaining default-name matches
-  similarity(my_unaccent(i.item_default_name), my_unaccent($1)) DESC,
+  similarity(my_unaccent(i.item_default_name), my_unaccent(sqlc.arg('keyword'))) DESC,
   i.created_at DESC
-LIMIT $2;
+LIMIT sqlc.arg('limit_val');
 
 -- name: PatchItem :one
 UPDATE items
@@ -157,3 +176,24 @@ SET
 WHERE type_id = sqlc.arg(type_id)
 AND deleted_at IS NULL
 RETURNING *;
+
+-- name: ListItemsFiltered :many
+SELECT i.*, 
+       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'unit_id', u.unit_id,
+         'unit_name', u.unit_name,
+         'unit_price_default', u.unit_price_default
+       )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
+FROM items i
+LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+LEFT JOIN units u ON i.item_id = u.item_id AND u.deleted_at IS NULL
+WHERE i.deleted_at IS NULL
+AND (sqlc.narg('type_id')::UUID IS NULL OR i.type_id = sqlc.narg('type_id')::UUID)
+GROUP BY i.item_id
+ORDER BY 
+  CASE WHEN sqlc.arg('sort_by')::text = 'item_default_name' AND sqlc.arg('sort_order')::text = 'asc' THEN i.item_default_name END ASC,
+  CASE WHEN sqlc.arg('sort_by')::text = 'item_default_name' AND sqlc.arg('sort_order')::text = 'desc' THEN i.item_default_name END DESC,
+  i.created_at DESC
+LIMIT sqlc.arg('limit_val')
+OFFSET sqlc.arg('offset_val');

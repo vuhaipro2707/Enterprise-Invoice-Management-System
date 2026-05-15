@@ -164,9 +164,15 @@ func (q *Queries) DeleteItemOtherName(ctx context.Context, itemOtherNameID uuid.
 
 const getItemByID = `-- name: GetItemByID :one
 SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at,
-       COALESCE(JSON_AGG(ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names
+       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'unit_id', u.unit_id,
+         'unit_name', u.unit_name,
+         'unit_price_default', u.unit_price_default
+       )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+LEFT JOIN units u ON i.item_id = u.item_id AND u.deleted_at IS NULL
 WHERE i.item_id = $1 AND i.deleted_at IS NULL
 GROUP BY i.item_id
 `
@@ -180,6 +186,7 @@ type GetItemByIDRow struct {
 	UpdatedAt       sql.NullTime    `json:"updated_at"`
 	DeletedAt       sql.NullTime    `json:"deleted_at"`
 	ItemOtherNames  json.RawMessage `json:"item_other_names"`
+	Units           json.RawMessage `json:"units"`
 }
 
 func (q *Queries) GetItemByID(ctx context.Context, itemID uuid.UUID) (GetItemByIDRow, error) {
@@ -194,6 +201,7 @@ func (q *Queries) GetItemByID(ctx context.Context, itemID uuid.UUID) (GetItemByI
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.ItemOtherNames,
+		&i.Units,
 	)
 	return i, err
 }
@@ -249,9 +257,15 @@ func (q *Queries) ListItemOtherNames(ctx context.Context, itemID uuid.UUID) ([]I
 
 const listItems = `-- name: ListItems :many
 SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at, 
-       COALESCE(JSON_AGG(ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names
+       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'unit_id', u.unit_id,
+         'unit_name', u.unit_name,
+         'unit_price_default', u.unit_price_default
+       )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+LEFT JOIN units u ON i.item_id = u.item_id AND u.deleted_at IS NULL
 WHERE i.deleted_at IS NULL
 GROUP BY i.item_id
 ORDER BY i.created_at DESC
@@ -266,6 +280,7 @@ type ListItemsRow struct {
 	UpdatedAt       sql.NullTime    `json:"updated_at"`
 	DeletedAt       sql.NullTime    `json:"deleted_at"`
 	ItemOtherNames  json.RawMessage `json:"item_other_names"`
+	Units           json.RawMessage `json:"units"`
 }
 
 func (q *Queries) ListItems(ctx context.Context) ([]ListItemsRow, error) {
@@ -286,6 +301,88 @@ func (q *Queries) ListItems(ctx context.Context) ([]ListItemsRow, error) {
 			&i.UpdatedAt,
 			&i.DeletedAt,
 			&i.ItemOtherNames,
+			&i.Units,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listItemsFiltered = `-- name: ListItemsFiltered :many
+SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at, 
+       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'unit_id', u.unit_id,
+         'unit_name', u.unit_name,
+         'unit_price_default', u.unit_price_default
+       )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
+FROM items i
+LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+LEFT JOIN units u ON i.item_id = u.item_id AND u.deleted_at IS NULL
+WHERE i.deleted_at IS NULL
+AND ($1::UUID IS NULL OR i.type_id = $1::UUID)
+GROUP BY i.item_id
+ORDER BY 
+  CASE WHEN $2::text = 'item_default_name' AND $3::text = 'asc' THEN i.item_default_name END ASC,
+  CASE WHEN $2::text = 'item_default_name' AND $3::text = 'desc' THEN i.item_default_name END DESC,
+  i.created_at DESC
+LIMIT $5
+OFFSET $4
+`
+
+type ListItemsFilteredParams struct {
+	TypeID    uuid.NullUUID `json:"type_id"`
+	SortBy    string        `json:"sort_by"`
+	SortOrder string        `json:"sort_order"`
+	OffsetVal int32         `json:"offset_val"`
+	LimitVal  int32         `json:"limit_val"`
+}
+
+type ListItemsFilteredRow struct {
+	ItemID          uuid.UUID       `json:"item_id"`
+	ItemDefaultName string          `json:"item_default_name"`
+	TypeID          uuid.NullUUID   `json:"type_id"`
+	IsActive        sql.NullBool    `json:"is_active"`
+	CreatedAt       sql.NullTime    `json:"created_at"`
+	UpdatedAt       sql.NullTime    `json:"updated_at"`
+	DeletedAt       sql.NullTime    `json:"deleted_at"`
+	ItemOtherNames  json.RawMessage `json:"item_other_names"`
+	Units           json.RawMessage `json:"units"`
+}
+
+func (q *Queries) ListItemsFiltered(ctx context.Context, arg ListItemsFilteredParams) ([]ListItemsFilteredRow, error) {
+	rows, err := q.db.QueryContext(ctx, listItemsFiltered,
+		arg.TypeID,
+		arg.SortBy,
+		arg.SortOrder,
+		arg.OffsetVal,
+		arg.LimitVal,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListItemsFilteredRow
+	for rows.Next() {
+		var i ListItemsFilteredRow
+		if err := rows.Scan(
+			&i.ItemID,
+			&i.ItemDefaultName,
+			&i.TypeID,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ItemOtherNames,
+			&i.Units,
 		); err != nil {
 			return nil, err
 		}
@@ -510,36 +607,44 @@ func (q *Queries) PatchUnit(ctx context.Context, arg PatchUnitParams) (Unit, err
 
 const searchItems = `-- name: SearchItems :many
 SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at,
-       COALESCE(JSON_AGG(ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names
+       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'unit_id', u.unit_id,
+         'unit_name', u.unit_name,
+         'unit_price_default', u.unit_price_default
+       )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+LEFT JOIN units u ON i.item_id = u.item_id AND u.deleted_at IS NULL
 WHERE i.deleted_at IS NULL
+AND ($1::UUID IS NULL OR i.type_id = $1::UUID)
 AND (
   -- ILIKE and trigram similarity can use pg_trgm index on item_default_name
-  my_unaccent(i.item_default_name) ILIKE '%' || my_unaccent($1) || '%'
-  OR my_unaccent(i.item_default_name) % my_unaccent($1)
+  my_unaccent(i.item_default_name) ILIKE '%' || my_unaccent($2) || '%'
+  OR my_unaccent(i.item_default_name) % my_unaccent($2)
   -- Exact search on other names
   OR EXISTS (
     SELECT 1 FROM item_other_names ion2 
     WHERE ion2.item_id = i.item_id 
-    AND my_unaccent(ion2.name_string) ILIKE '%' || my_unaccent($1) || '%'
+    AND my_unaccent(ion2.name_string) ILIKE '%' || my_unaccent($2) || '%'
   )
 )
 GROUP BY i.item_id
 ORDER BY
   -- Rank exact default-name match highest
-  CASE WHEN my_unaccent(i.item_default_name) = my_unaccent($1) THEN 0 ELSE 1 END,
+  CASE WHEN my_unaccent(i.item_default_name) = my_unaccent($2) THEN 0 ELSE 1 END,
   -- Then prefix match
-  CASE WHEN my_unaccent(i.item_default_name) ILIKE my_unaccent($1) || '%' THEN 0 ELSE 1 END,
+  CASE WHEN my_unaccent(i.item_default_name) ILIKE my_unaccent($2) || '%' THEN 0 ELSE 1 END,
   -- Then fuzzy relevance for remaining default-name matches
-  similarity(my_unaccent(i.item_default_name), my_unaccent($1)) DESC,
+  similarity(my_unaccent(i.item_default_name), my_unaccent($2)) DESC,
   i.created_at DESC
-LIMIT $2
+LIMIT $3
 `
 
 type SearchItemsParams struct {
-	MyUnaccent string `json:"my_unaccent"`
-	Limit      int32  `json:"limit"`
+	TypeID   uuid.NullUUID `json:"type_id"`
+	Keyword  string        `json:"keyword"`
+	LimitVal int32         `json:"limit_val"`
 }
 
 type SearchItemsRow struct {
@@ -551,10 +656,11 @@ type SearchItemsRow struct {
 	UpdatedAt       sql.NullTime    `json:"updated_at"`
 	DeletedAt       sql.NullTime    `json:"deleted_at"`
 	ItemOtherNames  json.RawMessage `json:"item_other_names"`
+	Units           json.RawMessage `json:"units"`
 }
 
 func (q *Queries) SearchItems(ctx context.Context, arg SearchItemsParams) ([]SearchItemsRow, error) {
-	rows, err := q.db.QueryContext(ctx, searchItems, arg.MyUnaccent, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, searchItems, arg.TypeID, arg.Keyword, arg.LimitVal)
 	if err != nil {
 		return nil, err
 	}
@@ -571,6 +677,7 @@ func (q *Queries) SearchItems(ctx context.Context, arg SearchItemsParams) ([]Sea
 			&i.UpdatedAt,
 			&i.DeletedAt,
 			&i.ItemOtherNames,
+			&i.Units,
 		); err != nil {
 			return nil, err
 		}

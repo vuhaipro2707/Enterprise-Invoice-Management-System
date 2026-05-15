@@ -110,3 +110,4 @@ func (h *AuthHandler) GetCurrentUser(c *fiber.Ctx) error {
 		"updated_at": user.UpdatedAt,
 	})
 }
+

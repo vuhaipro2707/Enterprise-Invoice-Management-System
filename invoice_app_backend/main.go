@@ -85,6 +85,18 @@ func main() {
 
 	app := fiber.New()
 
+	// 4. Setup CORS Middleware
+	app.Use(func(c *fiber.Ctx) error {
+		c.Set("Access-Control-Allow-Origin", "*")
+		c.Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS")
+		c.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Device-Holding-ID")
+		
+		if c.Method() == "OPTIONS" {
+			return c.SendStatus(204)
+		}
+		return c.Next()
+	})
+
 	app.Get("/ping", func(c *fiber.Ctx) error {
 		return c.Status(200).JSON(fiber.Map{
 			"message": "Backend Go đã sẵn sàng!",
