@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
+import '../../services/theme_provider.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final List<Map<String, dynamic>> menuItems = [
       {'title': 'Quản lý Mặt hàng', 'icon': Icons.inventory, 'color': Colors.orange},
-      {'title': 'Quản lý Đơn vị', 'icon': Icons.straighten, 'color': Colors.blue},
       {'title': 'Quản lý Người mua', 'icon': Icons.people, 'color': Colors.green},
       {'title': 'Quản lý Hóa đơn', 'icon': Icons.description, 'color': Colors.red},
       {'title': 'Quản lý Thiết bị', 'icon': Icons.devices, 'color': Colors.purple},
@@ -18,6 +20,11 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
+          IconButton(
+            icon: Icon(themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode),
+            onPressed: () => themeProvider.toggleTheme(),
+            tooltip: 'Chế độ sáng/tối',
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -50,6 +57,8 @@ class DashboardScreen extends StatelessWidget {
                       Navigator.pushNamed(context, '/device_management');
                     } else if (item['title'] == 'Quản lý Mặt hàng') {
                       Navigator.pushNamed(context, '/item_management');
+                    } else if (item['title'] == 'Quản lý Người mua') {
+                      Navigator.pushNamed(context, '/buyer_management');
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Chức năng ${item['title']} đang phát triển')),

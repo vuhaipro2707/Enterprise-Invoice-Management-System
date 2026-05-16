@@ -17,8 +17,10 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   final _otherNameInputController = TextEditingController();
-  late List<String> _otherNames;
+  late List<Map<String, dynamic>> _otherNames;
   final List<Map<String, dynamic>> _units = [];
+  final List<String> _removedOtherNameIds = [];
+  final List<String> _removedUnitIds = [];
   
   String? _selectedTypeId;
   String? _selectedTypeName;
@@ -30,7 +32,14 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.item['item_default_name']);
-    _otherNames = List<String>.from(widget.item['item_other_names'] ?? []);
+    
+    // Khởi tạo tên gọi khác kèm ID
+    final rawOtherNames = widget.item['item_other_names'] as List? ?? [];
+    _otherNames = rawOtherNames.map((e) {
+      if (e is String) return {'item_other_name_id': null, 'name_string': e};
+      return Map<String, dynamic>.from(e);
+    }).toList();
+
     _selectedTypeId = widget.item['type_id'];
     
     // Khởi tạo các đơn vị từ dữ liệu có sẵn
@@ -88,6 +97,10 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
   void _removeUnit(int index) {
     setState(() {
+      final unitId = _units[index]['unit_id'];
+      if (unitId != null) {
+        _removedUnitIds.add(unitId);
+      }
       _units[index]['nameController'].dispose();
       _units[index]['priceController'].dispose();
       _units.removeAt(index);
@@ -96,17 +109,20 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
   void _addOtherName(String name) {
     final trimmed = name.trim();
-    if (trimmed.isNotEmpty && !_otherNames.contains(trimmed)) {
+    if (trimmed.isNotEmpty && !_otherNames.any((e) => e['name_string'] == trimmed)) {
       setState(() {
-        _otherNames.add(trimmed);
+        _otherNames.add({'item_other_name_id': null, 'name_string': trimmed});
         _otherNameInputController.clear();
       });
     }
   }
 
-  void _removeOtherName(String name) {
+  void _removeOtherName(Map<String, dynamic> otherName) {
     setState(() {
-      _otherNames.remove(name);
+      if (otherName['item_other_name_id'] != null) {
+        _removedOtherNameIds.add(otherName['item_other_name_id']);
+      }
+      _otherNames.remove(otherName);
     });
   }
 
@@ -159,19 +175,24 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         await ApiService().patchItem(itemId, itemUpdate);
       }
 
-      // 2. Cập nhật "Tên gọi khác" (Vì API là Add/Remove lẻ, ta so sánh list)
-      final List<String> originalOtherNames = List<String>.from(widget.item['item_other_names'] ?? []);
-      
-      // Tìm những cái mới để Add
-      for (var name in _otherNames) {
-        if (!originalOtherNames.contains(name)) {
-          await ApiService().addItemOtherName(itemId, name);
+      // 2. Cập nhật "Tên gọi khác"
+      // Xóa các tên đã đánh dấu xóa
+      for (var id in _removedOtherNameIds) {
+        await ApiService().removeItemOtherName(id);
+      }
+      // Thêm những cái mới (không có ID)
+      for (var on in _otherNames) {
+        if (on['item_other_name_id'] == null) {
+          await ApiService().addItemOtherName(itemId, on['name_string']);
         }
       }
-      // TODO: Nếu backend có API lấy list OtherName kèm ID thì mới gọi Remove chính xác được.
-      // Hiện tại ta ưu tiên Add cái mới.
 
       // 3. Cập nhật các đơn vị tính
+      // Xóa các đơn vị đã đánh dấu xóa
+      for (var id in _removedUnitIds) {
+        await ApiService().deleteUnit(id);
+      }
+
       final List<dynamic> originalUnits = widget.item['units'] as List? ?? [];
 
       for (var unit in _units) {
@@ -271,9 +292,9 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             Wrap(
               spacing: 8.0,
               children: [
-                ..._otherNames.map((name) => Chip(
-                      label: Text(name),
-                      onDeleted: () => _removeOtherName(name),
+                ..._otherNames.map((on) => Chip(
+                      label: Text(on['name_string']),
+                      onDeleted: () => _removeOtherName(on),
                     )),
                 SizedBox(
                   width: 150,
@@ -309,8 +330,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                         _selectedTypeName ?? 'Chọn loại hàng',
                         style: TextStyle(
                           color: _selectedTypeName == null
-                              ? Colors.grey.shade600
-                              : Colors.black,
+                              ? Theme.of(context).colorScheme.onSurfaceVariant
+                              : Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
               ),
@@ -372,12 +393,10 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             ElevatedButton.icon(
               onPressed: _isSaving ? null : _saveChanges,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
                 minimumSize: const Size(double.infinity, 50),
               ),
               icon: _isSaving 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.save),
               label: const Text('Cập nhật thay đổi'),
             ),

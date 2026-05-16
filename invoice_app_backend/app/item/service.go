@@ -209,3 +209,11 @@ func (s *ItemService) PatchType(ctx context.Context, typeID string, input PatchT
 
 	return s.Repo.PatchType(ctx, params)
 }
+
+func (s *ItemService) DeleteUnit(ctx context.Context, unitID string) error {
+	parsedUUID, err := uuid.Parse(unitID)
+	if err != nil {
+		return err
+	}
+	return s.Repo.DeleteUnit(ctx, parsedUUID)
+}

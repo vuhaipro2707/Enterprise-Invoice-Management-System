@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	sqlc "invoice_backend/db/sqlc"
+	"os"
 
 	"github.com/google/uuid"
 )
@@ -16,6 +17,10 @@ func NewInvoiceService(repo *sqlc.Queries) *InvoiceService {
 	return &InvoiceService{
 		Repo: repo,
 	}
+}
+
+func (s *InvoiceService) GetGoogleMapsAPIKey() string {
+	return os.Getenv("GOOGLE_MAPS_API_KEY")
 }
 
 func (s *InvoiceService) GetBuyerByID(ctx context.Context, id uuid.UUID) (sqlc.Buyer, error) {
@@ -34,15 +39,24 @@ func (s *InvoiceService) GetInvoiceByID(ctx context.Context, id uuid.UUID) (sqlc
 	return s.Repo.GetInvoiceByID(ctx, id)
 }
 
-func (s *InvoiceService) CreateBuyer(ctx context.Context, code, name string, address, phone, idCard *string) (sqlc.Buyer, error) {
+func (s *InvoiceService) CreateBuyer(ctx context.Context, code, name string, address, phone, idCard *string, lat, lng *float64) (sqlc.Buyer, error) {
 	arg := sqlc.CreateBuyerParams{
 		BuyerCode:    code,
 		BuyerName:    name,
 		Address:      sql.NullString{String: getString(address), Valid: address != nil},
 		PhoneNumber:  sql.NullString{String: getString(phone), Valid: phone != nil},
 		IDCardNumber: sql.NullString{String: getString(idCard), Valid: idCard != nil},
+		Lat:          sql.NullFloat64{Float64: getFloat64(lat), Valid: lat != nil},
+		Lng:          sql.NullFloat64{Float64: getFloat64(lng), Valid: lng != nil},
 	}
 	return s.Repo.CreateBuyer(ctx, arg)
+}
+
+func getFloat64(f *float64) float64 {
+	if f == nil {
+		return 0
+	}
+	return *f
 }
 
 func (s *InvoiceService) CreateInvoice(ctx context.Context, accountID uuid.UUID, buyerID uuid.NullUUID, code string, total int64, deviceID string, editStatus bool, buyerSnap, addrSnap, phoneSnap *string) (sqlc.Invoice, error) {
@@ -94,6 +108,24 @@ func (s *InvoiceService) GetDevice(ctx context.Context, deviceID string) (sqlc.D
 	return s.Repo.GetDeviceByID(ctx, deviceID)
 }
 
+func (s *InvoiceService) GetLastBuyerCode(ctx context.Context) (string, error) {
+	return s.Repo.GetLastBuyerCode(ctx)
+}
+
+func (s *InvoiceService) ListBuyers(ctx context.Context, limit, offset int32) ([]sqlc.Buyer, error) {
+	return s.Repo.ListBuyers(ctx, sqlc.ListBuyersParams{
+		Limit:  limit,
+		Offset: offset,
+	})
+}
+
+func (s *InvoiceService) SearchBuyers(ctx context.Context, keyword string, limit int32) ([]sqlc.Buyer, error) {
+	return s.Repo.SearchBuyers(ctx, sqlc.SearchBuyersParams{
+		Keyword: keyword,
+		Limit:   limit,
+	})
+}
+
 type PatchBuyerInput struct {
 	BuyerCode       string
 	SetBuyerCode    bool
@@ -105,6 +137,10 @@ type PatchBuyerInput struct {
 	SetPhoneNumber  bool
 	IDCardNumber    sql.NullString
 	SetIDCardNumber bool
+	Lat             sql.NullFloat64
+	SetLat          bool
+	Lng             sql.NullFloat64
+	SetLng          bool
 }
 
 func (s *InvoiceService) PatchBuyer(ctx context.Context, id uuid.UUID, input PatchBuyerInput) (sqlc.Buyer, error) {
@@ -128,10 +164,13 @@ func (s *InvoiceService) PatchBuyer(ctx context.Context, id uuid.UUID, input Pat
 	if input.SetIDCardNumber {
 		buyer.IDCardNumber = input.IDCardNumber
 	}
+	if input.SetLat {
+		buyer.Lat = input.Lat
+	}
+	if input.SetLng {
+		buyer.Lng = input.Lng
+	}
 
-	// We need a way to update the buyer. Since I don't have UpdateBuyer in SQLC yet,
-	// I should probably add it or use a generic update if available.
-	// For now, I'll assume I need to add it to db/queries/invoice.sql
 	return s.Repo.UpdateBuyer(ctx, sqlc.UpdateBuyerParams{
 		BuyerID:      buyer.BuyerID,
 		BuyerCode:    buyer.BuyerCode,
@@ -139,6 +178,8 @@ func (s *InvoiceService) PatchBuyer(ctx context.Context, id uuid.UUID, input Pat
 		Address:      buyer.Address,
 		PhoneNumber:  buyer.PhoneNumber,
 		IDCardNumber: buyer.IDCardNumber,
+		Lat:          buyer.Lat,
+		Lng:          buyer.Lng,
 	})
 }
 
@@ -264,6 +305,13 @@ func getString(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func getFloat(f *float64) float64 {
+	if f == nil {
+		return 0
+	}
+	return *f
 }
 
 func getInt64(i *int64) int64 {

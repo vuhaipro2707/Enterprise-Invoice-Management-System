@@ -562,3 +562,31 @@ func (h *ItemHandler) PatchType(c *fiber.Ctx) error {
 		"data":    typeData,
 	})
 }
+
+func (h *ItemHandler) DeleteUnit(c *fiber.Ctx) error {
+	unitID := c.Params("unitId")
+	if unitID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: unitId"})
+	}
+
+	err := h.service.DeleteUnit(context.Background(), unitID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Failed to delete unit"})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Unit deleted successfully"})
+}
+
+func (h *ItemHandler) DeleteItemOtherName(c *fiber.Ctx) error {
+	otherNameID := c.Params("otherNameId")
+	if otherNameID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: otherNameId"})
+	}
+
+	err := h.service.DeleteItemOtherName(context.Background(), otherNameID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Failed to delete other name"})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Other name deleted successfully"})
+}

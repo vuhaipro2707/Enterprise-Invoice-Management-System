@@ -15,7 +15,16 @@ class ItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final otherNames = (item['item_other_names'] as List?)?.join(', ') ?? '';
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    // Xử lý danh sách tên khác vì API đã thay đổi cấu trúc sang List<Map>
+    final rawOtherNames = item['item_other_names'] as List? ?? [];
+    final otherNamesStr = rawOtherNames.map((e) {
+      if (e is String) return e;
+      if (e is Map) return e['name_string'] ?? '';
+      return '';
+    }).where((s) => s.isNotEmpty).join(', ');
+
     final units = (item['units'] as List?) ?? [];
     
     // Tìm tên type từ list types đã fetch ở trên frontend
@@ -60,14 +69,14 @@ class ItemCard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
+                            color: colorScheme.secondaryContainer,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             typeName,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.blue.shade700,
+                              color: colorScheme.onSecondaryContainer,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -75,16 +84,14 @@ class ItemCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right, color: Colors.grey),
+                  Icon(Icons.chevron_right, color: colorScheme.outline),
                 ],
               ),
               const SizedBox(height: 12),
-              if (otherNames.isNotEmpty) ...[
+              if (otherNamesStr.isNotEmpty) ...[
                 Text(
-                  'Tên khác: $otherNames',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  'Tên khác: $otherNamesStr',
+                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
                 ),
                 const SizedBox(height: 8),
               ],
@@ -100,8 +107,8 @@ class ItemCard extends StatelessWidget {
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        border: Border.all(color: Colors.green.shade200),
+                        color: colorScheme.tertiaryContainer,
+                        border: Border.all(color: colorScheme.tertiary.withValues(alpha: 0.2)),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -109,18 +116,19 @@ class ItemCard extends StatelessWidget {
                         children: [
                           Text(
                             name,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
+                              color: colorScheme.onTertiaryContainer,
                             ),
                           ),
                           const SizedBox(width: 4),
                           Text(
                             '$formattedPriceđ',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 14,
+                              color: colorScheme.primary,
                               fontWeight: FontWeight.bold,
-                              color: Colors.green.shade700,
                             ),
                           ),
                         ],

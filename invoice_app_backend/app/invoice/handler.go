@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	sqlc "invoice_backend/db/sqlc"
+	"net/url"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -25,25 +26,27 @@ func NewInvoiceHandler(repo *sqlc.Queries) *InvoiceHandler {
 
 func (h *InvoiceHandler) CreateBuyer(c *fiber.Ctx) error {
 	type createBuyerRequest struct {
-		BuyerCode    string  `json:"buyerCode"`
-		BuyerName    string  `json:"buyerName"`
-		Address      *string `json:"address"`
-		PhoneNumber  *string `json:"phoneNumber"`
-		IdCardNumber *string `json:"idCardNumber"`
+		BuyerCode    string   `json:"buyerCode"`
+		BuyerName    string   `json:"buyerName"`
+		Address      *string  `json:"address"`
+		PhoneNumber  *string  `json:"phoneNumber"`
+		IdCardNumber *string  `json:"idCardNumber"`
+		Lat          *float64 `json:"lat"`
+		Lng          *float64 `json:"lng"`
 	}
 
 	var req createBuyerRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required keys: buyerCode, buyerName. Optional: address, phoneNumber, idCardNumber"})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required keys: buyerCode, buyerName. Optional: address, phoneNumber, idCardNumber, lat, lng"})
 	}
 
 	if req.BuyerCode == "" || req.BuyerName == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: buyerCode, buyerName, address(optional), phoneNumber(optional), idCardNumber(optional)"})
+		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: buyerCode, buyerName, address(optional), phoneNumber(optional), idCardNumber(optional), lat(optional), lng(optional)"})
 	}
 
-	buyer, err := h.service.CreateBuyer(context.Background(), req.BuyerCode, req.BuyerName, req.Address, req.PhoneNumber, req.IdCardNumber)
+	buyer, err := h.service.CreateBuyer(context.Background(), req.BuyerCode, req.BuyerName, req.Address, req.PhoneNumber, req.IdCardNumber, req.Lat, req.Lng)
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to create buyer: %v", err)})
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.Status(201).JSON(fiber.Map{
@@ -391,6 +394,212 @@ func (h *InvoiceHandler) CheckRegistered(c *fiber.Ctx) error {
 	})
 }
 
+func (h *InvoiceHandler) GetNextBuyerCode(c *fiber.Ctx) error {
+	lastCode, err := h.service.GetLastBuyerCode(context.Background())
+	if err != nil {
+		return c.Status(200).JSON(fiber.Map{"nextCode": "KH-001"})
+	}
+
+	// lastCode format example: "KH-005"
+	var num int
+	_, err = fmt.Sscanf(lastCode, "KH-%d", &num)
+	if err != nil {
+		return c.Status(200).JSON(fiber.Map{"nextCode": "KH-001"})
+	}
+
+	nextCode := fmt.Sprintf("KH-%03d", num+1)
+	return c.Status(200).JSON(fiber.Map{"nextCode": nextCode})
+}
+
+func (h *InvoiceHandler) GooglePlaceAutocomplete(c *fiber.Ctx) error {
+	keyword := c.Query("keyword")
+	sessionToken := c.Query("sessiontoken")
+	if keyword == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing query param: keyword"})
+	}
+
+	apiKey := h.service.GetGoogleMapsAPIKey()
+	if apiKey == "" {
+		return c.Status(500).JSON(fiber.Map{"error": "Google Maps API Key not configured on server"})
+	}
+
+	// Priority: Custom location (10.7449508, 106.6506517) with radius (around 30km)
+	googleUrl := fmt.Sprintf("https://maps.googleapis.com/maps/api/place/autocomplete/json?input=%s&key=%s&language=vi&components=country:vn&location=10.7449508,106.6506517&radius=30000", url.QueryEscape(keyword), apiKey)
+	if sessionToken != "" {
+		googleUrl += "&sessiontoken=" + url.QueryEscape(sessionToken)
+	}
+
+	agent := fiber.Get(googleUrl)
+	statusCode, body, errs := agent.Bytes()
+	if len(errs) > 0 {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to call Google API: %v", errs[0])})
+	}
+
+	if statusCode != 200 {
+		return c.Status(statusCode).Send(body)
+	}
+
+	var result map[string]interface{}
+	json.Unmarshal(body, &result)
+
+	// Enrich addresses in predictions
+	if predictions, ok := result["predictions"].([]interface{}); ok {
+		for _, p := range predictions {
+			if predMap, ok := p.(map[string]interface{}); ok {
+				// Enrich main description
+				if desc, ok := predMap["description"].(string); ok {
+					predMap["description"] = EnrichAddress(desc)
+				}
+				// Enrich structured_formatting.secondary_text
+				if structForm, ok := predMap["structured_formatting"].(map[string]interface{}); ok {
+					if secText, ok := structForm["secondary_text"].(string); ok {
+						structForm["secondary_text"] = EnrichAddress(secText)
+					}
+				}
+			}
+		}
+	}
+
+	return c.JSON(result)
+}
+
+func (h *InvoiceHandler) GooglePlaceDetails(c *fiber.Ctx) error {
+	placeID := c.Query("placeId")
+	sessionToken := c.Query("sessiontoken")
+	if placeID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing query param: placeId"})
+	}
+
+	apiKey := h.service.GetGoogleMapsAPIKey()
+	if apiKey == "" {
+		return c.Status(500).JSON(fiber.Map{"error": "Google Maps API Key not configured on server"})
+	}
+
+	googleUrl := fmt.Sprintf("https://maps.googleapis.com/maps/api/place/details/json?place_id=%s&fields=geometry&key=%s", url.QueryEscape(placeID), apiKey)
+	if sessionToken != "" {
+		googleUrl += "&sessiontoken=" + url.QueryEscape(sessionToken)
+	}
+
+	agent := fiber.Get(googleUrl)
+	statusCode, body, errs := agent.Bytes()
+	if len(errs) > 0 {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to call Google API: %v", errs[0])})
+	}
+
+	if statusCode != 200 {
+		return c.Status(statusCode).Send(body)
+	}
+
+	var result map[string]interface{}
+	json.Unmarshal(body, &result)
+	// Enrich address in details result
+	if result["status"] == "OK" {
+		if resultData, ok := result["result"].(map[string]interface{}); ok {
+			if formattedAddr, ok := resultData["formatted_address"].(string); ok {
+				resultData["formatted_address"] = EnrichAddress(formattedAddr)
+			}
+		}
+	}
+	return c.JSON(result)
+}
+
+func (h *InvoiceHandler) GetBuyers(c *fiber.Ctx) error {
+	limit := c.QueryInt("limit", 20)
+	offset := c.QueryInt("offset", 0)
+
+	buyers, err := h.service.ListBuyers(context.Background(), int32(limit), int32(offset))
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to list buyers: %v", err)})
+	}
+
+	if buyers == nil {
+		buyers = []sqlc.Buyer{}
+	}
+
+	resp := make([]fiber.Map, len(buyers))
+	for i, b := range buyers {
+		var addr, phone, idCard *string
+		var lat, lng *float64
+		if b.Address.Valid {
+			addr = &b.Address.String
+		}
+		if b.PhoneNumber.Valid {
+			phone = &b.PhoneNumber.String
+		}
+		if b.IDCardNumber.Valid {
+			idCard = &b.IDCardNumber.String
+		}
+		if b.Lat.Valid {
+			lat = &b.Lat.Float64
+		}
+		if b.Lng.Valid {
+			lng = &b.Lng.Float64
+		}
+		resp[i] = fiber.Map{
+			"buyer_id":       b.BuyerID,
+			"buyer_code":     b.BuyerCode,
+			"buyer_name":     b.BuyerName,
+			"address":        addr,
+			"phone_number":   phone,
+			"id_card_number": idCard,
+			"lat":            lat,
+			"lng":            lng,
+		}
+	}
+
+	return c.Status(200).JSON(resp)
+}
+
+func (h *InvoiceHandler) SearchBuyers(c *fiber.Ctx) error {
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing query param: keyword"})
+	}
+	limit := c.QueryInt("limit", 20)
+
+	buyers, err := h.service.SearchBuyers(context.Background(), keyword, int32(limit))
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to search buyers: %v", err)})
+	}
+
+	if buyers == nil {
+		buyers = []sqlc.Buyer{}
+	}
+
+	resp := make([]fiber.Map, len(buyers))
+	for i, b := range buyers {
+		var addr, phone, idCard *string
+		var lat, lng *float64
+		if b.Address.Valid {
+			addr = &b.Address.String
+		}
+		if b.PhoneNumber.Valid {
+			phone = &b.PhoneNumber.String
+		}
+		if b.IDCardNumber.Valid {
+			idCard = &b.IDCardNumber.String
+		}
+		if b.Lat.Valid {
+			lat = &b.Lat.Float64
+		}
+		if b.Lng.Valid {
+			lng = &b.Lng.Float64
+		}
+		resp[i] = fiber.Map{
+			"buyer_id":       b.BuyerID,
+			"buyer_code":     b.BuyerCode,
+			"buyer_name":     b.BuyerName,
+			"address":        addr,
+			"phone_number":   phone,
+			"id_card_number": idCard,
+			"lat":            lat,
+			"lng":            lng,
+		}
+	}
+
+	return c.Status(200).JSON(resp)
+}
+
 func (h *InvoiceHandler) PatchBuyer(c *fiber.Ctx) error {
 	buyerID := c.Params("buyerId")
 	if buyerID == "" {
@@ -408,6 +617,8 @@ func (h *InvoiceHandler) PatchBuyer(c *fiber.Ctx) error {
 		"address":      {},
 		"phoneNumber":  {},
 		"idCardNumber": {},
+		"lat":          {},
+		"lng":          {},
 	}
 
 	for key := range body {
@@ -446,6 +657,18 @@ func (h *InvoiceHandler) PatchBuyer(c *fiber.Ctx) error {
 		json.Unmarshal(raw, &val)
 		input.IDCardNumber = sql.NullString{String: getString(val), Valid: val != nil}
 		input.SetIDCardNumber = true
+	}
+	if raw, ok := body["lat"]; ok {
+		var val *float64
+		json.Unmarshal(raw, &val)
+		input.Lat = sql.NullFloat64{Float64: getFloat(val), Valid: val != nil}
+		input.SetLat = true
+	}
+	if raw, ok := body["lng"]; ok {
+		var val *float64
+		json.Unmarshal(raw, &val)
+		input.Lng = sql.NullFloat64{Float64: getFloat(val), Valid: val != nil}
+		input.SetLng = true
 	}
 
 	buyID, _ := uuid.Parse(buyerID)

@@ -209,7 +209,6 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
               decoration: const InputDecoration(
                 labelText: 'Tên mặt hàng *',
                 border: OutlineInputBorder(),
-                hintText: 'VD: Bia Tiger',
               ),
               validator: (value) =>
                   (value == null || value.isEmpty) ? 'Vui lòng nhập tên' : null,
@@ -258,8 +257,8 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
                         _selectedTypeName ?? 'Chọn loại hàng',
                         style: TextStyle(
                           color: _selectedTypeName == null
-                              ? Colors.grey.shade600
-                              : Colors.black,
+                              ? Theme.of(context).colorScheme.onSurfaceVariant
+                              : Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
               ),
@@ -282,11 +281,14 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
               ],
             ),
             if (_units.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.0),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Text(
                   'Bấm "Thêm đơn vị" để thêm giá bán (VD: Thùng, Lon, Cái)',
-                  style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
             ..._units.asMap().entries.map((entry) {
@@ -304,7 +306,6 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
                           controller: unit['nameController'],
                           decoration: const InputDecoration(
                             labelText: 'Đơn vị',
-                            hintText: 'Thùng',
                           ),
                           validator: (value) => (value == null || value.isEmpty)
                               ? 'Nhập tên đơn vị'
@@ -318,7 +319,6 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
                           controller: unit['priceController'],
                           decoration: const InputDecoration(
                             labelText: 'Giá mặc định',
-                            hintText: '300.000',
                           ),
                           keyboardType: TextInputType.number,
                           inputFormatters: [CurrencyInputFormatter()],
@@ -344,7 +344,6 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
             ? const Text('Đang lưu...')
             : const Text('Lưu mặt hàng'),
         icon: const Icon(Icons.save),
-        backgroundColor: Colors.blue,
       ),
     );
   }

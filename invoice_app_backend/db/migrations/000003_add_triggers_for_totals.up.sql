@@ -21,6 +21,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_calculate_line_item_subtotal ON line_items;
 CREATE TRIGGER trigger_calculate_line_item_subtotal
 BEFORE INSERT OR UPDATE OF quantity, unit_price_custom, unit_id ON line_items
 FOR EACH ROW EXECUTE FUNCTION calculate_line_item_subtotal();
@@ -49,6 +50,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_invoice_total_amount ON line_items;
 CREATE TRIGGER trigger_update_invoice_total_amount
 AFTER INSERT OR UPDATE OF sub_total OR DELETE ON line_items
 FOR EACH ROW EXECUTE FUNCTION update_invoice_total_amount();

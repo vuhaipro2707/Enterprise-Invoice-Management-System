@@ -22,16 +22,18 @@ type Account struct {
 }
 
 type Buyer struct {
-	BuyerID      uuid.UUID      `json:"buyer_id"`
-	BuyerCode    string         `json:"buyer_code"`
-	BuyerName    string         `json:"buyer_name"`
-	Address      sql.NullString `json:"address"`
-	PhoneNumber  sql.NullString `json:"phone_number"`
-	IDCardNumber sql.NullString `json:"id_card_number"`
-	IsActive     sql.NullBool   `json:"is_active"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
-	UpdatedAt    sql.NullTime   `json:"updated_at"`
-	DeletedAt    sql.NullTime   `json:"deleted_at"`
+	BuyerID      uuid.UUID       `json:"buyer_id"`
+	BuyerCode    string          `json:"buyer_code"`
+	BuyerName    string          `json:"buyer_name"`
+	Address      sql.NullString  `json:"address"`
+	PhoneNumber  sql.NullString  `json:"phone_number"`
+	IDCardNumber sql.NullString  `json:"id_card_number"`
+	Lat          sql.NullFloat64 `json:"lat"`
+	Lng          sql.NullFloat64 `json:"lng"`
+	IsActive     sql.NullBool    `json:"is_active"`
+	CreatedAt    sql.NullTime    `json:"created_at"`
+	UpdatedAt    sql.NullTime    `json:"updated_at"`
+	DeletedAt    sql.NullTime    `json:"deleted_at"`
 }
 
 type Device struct {

@@ -57,7 +57,10 @@ WHERE item_other_name_id = $1;
 
 -- name: ListItems :many
 SELECT i.*, 
-       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'item_other_name_id', ion.item_other_name_id,
+         'name_string', ion.name_string
+       )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
@@ -72,7 +75,10 @@ ORDER BY i.created_at DESC;
 
 -- name: GetItemByID :one
 SELECT i.*,
-       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'item_other_name_id', ion.item_other_name_id,
+         'name_string', ion.name_string
+       )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
@@ -96,7 +102,10 @@ RETURNING *;
 
 -- name: SearchItems :many
 SELECT i.*,
-       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'item_other_name_id', ion.item_other_name_id,
+         'name_string', ion.name_string
+       )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
@@ -179,7 +188,10 @@ RETURNING *;
 
 -- name: ListItemsFiltered :many
 SELECT i.*, 
-       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'item_other_name_id', ion.item_other_name_id,
+         'name_string', ion.name_string
+       )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
@@ -197,3 +209,9 @@ ORDER BY
   i.created_at DESC
 LIMIT sqlc.arg('limit_val')
 OFFSET sqlc.arg('offset_val');
+
+-- name: DeleteUnit :exec
+UPDATE units
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE unit_id = $1;

@@ -4,9 +4,11 @@ INSERT INTO buyers (
     buyer_name,
     address,
     phone_number,
-    id_card_number
+    id_card_number,
+    lat,
+    lng
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4, $5, $6, $7
 ) RETURNING *;
 
 -- name: GetBuyerByID :one
@@ -65,6 +67,8 @@ SET
     address = $4,
     phone_number = $5,
     id_card_number = $6,
+    lat = $7,
+    lng = $8,
     updated_at = NOW()
 WHERE buyer_id = $1 AND deleted_at IS NULL
 RETURNING *;
@@ -119,4 +123,33 @@ SELECT i.*, d.device_name
 FROM invoices i
 LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
 WHERE i.invoice_id = $1 AND i.deleted_at IS NULL;
+
+-- name: ListBuyers :many
+SELECT * FROM buyers
+WHERE deleted_at IS NULL
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2;
+
+-- name: SearchBuyers :many
+SELECT * FROM buyers
+WHERE deleted_at IS NULL
+AND (
+    my_unaccent(buyer_name) ILIKE '%' || my_unaccent(sqlc.arg('keyword')) || '%'
+    OR my_unaccent(buyer_code) ILIKE '%' || my_unaccent(sqlc.arg('keyword')) || '%'
+    OR phone_number ILIKE '%' || sqlc.arg('keyword') || '%'
+    OR id_card_number ILIKE '%' || sqlc.arg('keyword') || '%'
+    OR my_unaccent(address) ILIKE '%' || my_unaccent(sqlc.arg('keyword')) || '%'
+)
+ORDER BY
+    CASE WHEN buyer_code = sqlc.arg('keyword') THEN 0 ELSE 1 END,
+    CASE WHEN phone_number = sqlc.arg('keyword') THEN 0 ELSE 1 END,
+    CASE WHEN id_card_number = sqlc.arg('keyword') THEN 0 ELSE 1 END,
+    similarity(my_unaccent(buyer_name), my_unaccent(sqlc.arg('keyword'))) DESC
+LIMIT $1;
+
+-- name: GetLastBuyerCode :one
+SELECT buyer_code FROM buyers
+WHERE buyer_code LIKE 'KH-%'
+ORDER BY buyer_code DESC
+LIMIT 1;
 

@@ -83,6 +83,8 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
       minChildSize: 0.5,
@@ -103,7 +105,7 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -130,7 +132,7 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
               if (_searchController.text.isNotEmpty && 
                   !_filteredTypes.any((t) => t['type_name'].toString().toLowerCase() == _searchController.text.trim().toLowerCase()))
                 ListTile(
-                  leading: const Icon(Icons.add_circle_outline, color: Colors.green),
+                  leading: Icon(Icons.add_circle_outline, color: colorScheme.primary),
                   title: Text('Tạo mới loại: "${_searchController.text}"'),
                   onTap: _isCreating ? null : _createNewType,
                   trailing: _isCreating ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : null,

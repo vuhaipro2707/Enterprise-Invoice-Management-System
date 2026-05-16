@@ -162,9 +162,24 @@ func (q *Queries) DeleteItemOtherName(ctx context.Context, itemOtherNameID uuid.
 	return err
 }
 
+const deleteUnit = `-- name: DeleteUnit :exec
+UPDATE units
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE unit_id = $1
+`
+
+func (q *Queries) DeleteUnit(ctx context.Context, unitID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteUnit, unitID)
+	return err
+}
+
 const getItemByID = `-- name: GetItemByID :one
 SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at,
-       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'item_other_name_id', ion.item_other_name_id,
+         'name_string', ion.name_string
+       )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
@@ -257,7 +272,10 @@ func (q *Queries) ListItemOtherNames(ctx context.Context, itemID uuid.UUID) ([]I
 
 const listItems = `-- name: ListItems :many
 SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at, 
-       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'item_other_name_id', ion.item_other_name_id,
+         'name_string', ion.name_string
+       )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
@@ -318,7 +336,10 @@ func (q *Queries) ListItems(ctx context.Context) ([]ListItemsRow, error) {
 
 const listItemsFiltered = `-- name: ListItemsFiltered :many
 SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at, 
-       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'item_other_name_id', ion.item_other_name_id,
+         'name_string', ion.name_string
+       )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
@@ -607,7 +628,10 @@ func (q *Queries) PatchUnit(ctx context.Context, arg PatchUnitParams) (Unit, err
 
 const searchItems = `-- name: SearchItems :many
 SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at,
-       COALESCE(JSON_AGG(DISTINCT ion.name_string) FILTER (WHERE ion.name_string IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'item_other_name_id', ion.item_other_name_id,
+         'name_string', ion.name_string
+       )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,

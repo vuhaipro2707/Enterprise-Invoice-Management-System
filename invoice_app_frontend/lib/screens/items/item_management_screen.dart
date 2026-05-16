@@ -292,12 +292,16 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
             icon: Icon(
               sortIcon, 
               size: 20, 
-              color: _isSearching ? Colors.grey : Theme.of(context).appBarTheme.iconTheme?.color ?? Colors.black87,
+              color: _isSearching 
+                  ? Theme.of(context).colorScheme.outline 
+                  : Theme.of(context).colorScheme.onSurface,
             ),
             label: Text(
               sortIconLabel,
               style: TextStyle(
-                color: _isSearching ? Colors.grey : Theme.of(context).appBarTheme.titleTextStyle?.color ?? Colors.black87,
+                color: _isSearching 
+                    ? Theme.of(context).colorScheme.outline 
+                    : Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),
@@ -313,9 +317,8 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
             _fetchItems();
           }
         },
-        backgroundColor: Colors.blue,
         tooltip: 'Thêm mặt hàng mới',
-        child: const Icon(Icons.add, color: Colors.white),
+        child: const Icon(Icons.add),
       ),
       body: Column(
         children: [
@@ -349,12 +352,12 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
               children: [
                 IconButton(
                   onPressed: _showCreateTypeDialog,
-                  icon: const Icon(Icons.add_circle_outline, color: Colors.green),
+                  icon: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
                   tooltip: 'Thêm loại hàng',
                 ),
                 IconButton(
                   onPressed: _showTypeSearchSheet,
-                  icon: const Icon(Icons.search, color: Colors.blue),
+                  icon: Icon(Icons.search, color: Theme.of(context).colorScheme.primary),
                   tooltip: 'Tìm kiếm loại hàng',
                 ),
                 const SizedBox(width: 4),

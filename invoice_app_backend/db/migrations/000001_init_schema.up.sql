@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS buyers (
     address TEXT,
     phone_number VARCHAR(50),
     id_card_number VARCHAR(50),
+    lat DOUBLE PRECISION,
+    lng DOUBLE PRECISION,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),

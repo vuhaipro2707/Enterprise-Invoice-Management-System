@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ApiService {
   static String get baseUrl {
@@ -66,6 +67,21 @@ class ApiService {
 
   Future<http.Response> get(String endpoint) async {
     return await http.get(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: _headers,
+    );
+  }
+
+  Future<http.Response> patch(String endpoint, Map<String, dynamic> body) async {
+    return await http.patch(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: _headers,
+      body: jsonEncode(body),
+    );
+  }
+
+  Future<http.Response> delete(String endpoint) async {
+    return await http.delete(
       Uri.parse('$baseUrl$endpoint'),
       headers: _headers,
     );
@@ -179,10 +195,12 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> removeItemOtherName(String otherNameId) async {
-    final response = await http.delete(
-      Uri.parse('$baseUrl/item/otherName/$otherNameId'),
-      headers: _headers,
-    );
+    final response = await delete('/item/otherName/$otherNameId');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> deleteUnit(String unitId) async {
+    final response = await delete('/item/unit/$unitId');
     return jsonDecode(response.body);
   }
 
@@ -193,6 +211,95 @@ class ApiService {
       return decoded['data'] ?? [];
     }
     throw Exception('Failed to load types: ${response.body}');
+  }
+
+  // Buyer methods
+  Future<String> getNextBuyerCode() async {
+    final response = await get('/invoice/buyer/next-code');
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['nextCode'] ?? 'KH-001';
+    }
+    return 'KH-001';
+  }
+
+  Future<List<dynamic>> getBuyers({int? limit, int? offset}) async {
+    final queryParams = <String, String>{};
+    if (limit != null) queryParams['limit'] = limit.toString();
+    if (offset != null) queryParams['offset'] = offset.toString();
+
+    final uri = Uri.parse('$baseUrl/invoice/buyer').replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    }
+    throw Exception('Failed to load buyers: ${response.body}');
+  }
+
+  Future<List<dynamic>> searchBuyers(String keyword, {int? limit}) async {
+    final queryParams = <String, String>{'keyword': keyword};
+    if (limit != null) queryParams['limit'] = limit.toString();
+
+    final uri = Uri.parse('$baseUrl/invoice/buyer/search').replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    }
+    throw Exception('Failed to search buyers: ${response.body}');
+  }
+
+  Future<Map<String, dynamic>> createBuyer(Map<String, dynamic> body) async {
+    final response = await post('/invoice/buyer', body);
+    final data = jsonDecode(response.body);
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception(data['error'] ?? 'Failed to create buyer');
+    }
+    return data;
+  }
+
+  Future<Map<String, dynamic>> patchBuyer(String buyerId, Map<String, dynamic> body) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/invoice/buyer/$buyerId'),
+      headers: _headers,
+      body: jsonEncode(body),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode != 200) {
+      throw Exception(data['error'] ?? 'Failed to update buyer');
+    }
+    return data;
+  }
+  Future<void> launchURL(String url) async {
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      throw Exception('Could not launch $url');
+    }
+  }
+  // Google Maps Proxy methods
+  Future<List<dynamic>> googleAutocomplete(String keyword, {String? sessionToken}) async {
+    final queryParams = {'keyword': keyword};
+    if (sessionToken != null) queryParams['sessiontoken'] = sessionToken;
+
+    final uri = Uri.parse('$baseUrl/invoice/google/autocomplete').replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['predictions'] ?? [];
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>?> googlePlaceDetails(String placeId, {String? sessionToken}) async {
+    final queryParams = {'placeId': placeId};
+    if (sessionToken != null) queryParams['sessiontoken'] = sessionToken;
+
+    final uri = Uri.parse('$baseUrl/invoice/google/details').replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['result'];
+    }
+    return null;
   }
 }
 

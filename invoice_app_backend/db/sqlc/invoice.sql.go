@@ -18,18 +18,22 @@ INSERT INTO buyers (
     buyer_name,
     address,
     phone_number,
-    id_card_number
+    id_card_number,
+    lat,
+    lng
 ) VALUES (
-    $1, $2, $3, $4, $5
-) RETURNING buyer_id, buyer_code, buyer_name, address, phone_number, id_card_number, is_active, created_at, updated_at, deleted_at
+    $1, $2, $3, $4, $5, $6, $7
+) RETURNING buyer_id, buyer_code, buyer_name, address, phone_number, id_card_number, lat, lng, is_active, created_at, updated_at, deleted_at
 `
 
 type CreateBuyerParams struct {
-	BuyerCode    string         `json:"buyer_code"`
-	BuyerName    string         `json:"buyer_name"`
-	Address      sql.NullString `json:"address"`
-	PhoneNumber  sql.NullString `json:"phone_number"`
-	IDCardNumber sql.NullString `json:"id_card_number"`
+	BuyerCode    string          `json:"buyer_code"`
+	BuyerName    string          `json:"buyer_name"`
+	Address      sql.NullString  `json:"address"`
+	PhoneNumber  sql.NullString  `json:"phone_number"`
+	IDCardNumber sql.NullString  `json:"id_card_number"`
+	Lat          sql.NullFloat64 `json:"lat"`
+	Lng          sql.NullFloat64 `json:"lng"`
 }
 
 func (q *Queries) CreateBuyer(ctx context.Context, arg CreateBuyerParams) (Buyer, error) {
@@ -39,6 +43,8 @@ func (q *Queries) CreateBuyer(ctx context.Context, arg CreateBuyerParams) (Buyer
 		arg.Address,
 		arg.PhoneNumber,
 		arg.IDCardNumber,
+		arg.Lat,
+		arg.Lng,
 	)
 	var i Buyer
 	err := row.Scan(
@@ -48,6 +54,8 @@ func (q *Queries) CreateBuyer(ctx context.Context, arg CreateBuyerParams) (Buyer
 		&i.Address,
 		&i.PhoneNumber,
 		&i.IDCardNumber,
+		&i.Lat,
+		&i.Lng,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -192,7 +200,7 @@ func (q *Queries) CreateLineItem(ctx context.Context, arg CreateLineItemParams) 
 }
 
 const getBuyerByID = `-- name: GetBuyerByID :one
-SELECT buyer_id, buyer_code, buyer_name, address, phone_number, id_card_number, is_active, created_at, updated_at, deleted_at FROM buyers
+SELECT buyer_id, buyer_code, buyer_name, address, phone_number, id_card_number, lat, lng, is_active, created_at, updated_at, deleted_at FROM buyers
 WHERE buyer_id = $1 AND deleted_at IS NULL
 `
 
@@ -206,6 +214,8 @@ func (q *Queries) GetBuyerByID(ctx context.Context, buyerID uuid.UUID) (Buyer, e
 		&i.Address,
 		&i.PhoneNumber,
 		&i.IDCardNumber,
+		&i.Lat,
+		&i.Lng,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -301,6 +311,20 @@ func (q *Queries) GetInvoiceWithDeviceName(ctx context.Context, invoiceID uuid.U
 	return i, err
 }
 
+const getLastBuyerCode = `-- name: GetLastBuyerCode :one
+SELECT buyer_code FROM buyers
+WHERE buyer_code LIKE 'KH-%'
+ORDER BY buyer_code DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLastBuyerCode(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getLastBuyerCode)
+	var buyer_code string
+	err := row.Scan(&buyer_code)
+	return buyer_code, err
+}
+
 const getLineItemByID = `-- name: GetLineItemByID :one
 SELECT line_item_id, invoice_id, item_id, unit_id, quantity, unit_price_custom, sub_total, item_name_snapshot, unit_name_snapshot FROM line_items
 WHERE line_item_id = $1
@@ -323,6 +347,113 @@ func (q *Queries) GetLineItemByID(ctx context.Context, lineItemID uuid.UUID) (Li
 	return i, err
 }
 
+const listBuyers = `-- name: ListBuyers :many
+SELECT buyer_id, buyer_code, buyer_name, address, phone_number, id_card_number, lat, lng, is_active, created_at, updated_at, deleted_at FROM buyers
+WHERE deleted_at IS NULL
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListBuyersParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListBuyers(ctx context.Context, arg ListBuyersParams) ([]Buyer, error) {
+	rows, err := q.db.QueryContext(ctx, listBuyers, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Buyer
+	for rows.Next() {
+		var i Buyer
+		if err := rows.Scan(
+			&i.BuyerID,
+			&i.BuyerCode,
+			&i.BuyerName,
+			&i.Address,
+			&i.PhoneNumber,
+			&i.IDCardNumber,
+			&i.Lat,
+			&i.Lng,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchBuyers = `-- name: SearchBuyers :many
+SELECT buyer_id, buyer_code, buyer_name, address, phone_number, id_card_number, lat, lng, is_active, created_at, updated_at, deleted_at FROM buyers
+WHERE deleted_at IS NULL
+AND (
+    my_unaccent(buyer_name) ILIKE '%' || my_unaccent($2) || '%'
+    OR my_unaccent(buyer_code) ILIKE '%' || my_unaccent($2) || '%'
+    OR phone_number ILIKE '%' || $2 || '%'
+    OR id_card_number ILIKE '%' || $2 || '%'
+    OR my_unaccent(address) ILIKE '%' || my_unaccent($2) || '%'
+)
+ORDER BY
+    CASE WHEN buyer_code = $2 THEN 0 ELSE 1 END,
+    CASE WHEN phone_number = $2 THEN 0 ELSE 1 END,
+    CASE WHEN id_card_number = $2 THEN 0 ELSE 1 END,
+    similarity(my_unaccent(buyer_name), my_unaccent($2)) DESC
+LIMIT $1
+`
+
+type SearchBuyersParams struct {
+	Limit   int32  `json:"limit"`
+	Keyword string `json:"keyword"`
+}
+
+func (q *Queries) SearchBuyers(ctx context.Context, arg SearchBuyersParams) ([]Buyer, error) {
+	rows, err := q.db.QueryContext(ctx, searchBuyers, arg.Limit, arg.Keyword)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Buyer
+	for rows.Next() {
+		var i Buyer
+		if err := rows.Scan(
+			&i.BuyerID,
+			&i.BuyerCode,
+			&i.BuyerName,
+			&i.Address,
+			&i.PhoneNumber,
+			&i.IDCardNumber,
+			&i.Lat,
+			&i.Lng,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateBuyer = `-- name: UpdateBuyer :one
 UPDATE buyers
 SET
@@ -331,18 +462,22 @@ SET
     address = $4,
     phone_number = $5,
     id_card_number = $6,
+    lat = $7,
+    lng = $8,
     updated_at = NOW()
 WHERE buyer_id = $1 AND deleted_at IS NULL
-RETURNING buyer_id, buyer_code, buyer_name, address, phone_number, id_card_number, is_active, created_at, updated_at, deleted_at
+RETURNING buyer_id, buyer_code, buyer_name, address, phone_number, id_card_number, lat, lng, is_active, created_at, updated_at, deleted_at
 `
 
 type UpdateBuyerParams struct {
-	BuyerID      uuid.UUID      `json:"buyer_id"`
-	BuyerCode    string         `json:"buyer_code"`
-	BuyerName    string         `json:"buyer_name"`
-	Address      sql.NullString `json:"address"`
-	PhoneNumber  sql.NullString `json:"phone_number"`
-	IDCardNumber sql.NullString `json:"id_card_number"`
+	BuyerID      uuid.UUID       `json:"buyer_id"`
+	BuyerCode    string          `json:"buyer_code"`
+	BuyerName    string          `json:"buyer_name"`
+	Address      sql.NullString  `json:"address"`
+	PhoneNumber  sql.NullString  `json:"phone_number"`
+	IDCardNumber sql.NullString  `json:"id_card_number"`
+	Lat          sql.NullFloat64 `json:"lat"`
+	Lng          sql.NullFloat64 `json:"lng"`
 }
 
 func (q *Queries) UpdateBuyer(ctx context.Context, arg UpdateBuyerParams) (Buyer, error) {
@@ -353,6 +488,8 @@ func (q *Queries) UpdateBuyer(ctx context.Context, arg UpdateBuyerParams) (Buyer
 		arg.Address,
 		arg.PhoneNumber,
 		arg.IDCardNumber,
+		arg.Lat,
+		arg.Lng,
 	)
 	var i Buyer
 	err := row.Scan(
@@ -362,6 +499,8 @@ func (q *Queries) UpdateBuyer(ctx context.Context, arg UpdateBuyerParams) (Buyer
 		&i.Address,
 		&i.PhoneNumber,
 		&i.IDCardNumber,
+		&i.Lat,
+		&i.Lng,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
