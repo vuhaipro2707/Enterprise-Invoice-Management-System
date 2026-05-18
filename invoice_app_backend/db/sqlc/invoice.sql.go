@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 
 	"github.com/google/uuid"
 )
@@ -156,10 +157,11 @@ INSERT INTO line_items (
     unit_price_custom,
     sub_total,
     item_name_snapshot,
-    unit_name_snapshot
+    unit_name_snapshot,
+    position_key
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
-) RETURNING line_item_id, invoice_id, item_id, unit_id, quantity, unit_price_custom, sub_total, item_name_snapshot, unit_name_snapshot
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+) RETURNING line_item_id, invoice_id, item_id, unit_id, quantity, unit_price_custom, sub_total, item_name_snapshot, unit_name_snapshot, position_key, created_at
 `
 
 type CreateLineItemParams struct {
@@ -171,6 +173,7 @@ type CreateLineItemParams struct {
 	SubTotal         int64          `json:"sub_total"`
 	ItemNameSnapshot sql.NullString `json:"item_name_snapshot"`
 	UnitNameSnapshot sql.NullString `json:"unit_name_snapshot"`
+	PositionKey      string         `json:"position_key"`
 }
 
 func (q *Queries) CreateLineItem(ctx context.Context, arg CreateLineItemParams) (LineItem, error) {
@@ -183,6 +186,7 @@ func (q *Queries) CreateLineItem(ctx context.Context, arg CreateLineItemParams) 
 		arg.SubTotal,
 		arg.ItemNameSnapshot,
 		arg.UnitNameSnapshot,
+		arg.PositionKey,
 	)
 	var i LineItem
 	err := row.Scan(
@@ -195,6 +199,43 @@ func (q *Queries) CreateLineItem(ctx context.Context, arg CreateLineItemParams) 
 		&i.SubTotal,
 		&i.ItemNameSnapshot,
 		&i.UnitNameSnapshot,
+		&i.PositionKey,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const deleteLineItem = `-- name: DeleteLineItem :exec
+DELETE FROM line_items
+WHERE line_item_id = $1
+`
+
+func (q *Queries) DeleteLineItem(ctx context.Context, lineItemID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteLineItem, lineItemID)
+	return err
+}
+
+const getBuyerByCode = `-- name: GetBuyerByCode :one
+SELECT buyer_id, buyer_code, buyer_name, address, phone_number, id_card_number, lat, lng, is_active, created_at, updated_at, deleted_at FROM buyers
+WHERE buyer_code = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetBuyerByCode(ctx context.Context, buyerCode string) (Buyer, error) {
+	row := q.db.QueryRowContext(ctx, getBuyerByCode, buyerCode)
+	var i Buyer
+	err := row.Scan(
+		&i.BuyerID,
+		&i.BuyerCode,
+		&i.BuyerName,
+		&i.Address,
+		&i.PhoneNumber,
+		&i.IDCardNumber,
+		&i.Lat,
+		&i.Lng,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -311,6 +352,66 @@ func (q *Queries) GetInvoiceWithDeviceName(ctx context.Context, invoiceID uuid.U
 	return i, err
 }
 
+const getInvoiceWithLines = `-- name: GetInvoiceWithLines :one
+SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.buyer_name_snapshot, i.address_snapshot, i.phone_number_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at,
+       COALESCE(JSON_AGG(JSONB_BUILD_OBJECT(
+         'line_item_id', li.line_item_id,
+         'item_id', li.item_id,
+         'unit_id', li.unit_id,
+         'quantity', li.quantity,
+         'unit_price_custom', li.unit_price_custom,
+         'sub_total', li.sub_total,
+         'item_name_snapshot', li.item_name_snapshot,
+         'unit_name_snapshot', li.unit_name_snapshot,
+         'position_key', li.position_key
+       ) ORDER BY li.position_key) FILTER (WHERE li.line_item_id IS NOT NULL), '[]')::JSONB AS line_items
+FROM invoices i
+LEFT JOIN line_items li ON i.invoice_id = li.invoice_id
+WHERE i.invoice_id = $1 AND i.deleted_at IS NULL
+GROUP BY i.invoice_id
+`
+
+type GetInvoiceWithLinesRow struct {
+	InvoiceID           uuid.UUID       `json:"invoice_id"`
+	AccountID           uuid.NullUUID   `json:"account_id"`
+	BuyerID             uuid.NullUUID   `json:"buyer_id"`
+	InvoiceCode         string          `json:"invoice_code"`
+	TotalAmount         int64           `json:"total_amount"`
+	DeviceHoldingID     sql.NullString  `json:"device_holding_id"`
+	EditStatus          sql.NullBool    `json:"edit_status"`
+	BuyerNameSnapshot   sql.NullString  `json:"buyer_name_snapshot"`
+	AddressSnapshot     sql.NullString  `json:"address_snapshot"`
+	PhoneNumberSnapshot sql.NullString  `json:"phone_number_snapshot"`
+	IsActive            sql.NullBool    `json:"is_active"`
+	CreatedAt           sql.NullTime    `json:"created_at"`
+	UpdatedAt           sql.NullTime    `json:"updated_at"`
+	DeletedAt           sql.NullTime    `json:"deleted_at"`
+	LineItems           json.RawMessage `json:"line_items"`
+}
+
+func (q *Queries) GetInvoiceWithLines(ctx context.Context, invoiceID uuid.UUID) (GetInvoiceWithLinesRow, error) {
+	row := q.db.QueryRowContext(ctx, getInvoiceWithLines, invoiceID)
+	var i GetInvoiceWithLinesRow
+	err := row.Scan(
+		&i.InvoiceID,
+		&i.AccountID,
+		&i.BuyerID,
+		&i.InvoiceCode,
+		&i.TotalAmount,
+		&i.DeviceHoldingID,
+		&i.EditStatus,
+		&i.BuyerNameSnapshot,
+		&i.AddressSnapshot,
+		&i.PhoneNumberSnapshot,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.LineItems,
+	)
+	return i, err
+}
+
 const getLastBuyerCode = `-- name: GetLastBuyerCode :one
 SELECT buyer_code FROM buyers
 WHERE buyer_code LIKE 'KH-%'
@@ -325,8 +426,22 @@ func (q *Queries) GetLastBuyerCode(ctx context.Context) (string, error) {
 	return buyer_code, err
 }
 
+const getLastInvoiceCode = `-- name: GetLastInvoiceCode :one
+SELECT invoice_code FROM invoices
+WHERE invoice_code LIKE $1
+ORDER BY invoice_code DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLastInvoiceCode(ctx context.Context, invoiceCode string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getLastInvoiceCode, invoiceCode)
+	var invoice_code string
+	err := row.Scan(&invoice_code)
+	return invoice_code, err
+}
+
 const getLineItemByID = `-- name: GetLineItemByID :one
-SELECT line_item_id, invoice_id, item_id, unit_id, quantity, unit_price_custom, sub_total, item_name_snapshot, unit_name_snapshot FROM line_items
+SELECT line_item_id, invoice_id, item_id, unit_id, quantity, unit_price_custom, sub_total, item_name_snapshot, unit_name_snapshot, position_key, created_at FROM line_items
 WHERE line_item_id = $1
 `
 
@@ -343,6 +458,8 @@ func (q *Queries) GetLineItemByID(ctx context.Context, lineItemID uuid.UUID) (Li
 		&i.SubTotal,
 		&i.ItemNameSnapshot,
 		&i.UnitNameSnapshot,
+		&i.PositionKey,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -381,6 +498,71 @@ func (q *Queries) ListBuyers(ctx context.Context, arg ListBuyersParams) ([]Buyer
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEditingInvoices = `-- name: ListEditingInvoices :many
+SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.buyer_name_snapshot, i.address_snapshot, i.phone_number_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at, d.device_name
+FROM invoices i
+LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
+WHERE i.edit_status = TRUE AND i.deleted_at IS NULL
+ORDER BY i.updated_at DESC
+`
+
+type ListEditingInvoicesRow struct {
+	InvoiceID           uuid.UUID      `json:"invoice_id"`
+	AccountID           uuid.NullUUID  `json:"account_id"`
+	BuyerID             uuid.NullUUID  `json:"buyer_id"`
+	InvoiceCode         string         `json:"invoice_code"`
+	TotalAmount         int64          `json:"total_amount"`
+	DeviceHoldingID     sql.NullString `json:"device_holding_id"`
+	EditStatus          sql.NullBool   `json:"edit_status"`
+	BuyerNameSnapshot   sql.NullString `json:"buyer_name_snapshot"`
+	AddressSnapshot     sql.NullString `json:"address_snapshot"`
+	PhoneNumberSnapshot sql.NullString `json:"phone_number_snapshot"`
+	IsActive            sql.NullBool   `json:"is_active"`
+	CreatedAt           sql.NullTime   `json:"created_at"`
+	UpdatedAt           sql.NullTime   `json:"updated_at"`
+	DeletedAt           sql.NullTime   `json:"deleted_at"`
+	DeviceName          sql.NullString `json:"device_name"`
+}
+
+func (q *Queries) ListEditingInvoices(ctx context.Context) ([]ListEditingInvoicesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listEditingInvoices)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListEditingInvoicesRow
+	for rows.Next() {
+		var i ListEditingInvoicesRow
+		if err := rows.Scan(
+			&i.InvoiceID,
+			&i.AccountID,
+			&i.BuyerID,
+			&i.InvoiceCode,
+			&i.TotalAmount,
+			&i.DeviceHoldingID,
+			&i.EditStatus,
+			&i.BuyerNameSnapshot,
+			&i.AddressSnapshot,
+			&i.PhoneNumberSnapshot,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.DeviceName,
 		); err != nil {
 			return nil, err
 		}
@@ -621,7 +803,7 @@ SET
     item_name_snapshot = $7,
     unit_name_snapshot = $8
 WHERE line_item_id = $1
-RETURNING line_item_id, invoice_id, item_id, unit_id, quantity, unit_price_custom, sub_total, item_name_snapshot, unit_name_snapshot
+RETURNING line_item_id, invoice_id, item_id, unit_id, quantity, unit_price_custom, sub_total, item_name_snapshot, unit_name_snapshot, position_key, created_at
 `
 
 type UpdateLineItemParams struct {
@@ -657,6 +839,24 @@ func (q *Queries) UpdateLineItem(ctx context.Context, arg UpdateLineItemParams) 
 		&i.SubTotal,
 		&i.ItemNameSnapshot,
 		&i.UnitNameSnapshot,
+		&i.PositionKey,
+		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const updateLineItemPos = `-- name: UpdateLineItemPos :exec
+UPDATE line_items
+SET position_key = $2
+WHERE line_item_id = $1
+`
+
+type UpdateLineItemPosParams struct {
+	LineItemID  uuid.UUID `json:"line_item_id"`
+	PositionKey string    `json:"position_key"`
+}
+
+func (q *Queries) UpdateLineItemPos(ctx context.Context, arg UpdateLineItemPosParams) error {
+	_, err := q.db.ExecContext(ctx, updateLineItemPos, arg.LineItemID, arg.PositionKey)
+	return err
 }

@@ -15,6 +15,10 @@ INSERT INTO buyers (
 SELECT * FROM buyers
 WHERE buyer_id = $1 AND deleted_at IS NULL;
 
+-- name: GetBuyerByCode :one
+SELECT * FROM buyers
+WHERE buyer_code = $1 AND deleted_at IS NULL;
+
 -- name: CreateInvoice :one
 INSERT INTO invoices (
     account_id,
@@ -33,6 +37,24 @@ INSERT INTO invoices (
 -- name: GetInvoiceByID :one
 SELECT * FROM invoices
 WHERE invoice_id = $1 AND deleted_at IS NULL;
+
+-- name: GetInvoiceWithLines :one
+SELECT i.*,
+       COALESCE(JSON_AGG(JSONB_BUILD_OBJECT(
+         'line_item_id', li.line_item_id,
+         'item_id', li.item_id,
+         'unit_id', li.unit_id,
+         'quantity', li.quantity,
+         'unit_price_custom', li.unit_price_custom,
+         'sub_total', li.sub_total,
+         'item_name_snapshot', li.item_name_snapshot,
+         'unit_name_snapshot', li.unit_name_snapshot,
+         'position_key', li.position_key
+       ) ORDER BY li.position_key) FILTER (WHERE li.line_item_id IS NOT NULL), '[]')::JSONB AS line_items
+FROM invoices i
+LEFT JOIN line_items li ON i.invoice_id = li.invoice_id
+WHERE i.invoice_id = $1 AND i.deleted_at IS NULL
+GROUP BY i.invoice_id;
 
 -- name: UpdateInvoiceStatus :one
 UPDATE invoices
@@ -82,9 +104,10 @@ INSERT INTO line_items (
     unit_price_custom,
     sub_total,
     item_name_snapshot,
-    unit_name_snapshot
+    unit_name_snapshot,
+    position_key
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
 ) RETURNING *;
 
 -- name: GetLineItemByID :one
@@ -103,6 +126,15 @@ SET
     unit_name_snapshot = $8
 WHERE line_item_id = $1
 RETURNING *;
+
+-- name: UpdateLineItemPos :exec
+UPDATE line_items
+SET position_key = $2
+WHERE line_item_id = $1;
+
+-- name: DeleteLineItem :exec
+DELETE FROM line_items
+WHERE line_item_id = $1;
 
 -- name: CreateDevice :one
 INSERT INTO devices (
@@ -152,4 +184,17 @@ SELECT buyer_code FROM buyers
 WHERE buyer_code LIKE 'KH-%'
 ORDER BY buyer_code DESC
 LIMIT 1;
+
+-- name: GetLastInvoiceCode :one
+SELECT invoice_code FROM invoices
+WHERE invoice_code LIKE $1
+ORDER BY invoice_code DESC
+LIMIT 1;
+
+-- name: ListEditingInvoices :many
+SELECT i.*, d.device_name
+FROM invoices i
+LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
+WHERE i.edit_status = TRUE AND i.deleted_at IS NULL
+ORDER BY i.updated_at DESC;
 

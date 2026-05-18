@@ -84,6 +84,8 @@ type LineItem struct {
 	SubTotal         int64          `json:"sub_total"`
 	ItemNameSnapshot sql.NullString `json:"item_name_snapshot"`
 	UnitNameSnapshot sql.NullString `json:"unit_name_snapshot"`
+	PositionKey      string         `json:"position_key"`
+	CreatedAt        sql.NullTime   `json:"created_at"`
 }
 
 type PrintQueue struct {

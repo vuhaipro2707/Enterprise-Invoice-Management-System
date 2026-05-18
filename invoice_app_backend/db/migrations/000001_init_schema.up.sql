@@ -118,7 +118,9 @@ CREATE TABLE IF NOT EXISTS line_items (
     unit_price_custom BIGINT,
     sub_total BIGINT NOT NULL,
     item_name_snapshot VARCHAR(255),
-    unit_name_snapshot VARCHAR(255)
+    unit_name_snapshot VARCHAR(255),
+    position_key TEXT NOT NULL DEFAULT 'i0000',
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 11. Create PrintQueue table

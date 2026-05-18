@@ -21,6 +21,8 @@ class ApiService {
   String? _token;
   String? _deviceId;
 
+  String? get deviceId => _deviceId;
+
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('jwt_token');
@@ -171,7 +173,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> patchItem(String itemId, Map<String, dynamic> body) async {
     final response = await http.patch(
-      Uri.parse('$baseUrl/item/$itemId'),
+      Uri.parse('$baseUrl/item/id/$itemId'),
       headers: _headers,
       body: jsonEncode(body),
     );
@@ -180,7 +182,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> patchUnit(String unitId, Map<String, dynamic> body) async {
     final response = await http.patch(
-      Uri.parse('$baseUrl/item/unit/$unitId'),
+      Uri.parse('$baseUrl/item/unit/id/$unitId'),
       headers: _headers,
       body: jsonEncode(body),
     );
@@ -195,12 +197,12 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> removeItemOtherName(String otherNameId) async {
-    final response = await delete('/item/otherName/$otherNameId');
+    final response = await delete('/item/otherName/id/$otherNameId');
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> deleteUnit(String unitId) async {
-    final response = await delete('/item/unit/$unitId');
+    final response = await delete('/item/unit/id/$unitId');
     return jsonDecode(response.body);
   }
 
@@ -248,6 +250,142 @@ class ApiService {
     throw Exception('Failed to search buyers: ${response.body}');
   }
 
+  Future<Map<String, dynamic>> getBuyerByCode(String code) async {
+    final response = await get('/invoice/buyer/by-code?code=$code');
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    throw Exception(jsonDecode(response.body)['error'] ?? 'Buyer not found');
+  }
+
+  // Invoice methods
+  Future<String> getNextInvoiceCode() async {
+    final response = await get('/invoice/next-code');
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['nextCode'] ?? '';
+    }
+    throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to get next invoice code');
+  }
+
+  Future<List<dynamic>> getEditingInvoices() async {
+    final response = await get('/invoice/editing');
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    }
+    throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to load editing invoices');
+  }
+
+  Future<Map<String, dynamic>> takeTurn(String invoiceId) async {
+    final response = await post('/invoice/takeTurn/invoiceId/$invoiceId', {});
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to take turn');
+  }
+
+  Future<Map<String, dynamic>> createInvoice({
+    String? buyerId,
+    required String invoiceCode,
+    bool editStatus = true,
+    String? buyerNameSnapshot,
+    String? addressSnapshot,
+    String? phoneNumberSnapshot,
+  }) async {
+    final response = await post('/invoice', {
+      'buyerId': buyerId,
+      'invoiceCode': invoiceCode,
+      'editStatus': editStatus,
+      'buyerNameSnapshot': buyerNameSnapshot,
+      'addressSnapshot': addressSnapshot,
+      'phoneNumberSnapshot': phoneNumberSnapshot,
+    });
+    
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to create invoice');
+  }
+
+  Future<Map<String, dynamic>> getInvoice(String invoiceId) async {
+    final response = await get('/invoice/id/$invoiceId');
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to get invoice');
+  }
+
+  Future<Map<String, dynamic>> updateInvoice(String invoiceId, Map<String, dynamic> body) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/invoice/id/$invoiceId'),
+      headers: _headers,
+      body: jsonEncode(body),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to update invoice');
+  }
+
+  Future<Map<String, dynamic>> createLineItem(String invoiceId, Map<String, dynamic> body) async {
+    final response = await post('/invoice/lineItem/invoiceId/$invoiceId', body);
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to create line item');
+  }
+
+  Future<Map<String, dynamic>> patchLineItem(String lineItemId, Map<String, dynamic> body) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/invoice/lineItem/id/$lineItemId'),
+      headers: _headers,
+      body: jsonEncode(body),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to update line item');
+  }
+
+  Future<Map<String, dynamic>> changeLineItemOrder(String invoiceId, String lineItemId, String? prevId, String? nextId) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/invoice/lineItem/changeOrder/$invoiceId'),
+      headers: _headers,
+      body: jsonEncode({
+        'line_item_id': lineItemId,
+        'prev_line_item_id': prevId,
+        'next_line_item_id': nextId,
+      }),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to change order');
+  }
+
+  Future<Map<String, dynamic>> deleteLineItem(String lineItemId) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/invoice/lineItem/id/$lineItemId'),
+      headers: _headers,
+    );
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      try {
+        return jsonDecode(response.body);
+      } catch (_) {
+        return {'success': true};
+      }
+    }
+    final data = jsonDecode(response.body);
+    throw Exception(data['error'] ?? 'Failed to delete line item');
+  }
+
   Future<Map<String, dynamic>> createBuyer(Map<String, dynamic> body) async {
     final response = await post('/invoice/buyer', body);
     final data = jsonDecode(response.body);
@@ -259,7 +397,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> patchBuyer(String buyerId, Map<String, dynamic> body) async {
     final response = await http.patch(
-      Uri.parse('$baseUrl/invoice/buyer/$buyerId'),
+      Uri.parse('$baseUrl/invoice/buyer/id/$buyerId'),
       headers: _headers,
       body: jsonEncode(body),
     );

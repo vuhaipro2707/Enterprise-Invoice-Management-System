@@ -4,7 +4,8 @@ import '../../services/currency_formatter.dart';
 import '../../widgets/type_selection_sheet.dart';
 
 class CreateItemScreen extends StatefulWidget {
-  const CreateItemScreen({super.key});
+  final List<dynamic> types;
+  const CreateItemScreen({super.key, required this.types});
 
   @override
   State<CreateItemScreen> createState() => _CreateItemScreenState();
@@ -19,33 +20,21 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
   
   String? _selectedTypeId;
   String? _selectedTypeName;
-  List<dynamic> _types = [];
-  bool _isLoadingTypes = true;
+  late List<dynamic> _types;
+  final bool _isLoadingTypes = false;
   bool _isSaving = false;
+  final _otherNameFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    _fetchTypes();
-  }
-
-  Future<void> _fetchTypes() async {
-    try {
-      final types = await ApiService().getTypes();
-      if (mounted) {
-        setState(() {
-          _types = types;
-          _isLoadingTypes = false;
-        });
+    _types = widget.types;
+    
+    _otherNameFocusNode.addListener(() {
+      if (!_otherNameFocusNode.hasFocus) {
+        _addOtherName(_otherNameInputController.text);
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoadingTypes = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Không thể tải loại hàng: $e')),
-        );
-      }
-    }
+    });
   }
 
   void _addUnit() {
@@ -110,6 +99,7 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
   }
 
   Future<void> _saveItem() async {
+    _addOtherName(_otherNameInputController.text);
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
@@ -161,6 +151,7 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
   void dispose() {
     _nameController.dispose();
     _otherNameInputController.dispose();
+    _otherNameFocusNode.dispose();
     for (var unit in _units) {
       unit['nameController'].dispose();
       unit['priceController'].dispose();
@@ -227,6 +218,7 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
                   width: 150,
                   child: TextField(
                     controller: _otherNameInputController,
+                    focusNode: _otherNameFocusNode,
                     decoration: const InputDecoration(
                       hintText: 'Thêm tên...',
                       isDense: true,

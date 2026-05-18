@@ -311,7 +311,9 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
         onPressed: () async {
           final result = await Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const CreateItemScreen()),
+            MaterialPageRoute(
+              builder: (context) => CreateItemScreen(types: _types),
+            ),
           );
           if (result == true) {
             _fetchItems();
@@ -428,7 +430,10 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                             final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => ItemDetailScreen(item: _items[index]),
+                                builder: (context) => ItemDetailScreen(
+                                  item: _items[index],
+                                  types: _types,
+                                ),
                               ),
                             );
                             if (result == true) {

@@ -39,6 +39,10 @@ func (s *InvoiceService) GetInvoiceByID(ctx context.Context, id uuid.UUID) (sqlc
 	return s.Repo.GetInvoiceByID(ctx, id)
 }
 
+func (s *InvoiceService) GetInvoiceWithLines(ctx context.Context, id uuid.UUID) (sqlc.GetInvoiceWithLinesRow, error) {
+	return s.Repo.GetInvoiceWithLines(ctx, id)
+}
+
 func (s *InvoiceService) CreateBuyer(ctx context.Context, code, name string, address, phone, idCard *string, lat, lng *float64) (sqlc.Buyer, error) {
 	arg := sqlc.CreateBuyerParams{
 		BuyerCode:    code,
@@ -74,7 +78,7 @@ func (s *InvoiceService) CreateInvoice(ctx context.Context, accountID uuid.UUID,
 	return s.Repo.CreateInvoice(ctx, arg)
 }
 
-func (s *InvoiceService) CreateLineItem(ctx context.Context, invoiceID, itemID, unitID uuid.UUID, qty int32, price *int64, subTotal int64, itemSnap, unitSnap string) (sqlc.LineItem, error) {
+func (s *InvoiceService) CreateLineItem(ctx context.Context, invoiceID, itemID, unitID uuid.UUID, qty int32, price *int64, subTotal int64, itemSnap, unitSnap string, posKey string) (sqlc.LineItem, error) {
 	arg := sqlc.CreateLineItemParams{
 		InvoiceID:        uuid.NullUUID{UUID: invoiceID, Valid: true},
 		ItemID:           uuid.NullUUID{UUID: itemID, Valid: itemID != uuid.Nil},
@@ -84,6 +88,7 @@ func (s *InvoiceService) CreateLineItem(ctx context.Context, invoiceID, itemID, 
 		SubTotal:         subTotal,
 		ItemNameSnapshot: sql.NullString{String: itemSnap, Valid: itemSnap != ""},
 		UnitNameSnapshot: sql.NullString{String: unitSnap, Valid: unitSnap != ""},
+		PositionKey:      posKey,
 	}
 	return s.Repo.CreateLineItem(ctx, arg)
 }
@@ -95,6 +100,10 @@ func (s *InvoiceService) UpdateInvoiceStatus(ctx context.Context, invoiceID uuid
 		EditStatus:      sql.NullBool{Bool: editStatus, Valid: true},
 	}
 	return s.Repo.UpdateInvoiceStatus(ctx, arg)
+}
+
+func (s *InvoiceService) GetBuyerByCode(ctx context.Context, code string) (sqlc.Buyer, error) {
+	return s.Repo.GetBuyerByCode(ctx, code)
 }
 
 func (s *InvoiceService) RegisterDevice(ctx context.Context, deviceID, deviceName string) (sqlc.Device, error) {
@@ -110,6 +119,14 @@ func (s *InvoiceService) GetDevice(ctx context.Context, deviceID string) (sqlc.D
 
 func (s *InvoiceService) GetLastBuyerCode(ctx context.Context) (string, error) {
 	return s.Repo.GetLastBuyerCode(ctx)
+}
+
+func (s *InvoiceService) GetLastInvoiceCode(ctx context.Context, pattern string) (string, error) {
+	return s.Repo.GetLastInvoiceCode(ctx, pattern)
+}
+
+func (s *InvoiceService) ListEditingInvoices(ctx context.Context) ([]sqlc.ListEditingInvoicesRow, error) {
+	return s.Repo.ListEditingInvoices(ctx)
 }
 
 func (s *InvoiceService) ListBuyers(ctx context.Context, limit, offset int32) ([]sqlc.Buyer, error) {
@@ -260,6 +277,14 @@ type PatchLineItemInput struct {
 	SetItemNameSnapshot bool
 	UnitNameSnapshot    sql.NullString
 	SetUnitNameSnapshot bool
+}
+
+func (s *InvoiceService) GetLineItemByID(ctx context.Context, id uuid.UUID) (sqlc.LineItem, error) {
+	return s.Repo.GetLineItemByID(ctx, id)
+}
+
+func (s *InvoiceService) DeleteLineItem(ctx context.Context, id uuid.UUID) error {
+	return s.Repo.DeleteLineItem(ctx, id)
 }
 
 func (s *InvoiceService) PatchLineItem(ctx context.Context, id uuid.UUID, input PatchLineItemInput) (sqlc.LineItem, error) {

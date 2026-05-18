@@ -1,0 +1,203 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import '../services/api_service.dart';
+import '../widgets/buyer_card.dart';
+
+class BuyerListWidget extends StatefulWidget {
+  final Function(Map<String, dynamic> buyer)? onBuyerSelected;
+  final VoidCallback? onRefresh;
+
+  const BuyerListWidget({
+    super.key,
+    this.onBuyerSelected,
+    this.onRefresh,
+  });
+
+  @override
+  State<BuyerListWidget> createState() => BuyerListWidgetState();
+}
+
+class BuyerListWidgetState extends State<BuyerListWidget> {
+  final ApiService _apiService = ApiService();
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  Timer? _debounce;
+
+  List<dynamic> _buyers = [];
+  bool _isLoading = false;
+  bool _isSearching = false;
+
+  int _offset = 0;
+  final int _limit = 20;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBuyers();
+    _scrollController.addListener(_onScroll);
+  }
+
+  // Thêm phương thức để bên ngoài có thể gọi làm mới
+  Future<void> refresh() async {
+    _offset = 0;
+    _hasMore = true;
+    await _fetchBuyers();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (!_isLoading && !_isLoadingMore && _hasMore && !_isSearching) {
+        _fetchMoreBuyers();
+      }
+    }
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      _offset = 0;
+      _hasMore = true;
+      _fetchBuyers();
+    });
+  }
+
+  Future<void> _fetchBuyers() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      List<dynamic> buyers;
+      if (_searchController.text.isNotEmpty) {
+        buyers = await _apiService.searchBuyers(_searchController.text);
+        _isSearching = true;
+        _hasMore = false;
+      } else {
+        buyers = await _apiService.getBuyers(
+          limit: _limit,
+          offset: 0,
+        );
+        _isSearching = false;
+        _offset = buyers.length;
+        _hasMore = buyers.length == _limit;
+      }
+      if (mounted) {
+        setState(() {
+          _buyers = buyers;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchMoreBuyers() async {
+    if (_isLoadingMore || !_hasMore) return;
+    setState(() => _isLoadingMore = true);
+    try {
+      final moreBuyers = await _apiService.getBuyers(
+        limit: _limit,
+        offset: _offset,
+      );
+
+      if (mounted) {
+        setState(() {
+          if (moreBuyers.isEmpty) {
+            _hasMore = false;
+          } else {
+            _buyers.addAll(moreBuyers);
+            _offset += moreBuyers.length;
+            _hasMore = moreBuyers.length == _limit;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi tải thêm: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingMore = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            controller: _searchController,
+            onChanged: _onSearchChanged,
+            decoration: InputDecoration(
+              hintText: 'Tìm theo tên hoặc mã người mua...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        _onSearchChanged('');
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              filled: true,
+              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            ),
+          ),
+        ),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _buyers.isEmpty
+                  ? const Center(child: Text('Không tìm thấy người mua nào'))
+                  : RefreshIndicator(
+                      onRefresh: _fetchBuyers,
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _buyers.length + (_hasMore ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == _buyers.length) {
+                            return const Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+
+                          final buyer = _buyers[index];
+                          return BuyerCard(
+                            buyer: buyer,
+                            onTap: () {
+                              if (widget.onBuyerSelected != null) {
+                                widget.onBuyerSelected!(buyer);
+                              }
+                            },
+                          );
+                        },
+                      ),
+                    ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _scrollController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+}

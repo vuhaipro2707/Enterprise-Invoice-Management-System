@@ -6,8 +6,9 @@ import '../../widgets/type_selection_sheet.dart';
 
 class ItemDetailScreen extends StatefulWidget {
   final Map<String, dynamic> item;
+  final List<dynamic> types;
 
-  const ItemDetailScreen({super.key, required this.item});
+  const ItemDetailScreen({super.key, required this.item, required this.types});
 
   @override
   State<ItemDetailScreen> createState() => _ItemDetailScreenState();
@@ -24,15 +25,22 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   
   String? _selectedTypeId;
   String? _selectedTypeName;
-  List<dynamic> _types = [];
-  bool _isLoadingTypes = true;
+  late List<dynamic> _types;
+  final _isLoadingTypes = false;
   bool _isSaving = false;
+  final _otherNameFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.item['item_default_name']);
     
+    _otherNameFocusNode.addListener(() {
+      if (!_otherNameFocusNode.hasFocus) {
+        _addOtherName(_otherNameInputController.text);
+      }
+    });
+
     // Khởi tạo tên gọi khác kèm ID
     final rawOtherNames = widget.item['item_other_names'] as List? ?? [];
     _otherNames = rawOtherNames.map((e) {
@@ -41,6 +49,18 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     }).toList();
 
     _selectedTypeId = widget.item['type_id'];
+    _types = widget.types;
+
+    // Tìm tên loại từ list types truyền vào
+    if (_selectedTypeId != null) {
+      final type = _types.firstWhere(
+        (t) => t['type_id'] == _selectedTypeId,
+        orElse: () => null,
+      );
+      if (type != null) {
+        _selectedTypeName = type['type_name'];
+      }
+    }
     
     // Khởi tạo các đơn vị từ dữ liệu có sẵn
     final existingUnits = widget.item['units'] as List? ?? [];
@@ -55,34 +75,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         'nameController': TextEditingController(text: u['unit_name']),
         'priceController': TextEditingController(text: formattedPrice),
       });
-    }
-
-    _fetchTypes();
-  }
-
-  Future<void> _fetchTypes() async {
-    try {
-      final types = await ApiService().getTypes();
-      if (mounted) {
-        setState(() {
-          _types = types;
-          _isLoadingTypes = false;
-          // Tìm tên loại từ ID đã có
-          if (_selectedTypeId != null) {
-            final type = _types.firstWhere(
-              (t) => t['type_id'] == _selectedTypeId,
-              orElse: () => null,
-            );
-            if (type != null) {
-              _selectedTypeName = type['type_name'];
-            }
-          }
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoadingTypes = false);
-      }
     }
   }
 
@@ -155,6 +147,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   }
 
   Future<void> _saveChanges() async {
+    _addOtherName(_otherNameInputController.text);
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
@@ -248,6 +241,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   void dispose() {
     _nameController.dispose();
     _otherNameInputController.dispose();
+    _otherNameFocusNode.dispose();
     for (var unit in _units) {
       unit['nameController'].dispose();
       unit['priceController'].dispose();
@@ -300,6 +294,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                   width: 150,
                   child: TextField(
                     controller: _otherNameInputController,
+                    focusNode: _otherNameFocusNode,
                     decoration: const InputDecoration(
                       hintText: 'Thêm tên...',
                       isDense: true,

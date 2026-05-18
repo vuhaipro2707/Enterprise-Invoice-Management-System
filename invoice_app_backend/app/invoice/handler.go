@@ -7,6 +7,7 @@ import (
 	"fmt"
 	sqlc "invoice_backend/db/sqlc"
 	"net/url"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -246,8 +247,22 @@ func (h *InvoiceHandler) CreateLineItem(c *fiber.Ctx) error {
 		}
 	}
 
+	// Calculate position_key (insert at end)
+	invoiceWithLines, _ := h.service.Repo.GetInvoiceWithLines(context.Background(), invID)
+	posKey := "i0000" // Default for the first item
+	var lines []map[string]interface{}
+	if invoiceWithLines.LineItems != nil {
+		json.Unmarshal(invoiceWithLines.LineItems, &lines)
+	}
+	if len(lines) > 0 {
+		lastLine := lines[len(lines)-1]
+		if lastPos, ok := lastLine["position_key"].(string); ok {
+			posKey = GenerateMidString(lastPos, "zzzzz")
+		}
+	}
+
 	// sub_total is calculated by DB trigger, we pass 0 from app
-	lineItem, err := h.service.CreateLineItem(context.Background(), invID, itmID, untID, req.Quantity, req.UnitPriceCustom, 0, getString(req.ItemNameSnapshot), getString(req.UnitNameSnapshot))
+	lineItem, err := h.service.CreateLineItem(context.Background(), invID, itmID, untID, req.Quantity, req.UnitPriceCustom, 0, getString(req.ItemNameSnapshot), getString(req.UnitNameSnapshot), posKey)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to create line item: %v", err)})
 	}
@@ -256,6 +271,62 @@ func (h *InvoiceHandler) CreateLineItem(c *fiber.Ctx) error {
 		"message": "Line item created successfully",
 		"data":    lineItem,
 	})
+}
+
+func (h *InvoiceHandler) ChangeLineItemOrder(c *fiber.Ctx) error {
+	type changeOrderRequest struct {
+		PrevLineItemID *string `json:"prev_line_item_id"`
+		NextLineItemID *string `json:"next_line_item_id"`
+		LineItemID     string  `json:"line_item_id"`
+	}
+
+	var req changeOrderRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
+	}
+
+	invoiceIDStr := c.Params("invoiceId")
+	invID, err := uuid.Parse(invoiceIDStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid invoiceId"})
+	}
+
+	targetUUID, err := uuid.Parse(req.LineItemID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid line_item_id"})
+	}
+
+	invoiceWithLines, err := h.service.Repo.GetInvoiceWithLines(context.Background(), invID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Invoice not found"})
+	}
+
+	var lines []map[string]interface{}
+	json.Unmarshal(invoiceWithLines.LineItems, &lines)
+
+	var prevKey, nextKey string
+	for _, l := range lines {
+		id := l["line_item_id"].(string)
+		pk := l["position_key"].(string)
+		if req.PrevLineItemID != nil && *req.PrevLineItemID == id {
+			prevKey = pk
+		}
+		if req.NextLineItemID != nil && *req.NextLineItemID == id {
+			nextKey = pk
+		}
+	}
+
+	newPosKey := GenerateMidString(prevKey, nextKey)
+
+	err = h.service.Repo.UpdateLineItemPos(context.Background(), sqlc.UpdateLineItemPosParams{
+		LineItemID:  targetUUID,
+		PositionKey: newPosKey,
+	})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Order updated", "new_position_key": newPosKey})
 }
 
 func (h *InvoiceHandler) TakeTurn(c *fiber.Ctx) error {
@@ -339,9 +410,53 @@ func (h *InvoiceHandler) PingInvoice(c *fiber.Ctx) error {
 	}
 
 	return c.Status(200).JSON(fiber.Map{
-		"deviceHoldingId": invoice.DeviceHoldingID.String,
-		"deviceName":      invoice.DeviceName.String,
-		"editStatus":      invoice.EditStatus.Bool,
+		"device_holding_id": invoice.DeviceHoldingID.String,
+		"device_name":       invoice.DeviceName.String,
+		"edit_status":       invoice.EditStatus.Bool,
+	})
+}
+
+func (h *InvoiceHandler) GetBuyerByCode(c *fiber.Ctx) error {
+	code := c.Query("code")
+	if code == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing query param: code"})
+	}
+
+	buyer, err := h.service.GetBuyerByCode(context.Background(), code)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.Status(404).JSON(fiber.Map{"error": "Buyer not found"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to get buyer: %v", err)})
+	}
+
+	var addr, phone, idCard *string
+	var lat, lng *float64
+	if buyer.Address.Valid {
+		addr = &buyer.Address.String
+	}
+	if buyer.PhoneNumber.Valid {
+		phone = &buyer.PhoneNumber.String
+	}
+	if buyer.IDCardNumber.Valid {
+		idCard = &buyer.IDCardNumber.String
+	}
+	if buyer.Lat.Valid {
+		lat = &buyer.Lat.Float64
+	}
+	if buyer.Lng.Valid {
+		lng = &buyer.Lng.Float64
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"buyer_id":       buyer.BuyerID,
+		"buyer_code":     buyer.BuyerCode,
+		"buyer_name":     buyer.BuyerName,
+		"address":        addr,
+		"phone_number":   phone,
+		"id_card_number": idCard,
+		"lat":            lat,
+		"lng":            lng,
 	})
 }
 
@@ -409,6 +524,58 @@ func (h *InvoiceHandler) GetNextBuyerCode(c *fiber.Ctx) error {
 
 	nextCode := fmt.Sprintf("KH-%03d", num+1)
 	return c.Status(200).JSON(fiber.Map{"nextCode": nextCode})
+}
+
+func (h *InvoiceHandler) GetNextInvoiceCode(c *fiber.Ctx) error {
+	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+	now := time.Now().In(loc)
+	prefix := fmt.Sprintf("INV-%02d%02d%02d-", now.Year()%100, now.Month(), now.Day())
+	pattern := prefix + "%"
+
+	lastCode, err := h.service.GetLastInvoiceCode(context.Background(), pattern)
+	if err != nil {
+		return c.Status(200).JSON(fiber.Map{"nextCode": prefix + "001"})
+	}
+
+	var num int
+	_, err = fmt.Sscanf(lastCode, prefix+"%d", &num)
+	if err != nil {
+		return c.Status(200).JSON(fiber.Map{"nextCode": prefix + "001"})
+	}
+
+	nextCode := fmt.Sprintf("%s%03d", prefix, num+1)
+	return c.Status(200).JSON(fiber.Map{"nextCode": nextCode})
+}
+
+func (h *InvoiceHandler) ListEditingInvoices(c *fiber.Ctx) error {
+	invoices, err := h.service.ListEditingInvoices(context.Background())
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to list editing invoices: %v", err)})
+	}
+
+	if invoices == nil {
+		invoices = []sqlc.ListEditingInvoicesRow{}
+	}
+
+	return c.Status(200).JSON(invoices)
+}
+
+func (h *InvoiceHandler) GetInvoiceWithLines(c *fiber.Ctx) error {
+	invoiceIDStr := c.Params("invoiceId")
+	invoiceID, err := uuid.Parse(invoiceIDStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid invoice ID format"})
+	}
+
+	invoice, err := h.service.GetInvoiceWithLines(context.Background(), invoiceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.Status(404).JSON(fiber.Map{"error": "Invoice not found"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to get invoice: %v", err)})
+	}
+
+	return c.Status(200).JSON(invoice)
 }
 
 func (h *InvoiceHandler) GooglePlaceAutocomplete(c *fiber.Ctx) error {
@@ -795,4 +962,19 @@ func (h *InvoiceHandler) PatchLineItem(c *fiber.Ctx) error {
 	}
 
 	return c.Status(200).JSON(fiber.Map{"message": "Line item updated", "data": updated})
+}
+
+func (h *InvoiceHandler) DeleteLineItem(c *fiber.Ctx) error {
+	lineItemIDStr := c.Params("lineItemId")
+	liID, err := uuid.Parse(lineItemIDStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid lineItemId"})
+	}
+
+	err = h.service.DeleteLineItem(context.Background(), liID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to delete line item: %v", err)})
+	}
+
+	return c.SendStatus(204)
 }

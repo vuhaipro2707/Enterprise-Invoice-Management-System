@@ -8,6 +8,9 @@ import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/settings/device_management_screen.dart';
 import 'screens/items/item_management_screen.dart';
 import 'screens/buyer/buyer_management_screen.dart';
+import 'screens/buyer/buyer_search_screen.dart';
+import 'screens/invoice/create_invoice_screen.dart';
+import 'screens/invoice/edit_invoice_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,6 +62,9 @@ class MyApp extends StatelessWidget {
         '/device_management': (context) => const DeviceManagementScreen(),
         '/item_management': (context) => const ItemManagementScreen(),
         '/buyer_management': (context) => const BuyerManagementScreen(),
+        '/buyer_search': (context) => const BuyerSearchScreen(),
+        '/create_invoice': (context) => const CreateInvoiceScreen(),
+        '/edit_invoice': (context) => const EditInvoiceScreen(),
       },
     );
   }

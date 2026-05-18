@@ -15,8 +15,8 @@ class BuyerCard extends StatelessWidget {
       final colorScheme = Theme.of(context).colorScheme;
   
       return Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        elevation: 2,
+        margin: const EdgeInsets.only(bottom: 12),
+        elevation: 1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
