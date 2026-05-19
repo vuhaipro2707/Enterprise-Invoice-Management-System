@@ -72,8 +72,8 @@ func (h *ItemHandler) CreateItem(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required keys: itemDefaultName, itemOtherNames, typeId(optional)"})
 	}
 
-	if req.ItemDefaultName == "" || len(req.ItemOtherNames) == 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: itemDefaultName, itemOtherNames, typeId(optional)"})
+	if req.ItemDefaultName == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: itemDefaultName, typeId(optional)"})
 	}
 
 	item, err := h.service.CreateItem(context.Background(), req.ItemDefaultName, req.ItemOtherNames, req.TypeID)
@@ -134,7 +134,36 @@ func (h *ItemHandler) GetItems(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to get items"})
 	}
 
-	return c.Status(200).JSON(fiber.Map{"data": items})
+	resp := []fiber.Map{}
+	for _, item := range items {
+		var tID *uuid.UUID
+		if item.TypeID.Valid {
+			tID = &item.TypeID.UUID
+		}
+
+		var units []interface{}
+		if item.Units != nil {
+			json.Unmarshal(item.Units, &units)
+		}
+
+		var otherNames []interface{}
+		if item.ItemOtherNames != nil {
+			json.Unmarshal(item.ItemOtherNames, &otherNames)
+		}
+
+		resp = append(resp, fiber.Map{
+			"item_id":           item.ItemID,
+			"item_default_name": item.ItemDefaultName,
+			"item_other_names":  otherNames,
+			"type_id":           tID,
+			"units":             units,
+			"is_active":         item.IsActive,
+			"created_at":        item.CreatedAt,
+			"updated_at":        item.UpdatedAt,
+		})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"data": resp})
 }
 
 // example query: GET /items/search?keyword=example&limit=10
@@ -182,11 +211,36 @@ func (h *ItemHandler) SearchItems(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to search items"})
 	}
 
-	if items == nil {
-		items = []sqlc.SearchItemsRow{}
+	resp := []fiber.Map{}
+	for _, item := range items {
+		var tID *uuid.UUID
+		if item.TypeID.Valid {
+			tID = &item.TypeID.UUID
+		}
+
+		var units []interface{}
+		if item.Units != nil {
+			json.Unmarshal(item.Units, &units)
+		}
+
+		var otherNames []interface{}
+		if item.ItemOtherNames != nil {
+			json.Unmarshal(item.ItemOtherNames, &otherNames)
+		}
+
+		resp = append(resp, fiber.Map{
+			"item_id":           item.ItemID,
+			"item_default_name": item.ItemDefaultName,
+			"item_other_names":  otherNames,
+			"type_id":           tID,
+			"units":             units,
+			"is_active":         item.IsActive,
+			"created_at":        item.CreatedAt,
+			"updated_at":        item.UpdatedAt,
+		})
 	}
 
-	return c.Status(200).JSON(fiber.Map{"data": items})
+	return c.Status(200).JSON(fiber.Map{"data": resp})
 }
 
 // example request body for CreateUnitForItem:
@@ -223,9 +277,22 @@ func (h *ItemHandler) CreateUnitForItem(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Failed to create unit for item. Please verify itemId is a valid UUID and item exists"})
 	}
 
+	var itmID *uuid.UUID
+	if unit.ItemID.Valid {
+		itmID = &unit.ItemID.UUID
+	}
+
 	return c.Status(201).JSON(fiber.Map{
 		"message": "Unit created and assigned to item successfully",
-		"data":    unit,
+		"data": fiber.Map{
+			"unit_id":            unit.UnitID,
+			"item_id":            itmID,
+			"unit_name":          unit.UnitName,
+			"unit_price_default": unit.UnitPriceDefault,
+			"is_active":          unit.IsActive,
+			"created_at":         unit.CreatedAt,
+			"updated_at":         unit.UpdatedAt,
+		},
 	})
 }
 
@@ -247,7 +314,24 @@ func (h *ItemHandler) GetUnits(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to get units"})
 	}
 
-	return c.Status(200).JSON(fiber.Map{"data": units})
+	resp := []fiber.Map{}
+	for _, unit := range units {
+		var itmID *uuid.UUID
+		if unit.ItemID.Valid {
+			itmID = &unit.ItemID.UUID
+		}
+		resp = append(resp, fiber.Map{
+			"unit_id":            unit.UnitID,
+			"item_id":            itmID,
+			"unit_name":          unit.UnitName,
+			"unit_price_default": unit.UnitPriceDefault,
+			"is_active":          unit.IsActive,
+			"created_at":         unit.CreatedAt,
+			"updated_at":         unit.UpdatedAt,
+		})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"data": resp})
 }
 
 // example request body for CreateType:

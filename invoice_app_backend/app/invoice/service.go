@@ -63,7 +63,7 @@ func getFloat64(f *float64) float64 {
 	return *f
 }
 
-func (s *InvoiceService) CreateInvoice(ctx context.Context, accountID uuid.UUID, buyerID uuid.NullUUID, code string, total int64, deviceID string, editStatus bool, buyerSnap, addrSnap, phoneSnap *string) (sqlc.Invoice, error) {
+func (s *InvoiceService) CreateInvoice(ctx context.Context, accountID uuid.UUID, buyerID uuid.NullUUID, code string, total int64, deviceID string, editStatus bool, buyerSnap, addrSnap, phoneSnap *string, latSnap, lngSnap *float64) (sqlc.Invoice, error) {
 	arg := sqlc.CreateInvoiceParams{
 		AccountID:           uuid.NullUUID{UUID: accountID, Valid: true},
 		BuyerID:             buyerID,
@@ -74,6 +74,8 @@ func (s *InvoiceService) CreateInvoice(ctx context.Context, accountID uuid.UUID,
 		BuyerNameSnapshot:   sql.NullString{String: getString(buyerSnap), Valid: buyerSnap != nil},
 		AddressSnapshot:     sql.NullString{String: getString(addrSnap), Valid: addrSnap != nil},
 		PhoneNumberSnapshot: sql.NullString{String: getString(phoneSnap), Valid: phoneSnap != nil},
+		LatSnapshot:         sql.NullFloat64{Float64: getFloat64(latSnap), Valid: latSnap != nil},
+		LngSnapshot:         sql.NullFloat64{Float64: getFloat64(lngSnap), Valid: lngSnap != nil},
 	}
 	return s.Repo.CreateInvoice(ctx, arg)
 }
@@ -217,6 +219,10 @@ type PatchInvoiceInput struct {
 	SetAddressSnapshot     bool
 	PhoneNumberSnapshot    sql.NullString
 	SetPhoneNumberSnapshot bool
+	LatSnapshot            sql.NullFloat64
+	SetLatSnapshot         bool
+	LngSnapshot            sql.NullFloat64
+	SetLngSnapshot         bool
 }
 
 func (s *InvoiceService) PatchInvoice(ctx context.Context, id uuid.UUID, input PatchInvoiceInput) (sqlc.Invoice, error) {
@@ -249,6 +255,12 @@ func (s *InvoiceService) PatchInvoice(ctx context.Context, id uuid.UUID, input P
 	if input.SetPhoneNumberSnapshot {
 		invoice.PhoneNumberSnapshot = input.PhoneNumberSnapshot
 	}
+	if input.SetLatSnapshot {
+		invoice.LatSnapshot = input.LatSnapshot
+	}
+	if input.SetLngSnapshot {
+		invoice.LngSnapshot = input.LngSnapshot
+	}
 
 	return s.Repo.UpdateInvoice(ctx, sqlc.UpdateInvoiceParams{
 		InvoiceID:           invoice.InvoiceID,
@@ -261,6 +273,8 @@ func (s *InvoiceService) PatchInvoice(ctx context.Context, id uuid.UUID, input P
 		BuyerNameSnapshot:   invoice.BuyerNameSnapshot,
 		AddressSnapshot:     invoice.AddressSnapshot,
 		PhoneNumberSnapshot: invoice.PhoneNumberSnapshot,
+		LatSnapshot:         invoice.LatSnapshot,
+		LngSnapshot:         invoice.LngSnapshot,
 	})
 }
 

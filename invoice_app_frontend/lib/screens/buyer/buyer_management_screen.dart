@@ -30,7 +30,7 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
         onPressed: () async {
           final result = await Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const CreateBuyerScreen()),
+            MaterialPageRoute(builder: (builderContext) => const CreateBuyerScreen()),
           );
           if (result == true) {
             _listKey.currentState?.refresh();
@@ -41,13 +41,16 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
       ),
       body: BuyerListWidget(
         key: _listKey,
-        onBuyerSelected: (buyer) {
-          Navigator.push(
+        onBuyerSelected: (buyer) async {
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => BuyerDetailScreen(buyer: buyer),
+              builder: (builderContext) => BuyerDetailScreen(buyer: buyer),
             ),
           );
+          if (result == true) {
+            _listKey.currentState?.refresh();
+          }
         },
       ),
     );

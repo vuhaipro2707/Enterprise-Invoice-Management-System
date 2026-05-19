@@ -158,7 +158,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
     final TextEditingController typeController = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Thêm loại hàng mới'),
         content: TextField(
           controller: typeController,
@@ -167,7 +167,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Hủy'),
           ),
           ElevatedButton(
@@ -175,12 +175,12 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
               if (typeController.text.isNotEmpty) {
                 try {
                   await _apiService.createType(typeController.text);
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    _loadInitialData(); // Load lại list types
-                  }
+                  if (!mounted || !dialogContext.mounted) return;
+                  
+                  Navigator.pop(dialogContext);
+                  _loadInitialData(); // Load lại list types
                 } catch (e) {
-                  if (context.mounted) {
+                  if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Lỗi: $e')),
                     );
@@ -202,7 +202,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
+      builder: (sheetContext) {
         return TypeSelectionSheet(
           initialTypes: _types,
           onTypeSelected: (type) {

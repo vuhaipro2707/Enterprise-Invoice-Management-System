@@ -101,6 +101,8 @@ CREATE TABLE IF NOT EXISTS invoices (
     edit_status BOOLEAN DEFAULT FALSE,
     buyer_name_snapshot VARCHAR(255),
     address_snapshot TEXT,
+    lat_snapshot DOUBLE PRECISION,
+    lng_snapshot DOUBLE PRECISION,
     phone_number_snapshot VARCHAR(50),
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),

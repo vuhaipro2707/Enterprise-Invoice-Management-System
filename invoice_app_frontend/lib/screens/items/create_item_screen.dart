@@ -77,7 +77,7 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
+      builder: (sheetContext) {
         return TypeSelectionSheet(
           initialTypes: _types,
           onTypeSelected: (type) {

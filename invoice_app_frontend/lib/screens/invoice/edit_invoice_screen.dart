@@ -3,9 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
-import '../../services/currency_formatter.dart';
 import '../../widgets/line_item_card.dart';
-import 'line_item_search_screen.dart';
+import '../../widgets/address_search_field.dart';
 
 class EditInvoiceScreen extends StatefulWidget {
   const EditInvoiceScreen({super.key});
@@ -20,9 +19,14 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   Map<String, dynamic>? _invoiceData;
   bool _isLoading = true;
 
+  final _buyerCodeController = TextEditingController();
   final _buyerNameController = TextEditingController();
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
+  String? _selectedBuyerId;
+  double? _selectedLat;
+  double? _selectedLng;
+  bool _isFetchingBuyer = false;
 
   Timer? _pingTimer;
   int _failedPingCount = 0;
@@ -95,7 +99,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(title),
         content: Text(message),
         actions: [
@@ -103,14 +107,14 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
             onPressed: () {
               _pingTimer?.cancel();
               setState(() => _isShowingAlert = true);
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Go back to dashboard
+              Navigator.pop(dialogContext); // Close dialog
+              Navigator.pop(context); // Go back to dashboard (using screen context)
             },
             child: const Text('THOÁT RA'),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               setState(() => _isShowingAlert = false);
               onConfirm();
             },
@@ -132,7 +136,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Mất kết nối'),
         content: const Text('Không thể kết nối tới máy chủ sau nhiều lần thử. Vui lòng kiểm tra lại mạng.'),
         actions: [
@@ -140,14 +144,14 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
             onPressed: () {
               _pingTimer?.cancel(); // Dừng ngay lập tức
               setState(() => _isShowingAlert = true); // Giữ trạng thái chặn ping
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               Navigator.pop(context);
             },
             child: const Text('THOÁT RA'),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               setState(() => _isShowingAlert = false);
               _startPingTimer(); // Restart and try again
             },
@@ -212,9 +216,12 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       final data = await _apiService.getInvoice(_invoiceId!);
       setState(() {
         _invoiceData = data;
-        _buyerNameController.text = _getStringValue(data['buyer_name_snapshot']) ?? '';
-        _addressController.text = _getStringValue(data['address_snapshot']) ?? '';
-        _phoneController.text = _getStringValue(data['phone_number_snapshot']) ?? '';
+        _selectedBuyerId = data['buyer_id'];
+        _buyerNameController.text = data['buyer_name_snapshot']?.toString() ?? '';
+        _addressController.text = data['address_snapshot']?.toString() ?? '';
+        _phoneController.text = data['phone_number_snapshot']?.toString() ?? '';
+        _selectedLat = data['lat_snapshot'] != null ? (data['lat_snapshot'] as num).toDouble() : null;
+        _selectedLng = data['lng_snapshot'] != null ? (data['lng_snapshot'] as num).toDouble() : null;
         _isLoading = false;
       });
     } catch (e) {
@@ -226,16 +233,54 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     }
   }
 
-  String? _getStringValue(dynamic field) {
-    if (field == null) return null;
-    if (field is Map) return field['Valid'] == true ? field['String'].toString() : null;
-    return field.toString();
+  Future<void> _lookupBuyer() async {
+    final code = _buyerCodeController.text.trim();
+    if (code.isEmpty) return;
+
+    setState(() => _isFetchingBuyer = true);
+    try {
+      final buyer = await _apiService.getBuyerByCode(code);
+      setState(() {
+        _selectedBuyerId = buyer['buyer_id'];
+        _buyerNameController.text = buyer['buyer_name'] ?? '';
+        _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
+        _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
+        _addressController.text = buyer['address'] ?? '';
+        _phoneController.text = buyer['phone_number'] ?? '';
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không tìm thấy mã khách hàng: $code')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isFetchingBuyer = false);
+    }
+  }
+
+  Future<void> _searchBuyerAdvanced() async {
+    final buyer = await Navigator.pushNamed(context, '/buyer_search');
+    if (buyer != null && buyer is Map<String, dynamic>) {
+      setState(() {
+        _selectedBuyerId = buyer['buyer_id'];
+        _buyerCodeController.text = buyer['buyer_code'] ?? '';
+        _buyerNameController.text = buyer['buyer_name'] ?? '';
+        _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
+        _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
+        _addressController.text = buyer['address'] ?? '';
+        _phoneController.text = buyer['phone_number'] ?? '';
+      });
+    }
   }
 
   Future<void> _updateBuyerInfo() async {
     try {
       await _apiService.updateInvoice(_invoiceId!, {
+        'buyerId': _selectedBuyerId,
         'buyerNameSnapshot': _buyerNameController.text.trim(),
+        'latSnapshot': _selectedLat,
+        'lngSnapshot': _selectedLng,
         'addressSnapshot': _addressController.text.trim(),
         'phoneNumberSnapshot': _phoneController.text.trim(),
       });
@@ -338,14 +383,58 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _buyerCodeController,
+                            decoration: const InputDecoration(
+                              labelText: 'Mã khách hàng (Tùy chọn)',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _isFetchingBuyer
+                            ? const Padding(
+                                padding: EdgeInsets.all(12.0),
+                                child: SizedBox(
+                                    width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+                              )
+                            : Row(
+                                children: [
+                                  IconButton.filled(
+                                    onPressed: _lookupBuyer,
+                                    icon: const Icon(Icons.person_search),
+                                    tooltip: 'Truy vấn nhanh theo mã',
+                                  ),
+                                  const SizedBox(width: 4),
+                                  IconButton.filledTonal(
+                                    onPressed: _searchBuyerAdvanced,
+                                    icon: const Icon(Icons.search),
+                                    tooltip: 'Tìm kiếm nâng cao',
+                                  ),
+                                ],
+                              ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _buyerNameController,
                       decoration: const InputDecoration(labelText: 'Tên khách hàng', border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 12),
-                    TextFormField(
+                    AddressSearchField(
                       controller: _addressController,
-                      decoration: const InputDecoration(labelText: 'Địa chỉ', border: OutlineInputBorder()),
+                      initialLat: _selectedLat,
+                      initialLng: _selectedLng,
+                      initialAddress: _addressController.text,
+                      onLocationSelected: (lat, lng) {
+                        setState(() {
+                          _selectedLat = lat;
+                          _selectedLng = lng;
+                        });
+                      },
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -430,17 +519,17 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                 onPressed: () {
                   showDialog(
                     context: context,
-                    builder: (context) => AlertDialog(
+                    builder: (dialogContext) => AlertDialog(
                       title: const Text('Xác nhận lưu'),
                       content: const Text('Bạn có chắc chắn muốn hoàn tất và lưu hóa đơn này không?'),
                       actions: [
-                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY')),
+                        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('HỦY')),
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary),
                           onPressed: () {
                             _pingTimer?.cancel(); // Cancel ping immediately before finishing
                             setState(() => _isShowingAlert = true); // Block further pings
-                            Navigator.pop(context);
+                            Navigator.pop(dialogContext);
                             _finishInvoice();
                           },
                           child: const Text('LƯU NGAY'),
@@ -494,22 +583,22 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   }
 
   void _openCreateLineItem() async {
-    final result = await Navigator.push(
+    final result = await Navigator.pushNamed(
       context,
-      MaterialPageRoute(builder: (context) => CreateLineItemScreen(invoiceId: _invoiceId!)),
+      '/create_line_item',
+      arguments: {'invoiceId': _invoiceId!},
     );
     if (result == true) _fetchInvoiceDetails();
   }
 
   void _openEditLineItem(Map<String, dynamic> lineItem) async {
-    final result = await Navigator.push(
+    final result = await Navigator.pushNamed(
       context,
-      MaterialPageRoute(
-        builder: (context) => CreateLineItemScreen(
-          invoiceId: _invoiceId!,
-          existingLineItem: lineItem,
-        ),
-      ),
+      '/create_line_item',
+      arguments: {
+        'invoiceId': _invoiceId!,
+        'existingLineItem': lineItem,
+      },
     );
     if (result == true) _fetchInvoiceDetails();
   }
@@ -517,16 +606,17 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   void _confirmDeleteLineItem(Map<String, dynamic> lineItem) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Xác nhận xóa'),
         content: Text('Bạn có chắc muốn xóa dòng "${lineItem['item_name_snapshot']}"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('HỦY')),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               try {
                 await _apiService.deleteLineItem(lineItem['line_item_id'].toString());
+                if (!mounted) return;
                 _fetchInvoiceDetails();
               } catch (e) {
                 if (mounted) {
@@ -544,6 +634,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   @override
   void dispose() {
     _pingTimer?.cancel();
+    _buyerCodeController.dispose();
     _buyerNameController.dispose();
     _addressController.dispose();
     _phoneController.dispose();
@@ -551,257 +642,3 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   }
 }
 
-class CreateLineItemScreen extends StatefulWidget {
-  final String invoiceId;
-  final Map<String, dynamic>? existingLineItem;
-  const CreateLineItemScreen({super.key, required this.invoiceId, this.existingLineItem});
-
-  @override
-  State<CreateLineItemScreen> createState() => _CreateLineItemScreenState();
-}
-
-class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
-  final ApiService _apiService = ApiService();
-  final _itemNameController = TextEditingController();
-  final _unitNameController = TextEditingController();
-  final _quantityController = TextEditingController();
-  final _priceController = TextEditingController();
-  bool _isSaving = false;
-
-  Map<String, dynamic>? _selectedItem;
-  List<dynamic> _availableUnits = [];
-  String? _selectedUnitId;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.existingLineItem != null) {
-      final item = widget.existingLineItem!;
-      _itemNameController.text = item['item_name_snapshot'] ?? '';
-      _unitNameController.text = item['unit_name_snapshot'] ?? '';
-      _quantityController.text = (item['quantity'] ?? 0).toString();
-      _priceController.text = NumberFormat.decimalPattern('vi_VN').format(item['unit_price_custom'] ?? 0);
-      _selectedUnitId = item['unit_id'];
-      // if it has item_id, we might want to fetch available units for it, 
-      // but for simplicity we'll just allow editing the snapshots
-    }
-  }
-
-  void _openSearch() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const LineItemSearchScreen()),
-    );
-
-    if (result != null && result is Map<String, dynamic>) {
-      setState(() {
-        _selectedItem = result;
-        _itemNameController.text = result['item_default_name'] ?? '';
-        _availableUnits = result['units'] as List? ?? [];
-        if (_availableUnits.isNotEmpty) {
-          // Mặc định chọn đơn vị đầu tiên
-          _onUnitSelected(_availableUnits[0]);
-        } else {
-          _unitNameController.clear();
-          _priceController.clear();
-          _selectedUnitId = null;
-        }
-      });
-    }
-  }
-
-  void _onUnitSelected(Map<String, dynamic> unit) {
-    setState(() {
-      _selectedUnitId = unit['unit_id'];
-      _unitNameController.text = unit['unit_name'] ?? '';
-      
-      // Sử dụng formatter để hiển thị đơn giá ngay khi chọn unit
-      final rawPrice = unit['unit_price_default'] ?? 0;
-      _priceController.text = NumberFormat.decimalPattern('vi_VN').format(rawPrice);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Thêm dòng hàng')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Tìm kiếm item
-            InkWell(
-              onTap: _openSearch,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: colorScheme.outline.withValues(alpha: 0.5)),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.search, color: colorScheme.primary),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _selectedItem == null ? 'Bấm để tìm kiếm sản phẩm...' : _itemNameController.text,
-                        style: TextStyle(
-                          color: _selectedItem == null ? colorScheme.outline : colorScheme.onSurface,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                    if (_selectedItem != null) const Icon(Icons.edit, size: 18),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            if (_selectedItem != null) ...[
-              Text('Chọn đơn vị tính:', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: _availableUnits.map((unit) {
-                  final isSelected = _selectedUnitId == unit['unit_id'];
-                  return ChoiceChip(
-                    label: Text('${unit['unit_name']} (${NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(unit['unit_price_default'])})'),
-                    selected: isSelected,
-                    onSelected: (val) {
-                      if (val) _onUnitSelected(unit);
-                    },
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 20),
-            ],
-
-            // Các trường nhập tay (có thể chỉnh sửa sau khi chọn item)
-            Text('Thông tin chi tiết (Tùy chỉnh nếu cần)',
-                style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _itemNameController,
-              decoration: const InputDecoration(
-                labelText: 'Tên sản phẩm *',
-                border: OutlineInputBorder(),
-                hintText: 'Nhập tên hoặc chọn sản phẩm',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _unitNameController,
-              decoration: const InputDecoration(
-                labelText: 'Đơn vị tính *',
-                border: OutlineInputBorder(),
-                hintText: 'Cái, Thùng, Lon...',
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _quantityController,
-                    decoration: const InputDecoration(
-                      labelText: 'Số lượng *',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _priceController,
-                    decoration: const InputDecoration(
-                      labelText: 'Đơn giá *',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [CurrencyInputFormatter()],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isSaving ? null : _save,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: colorScheme.onPrimary,
-                ),
-                child: _isSaving
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(widget.existingLineItem != null ? 'LƯU THAY ĐỔI' : 'XÁC NHẬN THÊM'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _save() async {
-    final itemName = _itemNameController.text.trim();
-    final unitName = _unitNameController.text.trim();
-    final quantityText = _quantityController.text.trim();
-    final priceText = _priceController.text.trim();
-
-    if (itemName.isEmpty || unitName.isEmpty || quantityText.isEmpty || priceText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng điền đầy đủ các thông tin bắt buộc (*)')),
-      );
-      return;
-    }
-
-    setState(() => _isSaving = true);
-    try {
-      final qty = double.tryParse(quantityText.replaceAll(',', '.')) ?? 0;
-      final price = int.tryParse(priceText.replaceAll('.', '')) ?? 0;
-
-      if (qty <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Số lượng phải lớn hơn 0')));
-        setState(() => _isSaving = false);
-        return;
-      }
-
-      final payload = {
-        "invoice_id": widget.invoiceId,
-        "item_id": _selectedItem != null ? (_selectedItem!['item_id'] ?? _selectedItem!['id']) : (widget.existingLineItem?['item_id']),
-        "unit_id": _selectedUnitId,
-        "item_name_snapshot": itemName,
-        "unit_name_snapshot": unitName,
-        "quantity": qty.toInt(),
-        "unit_price_custom": price,
-      };
-
-      if (widget.existingLineItem != null) {
-        final lineItemId = widget.existingLineItem!['line_item_id'];
-        await _apiService.patchLineItem(lineItemId.toString(), payload);
-      } else {
-        await _apiService.createLineItem(widget.invoiceId, {
-          "itemID": payload["item_id"],
-          "unitID": payload["unit_id"],
-          "itemNameSnapshot": payload["item_name_snapshot"],
-          "unitNameSnapshot": payload["unit_name_snapshot"],
-          "quantity": payload["quantity"],
-          "unitPriceCustom": payload["unit_price_custom"],
-        });
-      }
-      if (mounted) Navigator.pop(context, true);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-}

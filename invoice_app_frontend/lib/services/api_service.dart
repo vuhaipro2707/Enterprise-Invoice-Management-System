@@ -292,6 +292,8 @@ class ApiService {
     String? buyerNameSnapshot,
     String? addressSnapshot,
     String? phoneNumberSnapshot,
+    double? latSnapshot,
+    double? lngSnapshot,
   }) async {
     final response = await post('/invoice', {
       'buyerId': buyerId,
@@ -300,6 +302,8 @@ class ApiService {
       'buyerNameSnapshot': buyerNameSnapshot,
       'addressSnapshot': addressSnapshot,
       'phoneNumberSnapshot': phoneNumberSnapshot,
+      'latSnapshot': latSnapshot,
+      'lngSnapshot': lngSnapshot,
     });
     
     final data = jsonDecode(response.body);
@@ -436,6 +440,17 @@ class ApiService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['result'];
+    }
+    return null;
+  }
+
+  Future<String?> googleReverseGeocode(double lat, double lng) async {
+    final queryParams = {'lat': lat.toString(), 'lng': lng.toString()};
+    final uri = Uri.parse('$baseUrl/invoice/google/reverse-geocode').replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['address'];
     }
     return null;
   }

@@ -46,16 +46,16 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
     // Hiển thị popup xác nhận trước khi tạo
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Xác nhận tạo mới'),
         content: Text('Bạn có chắc chắn muốn tạo loại hàng mới: "$name"?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Hủy'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Tạo mới'),
           ),
         ],
@@ -77,7 +77,9 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isCreating = false);
+      if (mounted) {
+        setState(() => _isCreating = false);
+      }
     }
   }
 
@@ -90,10 +92,10 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
       minChildSize: 0.5,
       maxChildSize: 0.95,
       expand: false,
-      builder: (context, scrollController) {
+      builder: (sheetContext, scrollController) {
         return Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
             left: 16,
             right: 16,
             top: 16,

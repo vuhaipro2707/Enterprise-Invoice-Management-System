@@ -125,7 +125,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
+      builder: (sheetContext) {
         return TypeSelectionSheet(
           initialTypes: _types,
           onTypeSelected: (type) {

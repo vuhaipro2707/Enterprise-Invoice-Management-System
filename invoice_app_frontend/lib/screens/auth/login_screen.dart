@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../services/api_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -50,6 +51,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _checkRegistrationAndNavigate() async {
     try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        await Geolocator.requestPermission();
+      }
+    } catch (e) {
+      debugPrint('Error requesting location permission: $e');
+    }
+
+    try {
       final regStatus = await ApiService().checkRegistered();
       if (!mounted) return;
       
@@ -70,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Đăng ký thiết bị'),
         content: TextField(
           controller: nameController,
@@ -82,10 +92,18 @@ class _LoginScreenState extends State<LoginScreen> {
               final deviceName = nameController.text.trim();
               if (deviceName.isEmpty) return;
               
-              await ApiService().registerDevice(deviceName);
-              if (context.mounted) {
-                Navigator.pop(context);
+              try {
+                await ApiService().registerDevice(deviceName);
+                if (!mounted || !dialogContext.mounted) return;
+                
+                Navigator.pop(dialogContext);
                 Navigator.pushReplacementNamed(context, '/dashboard');
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Lỗi đăng ký: $e')),
+                  );
+                }
               }
             },
             child: const Text('Đăng ký'),

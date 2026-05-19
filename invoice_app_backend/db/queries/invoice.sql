@@ -29,9 +29,11 @@ INSERT INTO invoices (
     edit_status,
     buyer_name_snapshot,
     address_snapshot,
-    phone_number_snapshot
+    phone_number_snapshot,
+    lat_snapshot,
+    lng_snapshot
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 ) RETURNING *;
 
 -- name: GetInvoiceByID :one
@@ -77,6 +79,8 @@ SET
     buyer_name_snapshot = $8,
     address_snapshot = $9,
     phone_number_snapshot = $10,
+    lat_snapshot = $11,
+    lng_snapshot = $12,
     updated_at = NOW()
 WHERE invoice_id = $1 AND deleted_at IS NULL
 RETURNING *;

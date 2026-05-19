@@ -1,9 +1,6 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_typeahead/flutter_typeahead.dart';
-import 'package:uuid/uuid.dart';
 import '../../services/api_service.dart';
+import '../../widgets/address_search_field.dart';
 
 class BuyerDetailScreen extends StatefulWidget {
   final Map<String, dynamic> buyer;
@@ -24,7 +21,6 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
   late final TextEditingController _phoneController;
   late final TextEditingController _idCardController;
 
-  String? _sessionToken;
   double? _selectedLat;
   double? _selectedLng;
 
@@ -176,54 +172,18 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
               const SizedBox(height: 24),
               const Text('Thông tin liên hệ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              TypeAheadField<dynamic>(
+              AddressSearchField(
                 controller: _addressController,
-                builder: (context, controller, focusNode) {
-                  return TextFormField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    decoration: const InputDecoration(
-                      labelText: 'Địa chỉ',
-                      prefixIcon: Icon(Icons.location_on),
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 2,
-                  );
-                },
-                suggestionsCallback: (search) async {
-                  if (search.trim().length < 3 || search.trim() == widget.buyer['address']) return [];
-                  _sessionToken ??= const Uuid().v4();
-                  return await _apiService.googleAutocomplete(search, sessionToken: _sessionToken);
-                },
-                itemBuilder: (context, prediction) {
-                  return ListTile(
-                    leading: const Icon(Icons.location_on),
-                    title: Text(prediction['structured_formatting']?['main_text'] ?? prediction['description'] ?? ''),
-                    subtitle: Text(prediction['structured_formatting']?['secondary_text'] ?? ''),
-                  );
-                },
-                emptyBuilder: (context) => const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text('Hãy nhập địa chỉ cần tìm kiếm', style: TextStyle(color: Colors.grey)),
-                ),
-                onSelected: (prediction) async {
-                  _addressController.text = prediction['description'];
-                  final placeId = prediction['place_id'];
-                  final details = await _apiService.googlePlaceDetails(placeId, sessionToken: _sessionToken);
-                  
-                  _sessionToken = null;
-
-                  if (details != null && details['geometry']?['location'] != null) {
-                    setState(() {
-                      _selectedLat = (details['geometry']['location']['lat'] as num).toDouble();
-                      _selectedLng = (details['geometry']['location']['lng'] as num).toDouble();
-                    });
-                    debugPrint('New selection location: $_selectedLat, $_selectedLng');
-                  }
+                initialAddress: widget.buyer['address'],
+                initialLat: _selectedLat,
+                initialLng: _selectedLng,
+                onLocationSelected: (lat, lng) {
+                  setState(() {
+                    _selectedLat = lat;
+                    _selectedLng = lng;
+                  });
                 },
               ),
-              const SizedBox(height: 16),
-              getCoordinateWidget(),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _phoneController,
@@ -261,59 +221,6 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget getCoordinateWidget() {
-    final hasCoords = _selectedLat != null && _selectedLng != null;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: hasCoords 
-            ? colorScheme.primary.withValues(alpha: 0.1) 
-            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: hasCoords 
-              ? colorScheme.primary.withValues(alpha: 0.3) 
-              : colorScheme.outlineVariant,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            hasCoords ? Icons.check_circle : Icons.location_off,
-            color: hasCoords ? colorScheme.primary : colorScheme.outline,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              hasCoords
-                  ? 'Đã xác định tọa độ: ${_selectedLat!.toStringAsFixed(4)}, ${_selectedLng!.toStringAsFixed(4)}'
-                  : 'Chưa xác định tọa độ (Chọn địa chỉ từ gợi ý)',
-              style: TextStyle(
-                color: hasCoords ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          if (hasCoords && !kIsWeb && Platform.isAndroid)
-            IconButton(
-              icon: Icon(Icons.directions, color: colorScheme.primary),
-              constraints: const BoxConstraints(),
-              padding: EdgeInsets.zero,
-              onPressed: () async {
-                final url = 'https://www.google.com/maps/dir/?api=1&destination=$_selectedLat,$_selectedLng';
-                await _apiService.launchURL(url);
-              },
-              tooltip: 'Dẫn đường',
-            ),
-        ],
       ),
     );
   }

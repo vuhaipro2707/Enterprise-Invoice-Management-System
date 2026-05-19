@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../widgets/type_selection_sheet.dart';
 import '../../widgets/item_card.dart';
+import '../items/create_item_screen.dart';
 
 class LineItemSearchScreen extends StatefulWidget {
   const LineItemSearchScreen({super.key});
@@ -46,6 +47,7 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
       _offset = 0;
       _hasMore = true;
       _fetchItems();
@@ -53,9 +55,11 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
   }
 
   Future<void> _loadInitialData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final types = await _apiService.getTypes();
+      if (!mounted) return;
       setState(() {
         _types = types;
       });
@@ -74,6 +78,7 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
   }
 
   Future<void> _fetchItems() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       List<dynamic> items;
@@ -82,6 +87,7 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
           _searchController.text,
           typeId: _selectedTypeId,
         );
+        if (!mounted) return;
         _hasMore = false;
       } else {
         items = await _apiService.getItems(
@@ -89,12 +95,15 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
           limit: _limit,
           offset: 0,
         );
+        if (!mounted) return;
         _offset = items.length;
         _hasMore = items.length == _limit;
       }
-      setState(() {
-        _items = items;
-      });
+      if (mounted) {
+        setState(() {
+          _items = items;
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -107,6 +116,7 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
   }
 
   Future<void> _fetchMoreItems() async {
+    if (!mounted) return;
     setState(() => _isLoadingMore = true);
     try {
       final moreItems = await _apiService.getItems(
@@ -115,6 +125,7 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
         offset: _offset,
       );
       
+      if (!mounted) return;
       setState(() {
         if (moreItems.isEmpty) {
           _hasMore = false;
@@ -142,21 +153,25 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
+      builder: (sheetContext) {
         return TypeSelectionSheet(
           initialTypes: _types,
           onTypeSelected: (type) {
-            setState(() {
-              _selectedTypeId = type['type_id'];
-            });
-            _fetchItems();
+            if (mounted) {
+              setState(() {
+                _selectedTypeId = type['type_id'];
+              });
+              _fetchItems();
+            }
           },
           onTypeCreated: (newType) {
-            setState(() {
-              _types.add(newType);
-              _selectedTypeId = newType['type_id'];
-            });
-            _fetchItems();
+            if (mounted) {
+              setState(() {
+                _types.add(newType);
+                _selectedTypeId = newType['type_id'];
+              });
+              _fetchItems();
+            }
           },
         );
       },
@@ -168,6 +183,29 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chọn mặt hàng'),
+        actions: [
+          IconButton(
+            onPressed: _isLoading ? null : _loadInitialData,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Làm mới dữ liệu',
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (builderContext) => CreateItemScreen(types: _types),
+            ),
+          );
+          if (result == true) {
+            // Refresh list if a new item was created
+            _fetchItems();
+          }
+        },
+        tooltip: 'Thêm mặt hàng mới',
+        child: const Icon(Icons.add),
       ),
       body: Column(
         children: [

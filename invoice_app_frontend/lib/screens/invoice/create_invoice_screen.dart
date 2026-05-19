@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
+import '../../widgets/address_search_field.dart';
 
 class CreateInvoiceScreen extends StatefulWidget {
   const CreateInvoiceScreen({super.key});
@@ -17,6 +18,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   final _phoneController = TextEditingController();
 
   String? _selectedBuyerId;
+  double? _selectedLat;
+  double? _selectedLng;
   bool _isLoading = false;
   bool _isFetchingBuyer = false;
   bool _isFetchingInvoiceCode = false;
@@ -51,6 +54,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       setState(() {
         _selectedBuyerId = buyer['buyer_id'];
         _buyerNameController.text = buyer['buyer_name'] ?? '';
+        _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
+        _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
         _addressController.text = buyer['address'] ?? '';
         _phoneController.text = buyer['phone_number'] ?? '';
       });
@@ -72,6 +77,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         _selectedBuyerId = buyer['buyer_id'];
         _buyerCodeController.text = buyer['buyer_code'] ?? '';
         _buyerNameController.text = buyer['buyer_name'] ?? '';
+        _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
+        _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
         _addressController.text = buyer['address'] ?? '';
         _phoneController.text = buyer['phone_number'] ?? '';
       });
@@ -87,6 +94,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         buyerId: _selectedBuyerId,
         invoiceCode: _invoiceCodeController.text.trim(),
         buyerNameSnapshot: _buyerNameController.text.trim(),
+        latSnapshot: _selectedLat,
+        lngSnapshot: _selectedLng,
         addressSnapshot: _addressController.text.trim(),
         phoneNumberSnapshot: _phoneController.text.trim(),
       );
@@ -120,7 +129,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Row(
           children: [
             Icon(Icons.warning, color: Colors.orange),
@@ -133,12 +142,12 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('ĐÓNG'),
           ),
           ElevatedButton.icon(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               _fetchNextInvoiceCode();
             },
             icon: const Icon(Icons.refresh),
@@ -274,12 +283,17 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                                 validator: (val) => val == null || val.isEmpty ? 'Vui lòng nhập tên khách hàng' : null,
                               ),
                               const SizedBox(height: 16),
-                              TextFormField(
+                              AddressSearchField(
                                 controller: _addressController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Địa chỉ',
-                                  border: OutlineInputBorder(),
-                                ),
+                                initialLat: _selectedLat,
+                                initialLng: _selectedLng,
+                                initialAddress: _addressController.text,
+                                onLocationSelected: (lat, lng) {
+                                  setState(() {
+                                    _selectedLat = lat;
+                                    _selectedLng = lng;
+                                  });
+                                },
                               ),
                               const SizedBox(height: 16),
                               TextFormField(
