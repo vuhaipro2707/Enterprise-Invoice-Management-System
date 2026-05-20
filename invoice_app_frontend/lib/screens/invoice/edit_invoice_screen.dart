@@ -217,6 +217,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       setState(() {
         _invoiceData = data;
         _selectedBuyerId = data['buyer_id'];
+        _buyerCodeController.text = data['buyer_code']?.toString() ?? '';
         _buyerNameController.text = data['buyer_name_snapshot']?.toString() ?? '';
         _addressController.text = data['address_snapshot']?.toString() ?? '';
         _phoneController.text = data['phone_number_snapshot']?.toString() ?? '';
@@ -291,8 +292,14 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = e.toString();
+        if (errorMessage.contains('Code mismatch!')) {
+          final nextCode = errorMessage.split('is ').last;
+          errorMessage = 'Nhảy số! Mã tiếp theo cho khách hàng phải là $nextCode';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi khi cập nhật: $e')),
+          SnackBar(content: Text('Lỗi khi cập nhật: $errorMessage')),
         );
       }
     }

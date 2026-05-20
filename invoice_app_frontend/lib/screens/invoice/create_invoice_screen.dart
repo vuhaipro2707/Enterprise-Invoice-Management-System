@@ -114,6 +114,19 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         String errorMsg = e.toString();
         if (errorMsg.contains('23505') || errorMsg.contains('duplicate key')) {
           _showDuplicateCodeDialog();
+        } else if (errorMsg.contains('Code mismatch!')) {
+          final nextCode = errorMsg.split('is ').last;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Nhảy số! Mã tiếp theo phải là $nextCode'),
+              backgroundColor: Colors.orange,
+              action: SnackBarAction(
+                label: 'LÀM MỚI',
+                textColor: Colors.white,
+                onPressed: _fetchNextInvoiceCode,
+              ),
+            ),
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Lỗi khi tạo hóa đơn: $e')),
@@ -196,9 +209,13 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                                   Expanded(
                                     child: TextFormField(
                                       controller: _invoiceCodeController,
-                                      decoration: const InputDecoration(
+                                      readOnly: true,
+                                      style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.6)),
+                                      decoration: InputDecoration(
                                         labelText: 'Mã hóa đơn *',
-                                        border: OutlineInputBorder(),
+                                        border: const OutlineInputBorder(),
+                                        filled: true,
+                                        fillColor: colorScheme.onSurface.withValues(alpha: 0.05),
                                       ),
                                       validator: (val) => val == null || val.isEmpty ? 'Vui lòng nhập mã hóa đơn' : null,
                                     ),

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	sqlc "invoice_backend/db/sqlc"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -43,6 +45,13 @@ func (h *InvoiceHandler) CreateBuyer(c *fiber.Ctx) error {
 
 	if req.BuyerCode == "" || req.BuyerName == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: buyerCode, buyerName, address(optional), phoneNumber(optional), idCardNumber(optional), lat(optional), lng(optional)"})
+	}
+
+	if strings.HasPrefix(req.BuyerCode, "KH-") {
+		next := h.service.GetNextBuyerCodeInternal(context.Background())
+		if req.BuyerCode != next {
+			return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Code mismatch! Next available code is %s", next)})
+		}
 	}
 
 	buyer, err := h.service.CreateBuyer(context.Background(), req.BuyerCode, req.BuyerName, req.Address, req.PhoneNumber, req.IdCardNumber, req.Lat, req.Lng)
@@ -107,6 +116,15 @@ func (h *InvoiceHandler) CreateInvoice(c *fiber.Ctx) error {
 
 	if req.InvoiceCode == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: invoiceCode, buyerId(optional), editStatus(optional), buyerNameSnapshot(optional if buyerId provided), addressSnapshot(optional), phoneNumberSnapshot(optional), latSnapshot(optional), lngSnapshot(optional)"})
+	}
+
+	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+	prefix := fmt.Sprintf("INV-%02d%02d%02d-", time.Now().In(loc).Year()%100, time.Now().In(loc).Month(), time.Now().In(loc).Day())
+	if strings.HasPrefix(req.InvoiceCode, prefix) {
+		next := h.service.GetNextInvoiceCodeInternal(context.Background())
+		if req.InvoiceCode != next {
+			return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Code mismatch! Next available code is %s", next)})
+		}
 	}
 
 	// Validation: If no buyerId, buyerNameSnapshot is required
@@ -561,40 +579,12 @@ func (h *InvoiceHandler) CheckRegistered(c *fiber.Ctx) error {
 }
 
 func (h *InvoiceHandler) GetNextBuyerCode(c *fiber.Ctx) error {
-	lastCode, err := h.service.GetLastBuyerCode(context.Background())
-	if err != nil {
-		return c.Status(200).JSON(fiber.Map{"nextCode": "KH-001"})
-	}
-
-	// lastCode format example: "KH-005"
-	var num int
-	_, err = fmt.Sscanf(lastCode, "KH-%d", &num)
-	if err != nil {
-		return c.Status(200).JSON(fiber.Map{"nextCode": "KH-001"})
-	}
-
-	nextCode := fmt.Sprintf("KH-%03d", num+1)
+	nextCode := h.service.GetNextBuyerCodeInternal(context.Background())
 	return c.Status(200).JSON(fiber.Map{"nextCode": nextCode})
 }
 
 func (h *InvoiceHandler) GetNextInvoiceCode(c *fiber.Ctx) error {
-	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
-	now := time.Now().In(loc)
-	prefix := fmt.Sprintf("INV-%02d%02d%02d-", now.Year()%100, now.Month(), now.Day())
-	pattern := prefix + "%"
-
-	lastCode, err := h.service.GetLastInvoiceCode(context.Background(), pattern)
-	if err != nil {
-		return c.Status(200).JSON(fiber.Map{"nextCode": prefix + "001"})
-	}
-
-	var num int
-	_, err = fmt.Sscanf(lastCode, prefix+"%d", &num)
-	if err != nil {
-		return c.Status(200).JSON(fiber.Map{"nextCode": prefix + "001"})
-	}
-
-	nextCode := fmt.Sprintf("%s%03d", prefix, num+1)
+	nextCode := h.service.GetNextInvoiceCodeInternal(context.Background())
 	return c.Status(200).JSON(fiber.Map{"nextCode": nextCode})
 }
 
@@ -636,9 +626,11 @@ func (h *InvoiceHandler) GetInvoiceWithLines(c *fiber.Ctx) error {
 		"invoice_id":            invoice.InvoiceID,
 		"account_id":            invoice.AccountID.UUID,
 		"buyer_id":              invoice.BuyerID.UUID,
+		"buyer_code":            invoice.BuyerCode.String,
 		"invoice_code":          invoice.InvoiceCode,
 		"total_amount":          invoice.TotalAmount,
 		"device_holding_id":     nil,
+		"device_name":           nil,
 		"edit_status":           invoice.EditStatus.Bool,
 		"buyer_name_snapshot":   invoice.BuyerNameSnapshot.String,
 		"address_snapshot":      invoice.AddressSnapshot.String,
@@ -653,6 +645,11 @@ func (h *InvoiceHandler) GetInvoiceWithLines(c *fiber.Ctx) error {
 
 	if invoice.DeviceHoldingID.Valid {
 		res["device_holding_id"] = invoice.DeviceHoldingID.String
+		if dev, err := h.Repo.GetDeviceByID(context.Background(), invoice.DeviceHoldingID.String); err == nil {
+			if dev.DeviceName.Valid {
+				res["device_name"] = dev.DeviceName.String
+			}
+		}
 	}
 	if invoice.LatSnapshot.Valid {
 		res["lat_snapshot"] = invoice.LatSnapshot.Float64
@@ -924,6 +921,12 @@ func (h *InvoiceHandler) PatchBuyer(c *fiber.Ctx) error {
 	if raw, ok := body["buyerCode"]; ok {
 		var val string
 		json.Unmarshal(raw, &val)
+		if strings.HasPrefix(val, "KH-") {
+			next := h.service.GetNextBuyerCodeInternal(context.Background())
+			if val != next {
+				return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Code mismatch! Next available code is %s", next)})
+			}
+		}
 		input.BuyerCode = val
 		input.SetBuyerCode = true
 	}
@@ -1025,6 +1028,14 @@ func (h *InvoiceHandler) PatchInvoice(c *fiber.Ctx) error {
 	if raw, ok := body["invoiceCode"]; ok {
 		var val string
 		json.Unmarshal(raw, &val)
+		loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+		prefix := fmt.Sprintf("INV-%02d%02d%02d-", time.Now().In(loc).Year()%100, time.Now().In(loc).Month(), time.Now().In(loc).Day())
+		if strings.HasPrefix(val, prefix) {
+			next := h.service.GetNextInvoiceCodeInternal(context.Background())
+			if val != next {
+				return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Code mismatch! Next available code is %s", next)})
+			}
+		}
 		input.InvoiceCode = val
 		input.SetInvoiceCode = true
 	}
@@ -1156,4 +1167,108 @@ func (h *InvoiceHandler) DeleteLineItem(c *fiber.Ctx) error {
 	}
 
 	return c.SendStatus(204)
+}
+
+func (h *InvoiceHandler) GetInvoices(c *fiber.Ctx) error {
+	showEditingStr := c.Query("showEditing", "true")
+	buyerIDStr := c.Query("buyerId")
+	invoiceCode := c.Query("invoiceCode")
+	itemIDStr := c.Query("itemId")
+	limitStr := c.Query("limit", "20")
+	offsetStr := c.Query("offset", "0")
+	sortBy := c.Query("sortBy", "updated_at")
+	sortOrder := c.Query("sortOrder", "desc")
+
+	showEditing := showEditingStr == "true"
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	var buyerID *uuid.UUID
+	if buyerIDStr != "" {
+		parsed, err := uuid.Parse(buyerIDStr)
+		if err == nil {
+			buyerID = &parsed
+		}
+	}
+
+	var itemID *uuid.UUID
+	if itemIDStr != "" {
+		parsed, err := uuid.Parse(itemIDStr)
+		if err == nil {
+			itemID = &parsed
+		}
+	}
+
+	startDateStr := c.Query("startDate")
+	endDateStr := c.Query("endDate")
+
+	var startDate *time.Time
+	if startDateStr != "" {
+		if t, err := time.Parse(time.RFC3339, startDateStr); err == nil {
+			startDate = &t
+		} else if t, err := time.Parse("2006-01-02", startDateStr); err == nil {
+			startDate = &t
+		}
+	}
+
+	var endDate *time.Time
+	if endDateStr != "" {
+		if t, err := time.Parse(time.RFC3339, endDateStr); err == nil {
+			endDate = &t
+		} else if t, err := time.Parse("2006-01-02", endDateStr); err == nil {
+			t = t.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+			endDate = &t
+		}
+	}
+
+	invoices, err := h.service.ListInvoicesFiltered(context.Background(), showEditing, buyerID, invoiceCode, itemID, startDate, endDate, int32(limit), int32(offset), sortBy, sortOrder)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to list invoices: %v", err)})
+	}
+
+	if invoices == nil {
+		invoices = []sqlc.ListInvoicesFilteredRow{}
+	}
+
+	resp := []fiber.Map{}
+	for _, inv := range invoices {
+		var buyerIDVal *uuid.UUID
+		if inv.BuyerID.Valid {
+			buyerIDVal = &inv.BuyerID.UUID
+		}
+		var deviceIDVal *string
+		if inv.DeviceHoldingID.Valid {
+			deviceIDVal = &inv.DeviceHoldingID.String
+		}
+
+		resp = append(resp, fiber.Map{
+			"invoice_id":            inv.InvoiceID,
+			"account_id":            inv.AccountID,
+			"buyer_id":              buyerIDVal,
+			"buyer_code":            inv.BuyerCode.String,
+			"invoice_code":          inv.InvoiceCode,
+			"total_amount":          inv.TotalAmount,
+			"device_holding_id":     deviceIDVal,
+			"device_name":           inv.DeviceName.String,
+			"edit_status":           inv.EditStatus.Bool,
+			"buyer_name_snapshot":   inv.BuyerNameSnapshot.String,
+			"address_snapshot":      inv.AddressSnapshot.String,
+			"phone_number_snapshot": inv.PhoneNumberSnapshot.String,
+			"created_at":            inv.CreatedAt.Time,
+			"updated_at":            inv.UpdatedAt.Time,
+		})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"data": resp})
 }

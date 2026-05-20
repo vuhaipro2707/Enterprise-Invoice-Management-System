@@ -29,15 +29,26 @@ class EditingInvoiceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final deviceName = _getStringValue(invoice['device_name']) ?? 'Không rõ';
     final buyerName = _getStringValue(invoice['buyer_name_snapshot']) ?? 'K.Hàng vãng lai';
+    final buyerCode = _getStringValue(invoice['buyer_code']);
     final address = _getStringValue(invoice['address_snapshot']);
     final phoneNumber = _getStringValue(invoice['phone_number_snapshot']);
-    final dateStr = _getTimestamp(invoice['updated_at']);
+    
+    final createdDateStr = _getTimestamp(invoice['created_at']);
+    final updatedDateStr = _getTimestamp(invoice['updated_at']);
 
-    String timeStr = '--:--';
-    if (dateStr != null) {
+    String createdTime = '--:--';
+    if (createdDateStr != null) {
       try {
-        final date = DateTime.parse(dateStr);
-        timeStr = DateFormat('HH:mm dd/MM').format(date.toLocal());
+        final date = DateTime.parse(createdDateStr);
+        createdTime = DateFormat('HH:mm dd/MM').format(date.toLocal());
+      } catch (_) {}
+    }
+
+    String updatedTime = '--:--';
+    if (updatedDateStr != null) {
+      try {
+        final date = DateTime.parse(updatedDateStr);
+        updatedTime = DateFormat('HH:mm dd/MM').format(date.toLocal());
       } catch (_) {}
     }
 
@@ -46,18 +57,22 @@ class EditingInvoiceCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
       child: Card(
         elevation: 3,
-        color: colorScheme.surfaceContainerLow,
+        color: Color.alphaBlend(
+          Colors.orange.withValues(alpha: 0.1),
+          colorScheme.surfaceContainerLowest,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+            color: Colors.orange.withValues(alpha: 0.5),
+            width: 1.5,
           ),
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -82,7 +97,7 @@ class EditingInvoiceCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        timeStr,
+                        'Đang sửa',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
@@ -92,14 +107,14 @@ class EditingInvoiceCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     Icon(Icons.person, size: 16, color: colorScheme.primary),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        buyerName,
+                        buyerCode != null ? '[$buyerCode] $buyerName' : buyerName,
                         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -108,7 +123,7 @@ class EditingInvoiceCard extends StatelessWidget {
                   ],
                 ),
                 if (address != null && address.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Row(
                     children: [
                       Icon(Icons.location_on, size: 14, color: colorScheme.outline),
@@ -125,7 +140,7 @@ class EditingInvoiceCard extends StatelessWidget {
                   ),
                 ],
                 if (phoneNumber != null && phoneNumber.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Row(
                     children: [
                       Icon(Icons.phone, size: 14, color: colorScheme.outline),
@@ -138,7 +153,36 @@ class EditingInvoiceCard extends StatelessWidget {
                   ),
                 ],
                 const Spacer(),
-                const Divider(height: 16),
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today_outlined, size: 12, color: colorScheme.outline),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Khởi tạo lúc: $createdTime',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.outline,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Icon(Icons.update_outlined, size: 12, color: colorScheme.outline),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Cập nhật lúc: $updatedTime',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.outline,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 12),
                 Row(
                   children: [
                     Icon(Icons.devices, size: 14, color: colorScheme.secondary),

@@ -40,6 +40,7 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	itemGroup.Patch("/type/id/:typeId", itemHandler.PatchType)
 
 	invoiceGroup := app.Group("/invoice", auth.JWTMiddleware())
+	invoiceGroup.Get("", invoiceHandler.GetInvoices)
 	invoiceGroup.Get("/next-code", invoiceHandler.GetNextInvoiceCode)
 	invoiceGroup.Get("/editing", invoiceHandler.ListEditingInvoices)
 	invoiceGroup.Get("/buyer", invoiceHandler.GetBuyers)
@@ -54,10 +55,10 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	invoiceGroup.Patch("/buyer/id/:buyerId", invoiceHandler.PatchBuyer)
 	invoiceGroup.Post("/takeTurn/invoiceId/:invoiceId", invoiceHandler.TakeTurn)
 	invoiceGroup.Get("/ping/invoiceId/:invoiceId", invoiceHandler.PingInvoice)
+	invoiceGroup.Get("/id/:invoiceId", invoiceHandler.GetInvoiceWithLines)
 
 	// Các route yêu cầu phải đang giữ quyền chỉnh sửa (Edit Lock)
 	invoiceLockGroup := invoiceGroup.Group("", auth.CheckHoldingDevice(repo))
-	invoiceLockGroup.Get("/id/:invoiceId", invoiceHandler.GetInvoiceWithLines)
 	invoiceLockGroup.Patch("/id/:invoiceId", invoiceHandler.PatchInvoice)
 	invoiceLockGroup.Post("/lineItem/invoiceId/:invoiceId", invoiceHandler.CreateLineItem)
 	invoiceLockGroup.Patch("/lineItem/changeOrder/:invoiceId", invoiceHandler.ChangeLineItemOrder)

@@ -130,6 +130,8 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width > 600;
+
     return Column(
       children: [
         Padding(
@@ -164,29 +166,72 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
                   ? const Center(child: Text('Không tìm thấy người mua nào'))
                   : RefreshIndicator(
                       onRefresh: _fetchBuyers,
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: _buyers.length + (_hasMore ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index == _buyers.length) {
-                            return const Padding(
-                              padding: EdgeInsets.all(16.0),
-                              child: Center(child: CircularProgressIndicator()),
-                            );
-                          }
+                      child: isDesktop
+                          ? ListView.builder(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              controller: _scrollController,
+                              padding: const EdgeInsets.all(16.0),
+                              itemCount: (_buyers.length / 3).ceil() + (_hasMore ? 1 : 0),
+                              itemBuilder: (context, rowIndex) {
+                                if (_hasMore && rowIndex == (_buyers.length / 3).ceil()) {
+                                  return const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 16.0),
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
 
-                          final buyer = _buyers[index];
-                          return BuyerCard(
-                            buyer: buyer,
-                            onTap: () {
-                              if (widget.onBuyerSelected != null) {
-                                widget.onBuyerSelected!(buyer);
-                              }
-                            },
-                          );
-                        },
-                      ),
+                                final startIndex = rowIndex * 3;
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 16.0),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      for (int i = 0; i < 3; i++) ...[
+                                        if (i > 0) const SizedBox(width: 16),
+                                        Expanded(
+                                          child: (startIndex + i < _buyers.length)
+                                              ? BuyerCard(
+                                                  buyer: _buyers[startIndex + i],
+                                                  onTap: () {
+                                                    if (widget.onBuyerSelected != null) {
+                                                      widget.onBuyerSelected!(_buyers[startIndex + i]);
+                                                    }
+                                                  },
+                                                )
+                                              : const SizedBox.shrink(),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                );
+                              },
+                            )
+                          : ListView.builder(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              controller: _scrollController,
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: _buyers.length + (_hasMore ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (index == _buyers.length) {
+                                  return const Padding(
+                                    padding: EdgeInsets.all(16.0),
+                                    child: Center(child: CircularProgressIndicator()),
+                                  );
+                                }
+
+                                final buyer = _buyers[index];
+                                return BuyerCard(
+                                  buyer: buyer,
+                                  onTap: () {
+                                    if (widget.onBuyerSelected != null) {
+                                      widget.onBuyerSelected!(buyer);
+                                    }
+                                  },
+                                );
+                              },
+                            ),
                     ),
         ),
       ],

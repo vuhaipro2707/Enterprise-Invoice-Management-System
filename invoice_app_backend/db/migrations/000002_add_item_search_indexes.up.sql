@@ -25,3 +25,9 @@ USING gin ((my_unaccent(buyer_name)) gin_trgm_ops);
 
 CREATE INDEX IF NOT EXISTS idx_buyers_phone ON buyers(phone_number) WHERE deleted_at IS NULL;
 
+-- Index for searching invoice code (unaccent + trigram)
+CREATE INDEX IF NOT EXISTS idx_invoices_invoice_code_unaccent_trgm 
+ON invoices 
+USING gin ((my_unaccent(invoice_code)) gin_trgm_ops);
+
+

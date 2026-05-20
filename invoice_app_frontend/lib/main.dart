@@ -13,6 +13,8 @@ import 'screens/invoice/create_invoice_screen.dart';
 import 'screens/invoice/edit_invoice_screen.dart';
 import 'screens/invoice/line_item_search_screen.dart';
 import 'screens/invoice/create_line_item_screen.dart';
+import 'screens/invoice/invoice_management_screen.dart';
+import 'screens/invoice/invoice_detail_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,6 +71,8 @@ class MyApp extends StatelessWidget {
         '/edit_invoice': (context) => const EditInvoiceScreen(),
         '/line_item_search': (context) => const LineItemSearchScreen(),
         '/create_line_item': (context) => const CreateLineItemScreen(invoiceId: ''), // Will get args manually
+        '/invoice_management': (context) => const InvoiceManagementScreen(),
+        '/invoice_detail': (context) => const InvoiceDetailScreen(),
       },
     );
   }

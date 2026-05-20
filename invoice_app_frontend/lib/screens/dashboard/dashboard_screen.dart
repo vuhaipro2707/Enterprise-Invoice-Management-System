@@ -252,7 +252,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 8),
               SizedBox(
-                height: 190,
+                height: 225,
                 child: _isLoadingInvoices
                     ? const Center(child: CircularProgressIndicator())
                     : ListView.builder(
@@ -299,6 +299,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Navigator.pushNamed(context, '/item_management');
                           } else if (item['title'] == 'Quản lý Người mua') {
                             Navigator.pushNamed(context, '/buyer_management');
+                          } else if (item['title'] == 'Quản lý Hóa đơn') {
+                            Navigator.pushNamed(context, '/invoice_management').then((_) => _fetchEditingInvoices());
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Chức năng ${item['title']} đang phát triển')),

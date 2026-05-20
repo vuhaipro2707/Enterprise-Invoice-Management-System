@@ -37,11 +37,14 @@ INSERT INTO invoices (
 ) RETURNING *;
 
 -- name: GetInvoiceByID :one
-SELECT * FROM invoices
-WHERE invoice_id = $1 AND deleted_at IS NULL;
+SELECT i.*, b.buyer_code
+FROM invoices i
+LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
+WHERE i.invoice_id = $1 AND i.deleted_at IS NULL;
 
 -- name: GetInvoiceWithLines :one
 SELECT i.*,
+       b.buyer_code,
        COALESCE(JSON_AGG(JSONB_BUILD_OBJECT(
          'line_item_id', li.line_item_id,
          'item_id', li.item_id,
@@ -54,9 +57,10 @@ SELECT i.*,
          'position_key', li.position_key
        ) ORDER BY li.position_key) FILTER (WHERE li.line_item_id IS NOT NULL), '[]')::JSONB AS line_items
 FROM invoices i
+LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
 LEFT JOIN line_items li ON i.invoice_id = li.invoice_id
 WHERE i.invoice_id = $1 AND i.deleted_at IS NULL
-GROUP BY i.invoice_id;
+GROUP BY i.invoice_id, b.buyer_code;
 
 -- name: UpdateInvoiceStatus :one
 UPDATE invoices
@@ -196,9 +200,34 @@ ORDER BY invoice_code DESC
 LIMIT 1;
 
 -- name: ListEditingInvoices :many
-SELECT i.*, d.device_name
+SELECT i.*, d.device_name, b.buyer_code
 FROM invoices i
 LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
+LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
 WHERE i.edit_status = TRUE AND i.deleted_at IS NULL
 ORDER BY i.updated_at DESC;
+
+-- name: ListInvoicesFiltered :many
+SELECT i.*, d.device_name, b.buyer_code
+FROM invoices i
+LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
+LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
+WHERE i.deleted_at IS NULL
+  AND (sqlc.arg('show_editing')::boolean = TRUE OR i.edit_status = FALSE)
+  AND (sqlc.narg('buyer_id')::UUID IS NULL OR i.buyer_id = sqlc.narg('buyer_id')::UUID)
+  AND (sqlc.narg('invoice_code')::text IS NULL OR my_unaccent(i.invoice_code) ILIKE my_unaccent(concat('%', sqlc.narg('invoice_code')::text, '%')))
+  AND (sqlc.narg('item_id')::UUID IS NULL OR EXISTS (
+      SELECT 1 FROM line_items li 
+      WHERE li.invoice_id = i.invoice_id AND li.item_id = sqlc.narg('item_id')::UUID
+  ))
+  AND (sqlc.narg('start_date')::timestamptz IS NULL OR i.created_at >= sqlc.narg('start_date')::timestamptz)
+  AND (sqlc.narg('end_date')::timestamptz IS NULL OR i.created_at <= sqlc.narg('end_date')::timestamptz)
+ORDER BY 
+  CASE WHEN sqlc.arg('sort_by')::text = 'updated_at' AND sqlc.arg('sort_order')::text = 'desc' THEN i.updated_at END DESC,
+  CASE WHEN sqlc.arg('sort_by')::text = 'updated_at' AND sqlc.arg('sort_order')::text = 'asc' THEN i.updated_at END ASC,
+  CASE WHEN sqlc.arg('sort_by')::text = 'created_at' AND sqlc.arg('sort_order')::text = 'desc' THEN i.created_at END DESC,
+  CASE WHEN sqlc.arg('sort_by')::text = 'created_at' AND sqlc.arg('sort_order')::text = 'asc' THEN i.created_at END ASC,
+  i.updated_at DESC
+LIMIT sqlc.arg('limit_val')
+OFFSET sqlc.arg('offset_val');
 

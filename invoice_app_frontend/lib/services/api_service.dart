@@ -454,6 +454,43 @@ class ApiService {
     }
     return null;
   }
+
+  Future<List<dynamic>> getInvoices({
+    int? limit,
+    int? offset,
+    String? sortBy,
+    String? sortOrder,
+    bool? showEditing,
+    String? buyerId,
+    String? itemId,
+    String? invoiceCode,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final queryParams = <String, String>{};
+    if (limit != null) queryParams['limit'] = limit.toString();
+    if (offset != null) queryParams['offset'] = offset.toString();
+    if (sortBy != null) queryParams['sortBy'] = sortBy;
+    if (sortOrder != null) queryParams['sortOrder'] = sortOrder;
+    if (showEditing != null) queryParams['showEditing'] = showEditing.toString();
+    if (buyerId != null) queryParams['buyerId'] = buyerId;
+    if (itemId != null) queryParams['itemId'] = itemId;
+    if (invoiceCode != null && invoiceCode.isNotEmpty) queryParams['invoiceCode'] = invoiceCode;
+    if (startDate != null) {
+      queryParams['startDate'] = startDate.toUtc().toIso8601String();
+    }
+    if (endDate != null) {
+      queryParams['endDate'] = endDate.toUtc().toIso8601String();
+    }
+
+    final uri = Uri.parse('$baseUrl/invoice').replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      return decoded['data'] ?? [];
+    }
+    throw Exception('Failed to load invoices: ${response.body}');
+  }
 }
 
 // TODO: Add pin top items.

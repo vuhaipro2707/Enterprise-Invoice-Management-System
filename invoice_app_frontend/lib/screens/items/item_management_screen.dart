@@ -268,6 +268,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width > 600;
     String sortIconLabel = 'Sắp xếp';
     IconData sortIcon = Icons.sort;
     if (_sortState == SortState.az) {
@@ -412,37 +413,89 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                       _hasMore = true;
                       await _fetchItems();
                     },
-                    child: ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(), // Đảm bảo luôn cuộn được để pull refresh
-                      controller: _scrollController,
-                      itemCount: _items.length + (_isLoadingMore ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index == _items.length) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16.0),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-                        return ItemCard(
-                          item: _items[index],
-                          types: _types,
-                          onTap: () async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ItemDetailScreen(
-                                  item: _items[index],
-                                  types: _types,
+                    child: isDesktop
+                        ? ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            controller: _scrollController,
+                            padding: const EdgeInsets.all(16.0),
+                            itemCount: (_items.length / 3).ceil() + (_isLoadingMore ? 1 : 0),
+                            itemBuilder: (context, rowIndex) {
+                              if (_isLoadingMore && rowIndex == (_items.length / 3).ceil()) {
+                                return const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16.0),
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
+                              }
+
+                              final startIndex = rowIndex * 3;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16.0),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    for (int i = 0; i < 3; i++) ...[
+                                      if (i > 0) const SizedBox(width: 16),
+                                      Expanded(
+                                        child: (startIndex + i < _items.length)
+                                            ? ItemCard(
+                                                item: _items[startIndex + i],
+                                                types: _types,
+                                                onTap: () async {
+                                                  final result = await Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (builderContext) => ItemDetailScreen(
+                                                        item: _items[startIndex + i],
+                                                        types: _types,
+                                                      ),
+                                                    ),
+                                                  );
+                                                  if (result == true) {
+                                                    _fetchItems();
+                                                  }
+                                                },
+                                              )
+                                            : const SizedBox.shrink(),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                              ),
-                            );
-                            if (result == true) {
-                              _fetchItems();
-                            }
-                          },
-                        );
-                      },
-                    ),
+                              );
+                            },
+                          )
+                        : ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            controller: _scrollController,
+                            itemCount: _items.length + (_isLoadingMore ? 1 : 0),
+                            itemBuilder: (context, index) {
+                              if (index == _items.length) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16.0),
+                                  child: Center(child: CircularProgressIndicator()),
+                                );
+                              }
+                              return ItemCard(
+                                item: _items[index],
+                                types: _types,
+                                onTap: () async {
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (builderContext) => ItemDetailScreen(
+                                        item: _items[index],
+                                        types: _types,
+                                      ),
+                                    ),
+                                  );
+                                  if (result == true) {
+                                    _fetchItems();
+                                  }
+                                },
+                              );
+                            },
+                          ),
                   ),
           ),
         ],

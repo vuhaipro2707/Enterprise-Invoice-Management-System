@@ -75,6 +75,9 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
         
         if (isDuplicate) {
           errorMessage = 'Mã khách hàng đã tồn tại. Vui lòng sử dụng mã khác.';
+        } else if (errorMessage.contains('Code mismatch!')) {
+          final nextCode = errorMessage.split('is ').last;
+          errorMessage = 'Nhảy số! Mã tiếp theo phải là $nextCode. Vui lòng làm mới.';
         } else if (errorMessage.contains('Exception: ')) {
           errorMessage = errorMessage.replaceAll('Exception: ', '');
         }

@@ -29,3 +29,12 @@ class CurrencyInputFormatter extends TextInputFormatter {
     );
   }
 }
+
+class CurrencyFormatter {
+  static String formatVND(dynamic amount) {
+    if (amount == null) return '0 đ';
+    final number = amount is num ? amount : double.tryParse(amount.toString()) ?? 0;
+    return NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0).format(number);
+  }
+}
+

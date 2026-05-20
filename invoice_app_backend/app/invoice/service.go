@@ -3,8 +3,10 @@ package invoice
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	sqlc "invoice_backend/db/sqlc"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -35,7 +37,7 @@ func (s *InvoiceService) GetUnitByID(ctx context.Context, id uuid.UUID) (sqlc.Un
 	return s.Repo.GetUnitByID(ctx, id)
 }
 
-func (s *InvoiceService) GetInvoiceByID(ctx context.Context, id uuid.UUID) (sqlc.Invoice, error) {
+func (s *InvoiceService) GetInvoiceByID(ctx context.Context, id uuid.UUID) (sqlc.GetInvoiceByIDRow, error) {
 	return s.Repo.GetInvoiceByID(ctx, id)
 }
 
@@ -125,6 +127,41 @@ func (s *InvoiceService) GetLastBuyerCode(ctx context.Context) (string, error) {
 
 func (s *InvoiceService) GetLastInvoiceCode(ctx context.Context, pattern string) (string, error) {
 	return s.Repo.GetLastInvoiceCode(ctx, pattern)
+}
+
+func (s *InvoiceService) GetNextBuyerCodeInternal(ctx context.Context) string {
+	lastCode, err := s.GetLastBuyerCode(ctx)
+	if err != nil {
+		return "KH-001"
+	}
+
+	var num int
+	_, err = fmt.Sscanf(lastCode, "KH-%d", &num)
+	if err != nil {
+		return "KH-001"
+	}
+
+	return fmt.Sprintf("KH-%03d", num+1)
+}
+
+func (s *InvoiceService) GetNextInvoiceCodeInternal(ctx context.Context) string {
+	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+	now := time.Now().In(loc)
+	prefix := fmt.Sprintf("INV-%02d%02d%02d-", now.Year()%100, now.Month(), now.Day())
+	pattern := prefix + "%"
+
+	lastCode, err := s.GetLastInvoiceCode(ctx, pattern)
+	if err != nil {
+		return prefix + "001"
+	}
+
+	var num int
+	_, err = fmt.Sscanf(lastCode, prefix+"%d", &num)
+	if err != nil {
+		return prefix + "001"
+	}
+
+	return fmt.Sprintf("%s%03d", prefix, num+1)
 }
 
 func (s *InvoiceService) ListEditingInvoices(ctx context.Context) ([]sqlc.ListEditingInvoicesRow, error) {
@@ -358,4 +395,30 @@ func getInt64(i *int64) int64 {
 		return 0
 	}
 	return *i
+}
+
+func (s *InvoiceService) ListInvoicesFiltered(ctx context.Context, showEditing bool, buyerID *uuid.UUID, invoiceCode string, itemID *uuid.UUID, startDate *time.Time, endDate *time.Time, limit int32, offset int32, sortBy string, sortOrder string) ([]sqlc.ListInvoicesFilteredRow, error) {
+	params := sqlc.ListInvoicesFilteredParams{
+		ShowEditing: showEditing,
+		LimitVal:    limit,
+		OffsetVal:   offset,
+		SortBy:      sortBy,
+		SortOrder:   sortOrder,
+	}
+	if buyerID != nil {
+		params.BuyerID = uuid.NullUUID{UUID: *buyerID, Valid: true}
+	}
+	if invoiceCode != "" {
+		params.InvoiceCode = sql.NullString{String: invoiceCode, Valid: true}
+	}
+	if itemID != nil {
+		params.ItemID = uuid.NullUUID{UUID: *itemID, Valid: true}
+	}
+	if startDate != nil {
+		params.StartDate = sql.NullTime{Time: *startDate, Valid: true}
+	}
+	if endDate != nil {
+		params.EndDate = sql.NullTime{Time: *endDate, Valid: true}
+	}
+	return s.Repo.ListInvoicesFiltered(ctx, params)
 }
