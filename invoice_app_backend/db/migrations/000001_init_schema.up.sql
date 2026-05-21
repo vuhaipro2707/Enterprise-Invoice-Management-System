@@ -84,6 +84,8 @@ CREATE TABLE IF NOT EXISTS units (
     unit_name VARCHAR(255) NOT NULL,
     unit_price_default BIGINT NOT NULL,
     item_id UUID REFERENCES items(item_id) ON DELETE SET NULL,
+    ratio BIGINT DEFAULT 1 CHECK (ratio > 0) NOT NULL,
+    is_base_unit BOOLEAN DEFAULT FALSE NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),

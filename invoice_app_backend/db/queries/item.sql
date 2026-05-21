@@ -15,11 +15,15 @@ ORDER BY created_at DESC;
 INSERT INTO units (
   unit_name,
   unit_price_default,
-  item_id
+  item_id,
+  ratio,
+  is_base_unit
 ) VALUES (
   $1,
   $2,
-  $3
+  $3,
+  $4,
+  $5
 )
 RETURNING *;
 
@@ -64,7 +68,9 @@ SELECT i.*,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default
+         'unit_price_default', u.unit_price_default,
+         'ratio', u.ratio,
+         'is_base_unit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -82,7 +88,9 @@ SELECT i.*,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default
+         'unit_price_default', u.unit_price_default,
+         'ratio', u.ratio,
+         'is_base_unit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -109,7 +117,9 @@ SELECT i.*,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default
+         'unit_price_default', u.unit_price_default,
+         'ratio', u.ratio,
+         'is_base_unit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -169,6 +179,14 @@ SET
     WHEN sqlc.arg(set_item_id)::boolean THEN sqlc.narg(item_id)
     ELSE item_id
   END,
+  ratio = CASE
+    WHEN sqlc.arg(set_ratio)::boolean THEN sqlc.arg(ratio)
+    ELSE ratio
+  END,
+  is_base_unit = CASE
+    WHEN sqlc.arg(set_is_base_unit)::boolean THEN sqlc.arg(is_base_unit)
+    ELSE is_base_unit
+  END,
   updated_at = NOW()
 WHERE unit_id = sqlc.arg(unit_id)
 AND deleted_at IS NULL
@@ -195,7 +213,9 @@ SELECT i.*,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default
+         'unit_price_default', u.unit_price_default,
+         'ratio', u.ratio,
+         'is_base_unit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id

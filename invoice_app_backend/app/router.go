@@ -29,6 +29,8 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	itemGroup.Patch("/id/:itemId", itemHandler.PatchItem)
 	itemGroup.Post("/otherName/itemId/:itemId", itemHandler.AddItemOtherName)
 	itemGroup.Delete("/otherName/id/:otherNameId", itemHandler.RemoveItemOtherName)
+	itemGroup.Post("/ai-generate", itemHandler.AIGenerateItemSuggestions)
+	itemGroup.Post("/ai-batch-create", itemHandler.AIBatchCreateItems)
 
 	itemGroup.Post("/unit/itemId/:itemId", itemHandler.CreateUnitForItem)
 	itemGroup.Get("/unit", itemHandler.GetUnits)

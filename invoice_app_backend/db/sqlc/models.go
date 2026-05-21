@@ -115,6 +115,8 @@ type Unit struct {
 	UnitName         string        `json:"unit_name"`
 	UnitPriceDefault int64         `json:"unit_price_default"`
 	ItemID           uuid.NullUUID `json:"item_id"`
+	Ratio            int64         `json:"ratio"`
+	IsBaseUnit       bool          `json:"is_base_unit"`
 	IsActive         sql.NullBool  `json:"is_active"`
 	CreatedAt        sql.NullTime  `json:"created_at"`
 	UpdatedAt        sql.NullTime  `json:"updated_at"`

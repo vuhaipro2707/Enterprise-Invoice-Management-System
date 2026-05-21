@@ -163,10 +163,18 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
-  Future<Map<String, dynamic>> createUnit(String itemId, String unitName, int? price) async {
+  Future<Map<String, dynamic>> createUnit(
+    String itemId,
+    String unitName,
+    int? price, {
+    int ratio = 1,
+    bool isBaseUnit = false,
+  }) async {
     final response = await post('/item/unit/itemId/$itemId', {
       'unitName': unitName,
       'unitPriceDefault': price,
+      'ratio': ratio,
+      'isBaseUnit': isBaseUnit,
     });
     return jsonDecode(response.body);
   }
@@ -213,6 +221,32 @@ class ApiService {
       return decoded['data'] ?? [];
     }
     throw Exception('Failed to load types: ${response.body}');
+  }
+
+  Future<Map<String, dynamic>> generateItemAISuggestions(String keyword) async {
+    final response = await post('/item/ai-generate', {
+      'keyword': keyword,
+    });
+    final decoded = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return decoded;
+    }
+    throw Exception(decoded['error'] ?? 'Failed to generate AI suggestions');
+  }
+
+  Future<Map<String, dynamic>> batchCreateItems({
+    required String? typeId,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await post('/item/ai-batch-create', {
+      'typeId': typeId ?? '',
+      'items': items,
+    });
+    final decoded = jsonDecode(response.body);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return decoded;
+    }
+    throw Exception(decoded['error'] ?? 'Failed to batch create items');
   }
 
   // Buyer methods

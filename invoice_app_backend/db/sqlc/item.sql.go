@@ -17,7 +17,7 @@ const assignUnitToItem = `-- name: AssignUnitToItem :one
 UPDATE units
 SET item_id = $1, updated_at = NOW()
 WHERE unit_id = $2
-RETURNING unit_id, unit_name, unit_price_default, item_id, is_active, created_at, updated_at, deleted_at
+RETURNING unit_id, unit_name, unit_price_default, item_id, ratio, is_base_unit, is_active, created_at, updated_at, deleted_at
 `
 
 type AssignUnitToItemParams struct {
@@ -33,6 +33,8 @@ func (q *Queries) AssignUnitToItem(ctx context.Context, arg AssignUnitToItemPara
 		&i.UnitName,
 		&i.UnitPriceDefault,
 		&i.ItemID,
+		&i.Ratio,
+		&i.IsBaseUnit,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -121,29 +123,43 @@ const createUnit = `-- name: CreateUnit :one
 INSERT INTO units (
   unit_name,
   unit_price_default,
-  item_id
+  item_id,
+  ratio,
+  is_base_unit
 ) VALUES (
   $1,
   $2,
-  $3
+  $3,
+  $4,
+  $5
 )
-RETURNING unit_id, unit_name, unit_price_default, item_id, is_active, created_at, updated_at, deleted_at
+RETURNING unit_id, unit_name, unit_price_default, item_id, ratio, is_base_unit, is_active, created_at, updated_at, deleted_at
 `
 
 type CreateUnitParams struct {
 	UnitName         string        `json:"unit_name"`
 	UnitPriceDefault int64         `json:"unit_price_default"`
 	ItemID           uuid.NullUUID `json:"item_id"`
+	Ratio            int64         `json:"ratio"`
+	IsBaseUnit       bool          `json:"is_base_unit"`
 }
 
 func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error) {
-	row := q.db.QueryRowContext(ctx, createUnit, arg.UnitName, arg.UnitPriceDefault, arg.ItemID)
+	row := q.db.QueryRowContext(ctx, createUnit,
+		arg.UnitName,
+		arg.UnitPriceDefault,
+		arg.ItemID,
+		arg.Ratio,
+		arg.IsBaseUnit,
+	)
 	var i Unit
 	err := row.Scan(
 		&i.UnitID,
 		&i.UnitName,
 		&i.UnitPriceDefault,
 		&i.ItemID,
+		&i.Ratio,
+		&i.IsBaseUnit,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -183,7 +199,9 @@ SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.u
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default
+         'unit_price_default', u.unit_price_default,
+         'ratio', u.ratio,
+         'is_base_unit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -222,7 +240,7 @@ func (q *Queries) GetItemByID(ctx context.Context, itemID uuid.UUID) (GetItemByI
 }
 
 const getUnitByID = `-- name: GetUnitByID :one
-SELECT unit_id, unit_name, unit_price_default, item_id, is_active, created_at, updated_at, deleted_at FROM units
+SELECT unit_id, unit_name, unit_price_default, item_id, ratio, is_base_unit, is_active, created_at, updated_at, deleted_at FROM units
 WHERE unit_id = $1 AND deleted_at IS NULL
 `
 
@@ -234,6 +252,8 @@ func (q *Queries) GetUnitByID(ctx context.Context, unitID uuid.UUID) (Unit, erro
 		&i.UnitName,
 		&i.UnitPriceDefault,
 		&i.ItemID,
+		&i.Ratio,
+		&i.IsBaseUnit,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -279,7 +299,9 @@ SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.u
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default
+         'unit_price_default', u.unit_price_default,
+         'ratio', u.ratio,
+         'is_base_unit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -343,7 +365,9 @@ SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.u
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default
+         'unit_price_default', u.unit_price_default,
+         'ratio', u.ratio,
+         'is_base_unit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -455,7 +479,7 @@ func (q *Queries) ListTypes(ctx context.Context) ([]Type, error) {
 }
 
 const listUnits = `-- name: ListUnits :many
-SELECT unit_id, unit_name, unit_price_default, item_id, is_active, created_at, updated_at, deleted_at FROM units
+SELECT unit_id, unit_name, unit_price_default, item_id, ratio, is_base_unit, is_active, created_at, updated_at, deleted_at FROM units
 WHERE deleted_at IS NULL
 ORDER BY created_at DESC
 `
@@ -474,6 +498,8 @@ func (q *Queries) ListUnits(ctx context.Context) ([]Unit, error) {
 			&i.UnitName,
 			&i.UnitPriceDefault,
 			&i.ItemID,
+			&i.Ratio,
+			&i.IsBaseUnit,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -586,10 +612,18 @@ SET
     WHEN $5::boolean THEN $6
     ELSE item_id
   END,
+  ratio = CASE
+    WHEN $7::boolean THEN $8
+    ELSE ratio
+  END,
+  is_base_unit = CASE
+    WHEN $9::boolean THEN $10
+    ELSE is_base_unit
+  END,
   updated_at = NOW()
-WHERE unit_id = $7
+WHERE unit_id = $11
 AND deleted_at IS NULL
-RETURNING unit_id, unit_name, unit_price_default, item_id, is_active, created_at, updated_at, deleted_at
+RETURNING unit_id, unit_name, unit_price_default, item_id, ratio, is_base_unit, is_active, created_at, updated_at, deleted_at
 `
 
 type PatchUnitParams struct {
@@ -599,6 +633,10 @@ type PatchUnitParams struct {
 	UnitPriceDefault    int64         `json:"unit_price_default"`
 	SetItemID           bool          `json:"set_item_id"`
 	ItemID              uuid.NullUUID `json:"item_id"`
+	SetRatio            bool          `json:"set_ratio"`
+	Ratio               int64         `json:"ratio"`
+	SetIsBaseUnit       bool          `json:"set_is_base_unit"`
+	IsBaseUnit          bool          `json:"is_base_unit"`
 	UnitID              uuid.UUID     `json:"unit_id"`
 }
 
@@ -610,6 +648,10 @@ func (q *Queries) PatchUnit(ctx context.Context, arg PatchUnitParams) (Unit, err
 		arg.UnitPriceDefault,
 		arg.SetItemID,
 		arg.ItemID,
+		arg.SetRatio,
+		arg.Ratio,
+		arg.SetIsBaseUnit,
+		arg.IsBaseUnit,
 		arg.UnitID,
 	)
 	var i Unit
@@ -618,6 +660,8 @@ func (q *Queries) PatchUnit(ctx context.Context, arg PatchUnitParams) (Unit, err
 		&i.UnitName,
 		&i.UnitPriceDefault,
 		&i.ItemID,
+		&i.Ratio,
+		&i.IsBaseUnit,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -635,7 +679,9 @@ SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.u
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
          'unit_id', u.unit_id,
          'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default
+         'unit_price_default', u.unit_price_default,
+         'ratio', u.ratio,
+         'is_base_unit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id

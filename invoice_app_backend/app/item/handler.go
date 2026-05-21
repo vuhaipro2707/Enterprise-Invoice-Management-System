@@ -3,9 +3,11 @@ package item
 import (
 	"context"
 	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -13,7 +15,11 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"google.golang.org/genai"
 )
+
+//go:embed system_instruction.txt
+var systemInstructionRaw string
 
 type ItemHandler struct {
 	Repo    *sqlc.Queries
@@ -21,9 +27,46 @@ type ItemHandler struct {
 }
 
 func NewItemHandler(repo *sqlc.Queries) *ItemHandler {
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	var genaiClient *genai.Client
+	var genaiConfig *genai.GenerateContentConfig
+
+	if apiKey != "" {
+		ctx := context.Background()
+		client, err := genai.NewClient(ctx, &genai.ClientConfig{
+			Backend: genai.BackendGeminiAPI,
+			APIKey:  apiKey,
+		})
+		if err != nil {
+			fmt.Printf("[GenAI] Failed to initialize GenAI client: %v\n", err)
+		} else {
+			genaiClient = client
+
+			tools := []*genai.Tool{
+				{
+					GoogleSearch: &genai.GoogleSearch{},
+				},
+			}
+
+			systemInstruction := strings.ReplaceAll(systemInstructionRaw, "~", "`")
+
+			genaiConfig = &genai.GenerateContentConfig{
+				Tools: tools,
+				SystemInstruction: &genai.Content{
+					Parts: []*genai.Part{
+						{Text: systemInstruction},
+					},
+				},
+			}
+			fmt.Println("[GenAI] Pre-initialized Gemini Client and Config successfully.")
+		}
+	} else {
+		fmt.Println("[GenAI] GEMINI_API_KEY is empty. AI features will be disabled.")
+	}
+
 	return &ItemHandler{
 		Repo:    repo,
-		service: NewItemService(repo),
+		service: NewItemService(repo, genaiClient, genaiConfig),
 	}
 }
 
@@ -253,6 +296,8 @@ func (h *ItemHandler) CreateUnitForItem(c *fiber.Ctx) error {
 	type createUnitRequest struct {
 		UnitName         string `json:"unitName"`
 		UnitPriceDefault *int64 `json:"unitPriceDefault"`
+		Ratio            *int64 `json:"ratio"`
+		IsBaseUnit       *bool  `json:"isBaseUnit"`
 	}
 
 	itemID := c.Params("itemId")
@@ -262,19 +307,16 @@ func (h *ItemHandler) CreateUnitForItem(c *fiber.Ctx) error {
 
 	var req createUnitRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required keys: unitName, unitPriceDefault(optional)"})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required keys: unitName, ratio, isBaseUnit, unitPriceDefault(optional)"})
 	}
 
-	if req.UnitName == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: unitName, unitPriceDefault(optional)"})
+	if req.UnitName == "" || req.Ratio == nil || req.IsBaseUnit == nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: unitName, ratio, isBaseUnit, unitPriceDefault(optional)"})
 	}
 
-	unit, err := h.service.CreateUnitForItem(context.Background(), itemID, req.UnitName, req.UnitPriceDefault)
+	unit, err := h.service.CreateUnitForItem(context.Background(), itemID, req.UnitName, req.UnitPriceDefault, *req.Ratio, *req.IsBaseUnit)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.Status(404).JSON(fiber.Map{"error": "Item not found"})
-		}
-		return c.Status(400).JSON(fiber.Map{"error": "Failed to create unit for item. Please verify itemId is a valid UUID and item exists"})
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	var itmID *uuid.UUID
@@ -289,9 +331,11 @@ func (h *ItemHandler) CreateUnitForItem(c *fiber.Ctx) error {
 			"item_id":            itmID,
 			"unit_name":          unit.UnitName,
 			"unit_price_default": unit.UnitPriceDefault,
-			"is_active":          unit.IsActive,
-			"created_at":         unit.CreatedAt,
-			"updated_at":         unit.UpdatedAt,
+			"ratio":              unit.Ratio,
+			"is_base_unit":       unit.IsBaseUnit,
+			"is_active":          unit.IsActive.Bool,
+			"created_at":         unit.CreatedAt.Time,
+			"updated_at":         unit.UpdatedAt.Time,
 		},
 	})
 }
@@ -511,17 +555,19 @@ func (h *ItemHandler) PatchUnit(c *fiber.Ctx) error {
 
 	body := map[string]json.RawMessage{}
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Allowed keys: unitName, unitPriceDefault, itemId(optional)"})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Allowed keys: unitName, unitPriceDefault, ratio, isBaseUnit, itemId(optional)"})
 	}
 
 	if len(body) == 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "No updatable keys provided. Allowed keys: unitName, unitPriceDefault, itemId(optional)"})
+		return c.Status(400).JSON(fiber.Map{"error": "No updatable keys provided. Allowed keys: unitName, unitPriceDefault, ratio, isBaseUnit, itemId(optional)"})
 	}
 
 	allowed := map[string]struct{}{
 		"unitName":         {},
 		"unitPriceDefault": {},
 		"itemId":           {},
+		"ratio":            {},
+		"isBaseUnit":       {},
 	}
 
 	forbidden, unknown := splitPatchKeys(body, allowed)
@@ -555,6 +601,24 @@ func (h *ItemHandler) PatchUnit(c *fiber.Ctx) error {
 		input.UnitPriceDefault = value
 	}
 
+	if raw, ok := body["ratio"]; ok {
+		var value int64
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: ratio (must be number)"})
+		}
+		input.SetRatio = true
+		input.Ratio = value
+	}
+
+	if raw, ok := body["isBaseUnit"]; ok {
+		var value bool
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: isBaseUnit (must be boolean)"})
+		}
+		input.SetIsBaseUnit = true
+		input.IsBaseUnit = value
+	}
+
 	if raw, ok := body["itemId"]; ok {
 		input.SetItemID = true
 		if string(raw) == "null" {
@@ -580,15 +644,27 @@ func (h *ItemHandler) PatchUnit(c *fiber.Ctx) error {
 
 	unitData, err := h.service.PatchUnit(context.Background(), unitID, input)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.Status(404).JSON(fiber.Map{"error": "Unit not found"})
-		}
-		return c.Status(400).JSON(fiber.Map{"error": "Failed to patch unit. Please verify unitId/itemId are valid UUIDs and related records exist"})
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	var itmID *uuid.UUID
+	if unitData.ItemID.Valid {
+		itmID = &unitData.ItemID.UUID
 	}
 
 	return c.Status(200).JSON(fiber.Map{
 		"message": "Unit patched successfully",
-		"data":    unitData,
+		"data": fiber.Map{
+			"unit_id":            unitData.UnitID,
+			"item_id":            itmID,
+			"unit_name":          unitData.UnitName,
+			"unit_price_default": unitData.UnitPriceDefault,
+			"ratio":              unitData.Ratio,
+			"is_base_unit":       unitData.IsBaseUnit,
+			"is_active":          unitData.IsActive.Bool,
+			"created_at":         unitData.CreatedAt.Time,
+			"updated_at":         unitData.UpdatedAt.Time,
+		},
 	})
 }
 
@@ -673,4 +749,51 @@ func (h *ItemHandler) DeleteItemOtherName(c *fiber.Ctx) error {
 	}
 
 	return c.Status(200).JSON(fiber.Map{"message": "Other name deleted successfully"})
+}
+
+func (h *ItemHandler) AIGenerateItemSuggestions(c *fiber.Ctx) error {
+	type generateRequest struct {
+		Keyword string `json:"keyword"`
+	}
+
+	var req generateRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required keys: keyword"})
+	}
+
+	if strings.TrimSpace(req.Keyword) == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: keyword"})
+	}
+
+	cleanJSON, err := h.service.GenerateItemAISuggestions(c.UserContext(), req.Keyword)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to generate AI suggestions: %s", err.Error())})
+	}
+
+	return c.Status(200).SendString(cleanJSON)
+}
+
+func (h *ItemHandler) AIBatchCreateItems(c *fiber.Ctx) error {
+	type batchRequest struct {
+		TypeID string                   `json:"typeId"`
+		Items  []BatchCreateItemPayload `json:"items"`
+	}
+
+	var req batchRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required keys: items, typeId(optional)"})
+	}
+
+	if len(req.Items) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: items (must contain at least one item)"})
+	}
+
+	err := h.service.BatchCreateItems(context.Background(), req.TypeID, req.Items)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to save items in batch: %s", err.Error())})
+	}
+
+	return c.Status(201).JSON(fiber.Map{
+		"message": fmt.Sprintf("Successfully saved %d items in batch", len(req.Items)),
+	})
 }

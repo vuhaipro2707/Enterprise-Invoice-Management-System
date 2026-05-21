@@ -17,6 +17,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	router "invoice_backend/app"
+	"invoice_backend/app/dbconn"
 
 	sqlc "invoice_backend/db/sqlc"
 )
@@ -58,6 +59,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Thiết lập db cho connection sharing để có thể bắt đầu transactions trong services
+	dbconn.DB = db
 
 	repo := sqlc.New(db)
 

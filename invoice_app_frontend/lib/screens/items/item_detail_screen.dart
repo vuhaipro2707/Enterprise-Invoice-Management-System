@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
-import '../../services/currency_formatter.dart';
 import '../../widgets/type_selection_sheet.dart';
+import '../../widgets/units_section.dart';
 
 class ItemDetailScreen extends StatefulWidget {
   final Map<String, dynamic> item;
@@ -29,6 +29,28 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   final _isLoadingTypes = false;
   bool _isSaving = false;
   final _otherNameFocusNode = FocusNode();
+  final _formatter = NumberFormat.decimalPattern('vi_VN');
+
+  TextEditingController _getNameController(Map<String, dynamic> unit) {
+    if (unit['nameController'] == null) {
+      unit['nameController'] = TextEditingController();
+    }
+    return unit['nameController'] as TextEditingController;
+  }
+
+  TextEditingController _getPriceController(Map<String, dynamic> unit) {
+    if (unit['priceController'] == null) {
+      unit['priceController'] = TextEditingController();
+    }
+    return unit['priceController'] as TextEditingController;
+  }
+
+  TextEditingController _getRatioController(Map<String, dynamic> unit) {
+    if (unit['ratioController'] == null) {
+      unit['ratioController'] = TextEditingController(text: '1');
+    }
+    return unit['ratioController'] as TextEditingController;
+  }
 
   @override
   void initState() {
@@ -64,40 +86,33 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     
     // Khởi tạo các đơn vị từ dữ liệu có sẵn
     final existingUnits = widget.item['units'] as List? ?? [];
-    final formatter = NumberFormat.decimalPattern('vi_VN');
-    for (var u in existingUnits) {
+    
+    // Sắp xếp sao cho đơn vị gốc luôn đứng đầu tiên
+    final List<dynamic> sortedUnits = List.from(existingUnits);
+    sortedUnits.sort((a, b) {
+      final aBase = a['is_base_unit'] ?? false;
+      final bBase = b['is_base_unit'] ?? false;
+      if (aBase && !bBase) return -1;
+      if (!aBase && bBase) return 1;
+      return 0;
+    });
+
+    for (var u in sortedUnits) {
       String formattedPrice = '';
       if (u['unit_price_default'] != null) {
-        formattedPrice = formatter.format(u['unit_price_default']);
+        formattedPrice = _formatter.format(u['unit_price_default']);
       }
       _units.add({
         'unit_id': u['unit_id'],
         'nameController': TextEditingController(text: u['unit_name']),
         'priceController': TextEditingController(text: formattedPrice),
+        'ratioController': TextEditingController(text: (u['ratio'] ?? 1).toString()),
+        'isBaseUnit': u['is_base_unit'] ?? false,
       });
     }
   }
 
-  void _addUnit() {
-    setState(() {
-      _units.add({
-        'nameController': TextEditingController(),
-        'priceController': TextEditingController(),
-      });
-    });
-  }
 
-  void _removeUnit(int index) {
-    setState(() {
-      final unitId = _units[index]['unit_id'];
-      if (unitId != null) {
-        _removedUnitIds.add(unitId);
-      }
-      _units[index]['nameController'].dispose();
-      _units[index]['priceController'].dispose();
-      _units.removeAt(index);
-    });
-  }
 
   void _addOtherName(String name) {
     final trimmed = name.trim();
@@ -189,19 +204,29 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
       final List<dynamic> originalUnits = widget.item['units'] as List? ?? [];
 
       for (var unit in _units) {
-        String unitName = unit['nameController'].text.trim();
+        String unitName = _getNameController(unit).text.trim();
         // Viết hoa chữ cái đầu tiên của đơn vị
         if (unitName.isNotEmpty) {
           unitName = unitName[0].toUpperCase() + unitName.substring(1);
         }
 
-        final rawPriceValue = unit['priceController'].text.replaceAll('.', '').trim();
+        final rawPriceValue = _getPriceController(unit).text.replaceAll('.', '').trim();
         final unitPrice = int.tryParse(rawPriceValue);
+        
+        final ratioStr = _getRatioController(unit).text.trim();
+        final ratio = int.tryParse(ratioStr) ?? 1;
+        final isBaseUnit = unit['isBaseUnit'] ?? false;
         
         if (unit['unit_id'] == null) {
           // Tạo mới đơn vị nếu chưa có ID
           if (unitName.isNotEmpty) {
-            await ApiService().createUnit(itemId, unitName, unitPrice);
+            await ApiService().createUnit(
+              itemId, 
+              unitName, 
+              unitPrice,
+              ratio: ratio,
+              isBaseUnit: isBaseUnit,
+            );
           }
         } else {
           // Cập nhật đơn vị cũ nếu có thay đổi
@@ -211,7 +236,16 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           if (originalUnit != null) {
             final Map<String, dynamic> unitUpdate = {};
             if (unitName != originalUnit['unit_name']) unitUpdate['unitName'] = unitName;
-            if (unitPrice != (originalUnit['unit_price_default'] as int?)) unitUpdate['unitPriceDefault'] = unitPrice;
+            if (ratio != (originalUnit['ratio'] as int?)) unitUpdate['ratio'] = ratio;
+            if (isBaseUnit != (originalUnit['is_base_unit'] as bool?)) unitUpdate['isBaseUnit'] = isBaseUnit;
+            
+            // Only update unitPriceDefault for the Base Unit.
+            // Secondary units' prices are automatically recalculated and propagated by the DB trigger.
+            if (isBaseUnit) {
+              if (unitPrice != (originalUnit['unit_price_default'] as int?)) {
+                unitUpdate['unitPriceDefault'] = unitPrice;
+              }
+            }
             
             if (unitUpdate.isNotEmpty) {
               await ApiService().patchUnit(unitId, unitUpdate);
@@ -242,10 +276,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     _nameController.dispose();
     _otherNameInputController.dispose();
     _otherNameFocusNode.dispose();
-    for (var unit in _units) {
-      unit['nameController'].dispose();
-      unit['priceController'].dispose();
-    }
     super.dispose();
   }
 
@@ -332,59 +362,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Đơn vị tính & Giá',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                TextButton.icon(
-                  onPressed: _addUnit,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Thêm đơn vị'),
-                ),
-              ],
-            ),
-            ..._units.asMap().entries.map((entry) {
-              int index = entry.key;
-              var unit = entry.value;
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: unit['nameController'],
-                          decoration: const InputDecoration(labelText: 'Đơn vị'),
-                          validator: (value) => (value == null || value.isEmpty)
-                              ? 'Nhập tên'
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: unit['priceController'],
-                          decoration: const InputDecoration(labelText: 'Giá'),
-                          inputFormatters: [CurrencyInputFormatter()],
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => _removeUnit(index),
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 40),
+            UnitsSection(units: _units, removedUnitIds: _removedUnitIds),
+            const SizedBox(height: 32),
             ElevatedButton.icon(
               onPressed: _isSaving ? null : _saveChanges,
               style: ElevatedButton.styleFrom(

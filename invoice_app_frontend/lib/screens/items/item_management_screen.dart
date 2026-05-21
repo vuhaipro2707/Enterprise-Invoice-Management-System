@@ -5,6 +5,7 @@ import '../../widgets/type_selection_sheet.dart';
 import '../../widgets/item_card.dart';
 import 'create_item_screen.dart';
 import 'item_detail_screen.dart';
+import 'ai_create_item_screen.dart';
 
 class ItemManagementScreen extends StatefulWidget {
   const ItemManagementScreen({super.key});
@@ -309,16 +310,129 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CreateItemScreen(types: _types),
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            builder: (sheetContext) => SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Theme.of(sheetContext).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Thêm mặt hàng mới',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(sheetContext).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Theme.of(sheetContext).colorScheme.primaryContainer,
+                        child: Icon(
+                          Icons.edit_note_rounded,
+                          color: Theme.of(sheetContext).colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                      title: Text(
+                        'Tạo thủ công',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(sheetContext).colorScheme.onSurface,
+                        ),
+                      ),
+                      subtitle: const Text('Tự nhập tay từng tên hàng, quy cách và đơn vị tính'),
+                      onTap: () async {
+                        Navigator.pop(sheetContext);
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (builderContext) => CreateItemScreen(types: _types),
+                          ),
+                        );
+                        if (result == true && mounted) {
+                          _fetchItems();
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Theme.of(sheetContext).colorScheme.secondaryContainer,
+                        child: Icon(
+                          Icons.auto_awesome_rounded,
+                          color: Theme.of(sheetContext).colorScheme.onSecondaryContainer,
+                        ),
+                      ),
+                      title: Row(
+                        children: [
+                          Text(
+                            'Tạo nhanh bằng AI',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(sheetContext).colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Theme.of(sheetContext).colorScheme.primary,
+                                  Theme.of(sheetContext).colorScheme.secondary,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'NEW',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      subtitle: const Text('Bóc tách biến thể, gợi ý giá thị trường và lưu hàng loạt'),
+                      onTap: () async {
+                        Navigator.pop(sheetContext);
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (builderContext) => AICreateItemScreen(types: _types),
+                          ),
+                        );
+                        if (result == true && mounted) {
+                          _loadInitialData();
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
           );
-          if (result == true) {
-            _fetchItems();
-          }
         },
         tooltip: 'Thêm mặt hàng mới',
         child: const Icon(Icons.add),

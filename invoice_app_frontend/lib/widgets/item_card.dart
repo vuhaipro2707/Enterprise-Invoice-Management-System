@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 class ItemCard extends StatefulWidget {
@@ -53,18 +54,62 @@ class _ItemCardState extends State<ItemCard> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    widget.item['item_default_name'] ?? 'Không tên',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.item['item_default_name'] ?? 'Không tên',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: 'Sao chép tên mặt hàng',
+                        icon: const Icon(Icons.copy_all_rounded, size: 20),
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(),
+                        style: IconButton.styleFrom(
+                          backgroundColor: colorScheme.secondaryContainer.withValues(alpha: 0.4),
+                          minimumSize: const Size(36, 36),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        color: colorScheme.primary,
+                        onPressed: () async {
+                          final name = widget.item['item_default_name'] ?? '';
+                          if (name.isNotEmpty) {
+                            await Clipboard.setData(ClipboardData(text: name));
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Đã sao chép: $name',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: colorScheme.onInverseSurface),
+                                  ),
+                                  backgroundColor: colorScheme.inverseSurface,
+                                  duration: const Duration(milliseconds: 800),
+                                  behavior: SnackBarBehavior.floating,
+                                  width: 280,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Container(

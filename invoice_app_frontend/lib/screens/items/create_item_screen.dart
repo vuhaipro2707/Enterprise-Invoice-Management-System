@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
-import '../../services/currency_formatter.dart';
 import '../../widgets/type_selection_sheet.dart';
+import '../../widgets/units_section.dart';
 
 class CreateItemScreen extends StatefulWidget {
   final List<dynamic> types;
@@ -37,22 +37,7 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
     });
   }
 
-  void _addUnit() {
-    setState(() {
-      _units.add({
-        'nameController': TextEditingController(),
-        'priceController': TextEditingController(),
-      });
-    });
-  }
 
-  void _removeUnit(int index) {
-    setState(() {
-      _units[index]['nameController'].dispose();
-      _units[index]['priceController'].dispose();
-      _units.removeAt(index);
-    });
-  }
 
   void _addOtherName(String name) {
     final trimmed = name.trim();
@@ -114,19 +99,43 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
 
       final itemId = result['data']['item_id'];
 
+      // Sort units so that base unit is created first
+      final List<Map<String, dynamic>> sortedUnits = List.from(_units);
+      sortedUnits.sort((a, b) {
+        final aBase = a['isBaseUnit'] ?? false;
+        final bBase = b['isBaseUnit'] ?? false;
+        if (aBase && !bBase) return -1;
+        if (!aBase && bBase) return 1;
+        return 0;
+      });
+
       // 2. Create Units sequentially
-      for (var unit in _units) {
-        String unitName = unit['nameController'].text.trim();
+      for (var unit in sortedUnits) {
+        final controller = unit['nameController'] as TextEditingController?;
+        if (controller == null) continue;
+        String unitName = controller.text.trim();
         // Viết hoa chữ cái đầu tiên của đơn vị
         if (unitName.isNotEmpty) {
           unitName = unitName[0].toUpperCase() + unitName.substring(1);
         }
         
         // Remove dots for parsing
-        final rawPrice = unit['priceController'].text.replaceAll('.', '').trim();
+        final priceController = unit['priceController'] as TextEditingController?;
+        final rawPrice = priceController?.text.replaceAll('.', '').trim() ?? '';
         final unitPrice = int.tryParse(rawPrice);
+
+        final ratioStr = (unit['ratioController'] as TextEditingController?)?.text.trim() ?? '1';
+        final ratio = int.tryParse(ratioStr) ?? 1;
+        final isBaseUnit = unit['isBaseUnit'] ?? false;
+
         if (unitName.isNotEmpty) {
-          await ApiService().createUnit(itemId, unitName, unitPrice);
+          await ApiService().createUnit(
+            itemId,
+            unitName,
+            unitPrice,
+            ratio: ratio,
+            isBaseUnit: isBaseUnit,
+          );
         }
       }
 
@@ -152,10 +161,6 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
     _nameController.dispose();
     _otherNameInputController.dispose();
     _otherNameFocusNode.dispose();
-    for (var unit in _units) {
-      unit['nameController'].dispose();
-      unit['priceController'].dispose();
-    }
     super.dispose();
   }
 
@@ -257,74 +262,7 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
             ),
             const SizedBox(height: 32),
             
-            // Phần Đơn vị tính & Giá
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Đơn vị tính & Giá',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                TextButton.icon(
-                  onPressed: _addUnit,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Thêm đơn vị'),
-                ),
-              ],
-            ),
-            if (_units.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Text(
-                  'Bấm "Thêm đơn vị" để thêm giá bán (VD: Thùng, Lon, Cái)',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ),
-            ..._units.asMap().entries.map((entry) {
-              int index = entry.key;
-              var unit = entry.value;
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: unit['nameController'],
-                          decoration: const InputDecoration(
-                            labelText: 'Đơn vị',
-                          ),
-                          validator: (value) => (value == null || value.isEmpty)
-                              ? 'Nhập tên đơn vị'
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: unit['priceController'],
-                          decoration: const InputDecoration(
-                            labelText: 'Giá mặc định',
-                          ),
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [CurrencyInputFormatter()],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => _removeUnit(index),
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
+            UnitsSection(units: _units),
             
             const SizedBox(height: 100), // Khoảng trống cho FAB nếu cần
           ],
