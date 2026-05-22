@@ -26,6 +26,21 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   bool _isFetchingInvoiceCode = false;
   bool _isFetchingBusiness = false;
 
+  String? _autoApplyPriceListId;
+  bool _isArgumentsParsed = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isArgumentsParsed) {
+      _isArgumentsParsed = true;
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args != null && args.containsKey('auto_apply_pricelist_id')) {
+        _autoApplyPriceListId = args['auto_apply_pricelist_id'] as String?;
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -107,12 +122,76 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
       if (mounted) {
         final invoiceId = response['data']['invoice_id'];
-        // Chuyển sang màn hình edit (sẽ tạo sau)
-        Navigator.pushReplacementNamed(
-          context,
-          '/edit_invoice',
-          arguments: {'invoiceId': invoiceId},
-        );
+
+        if (_autoApplyPriceListId != null) {
+          final pickedItems = await Navigator.pushNamed(
+            context,
+            '/pricelist_item_picker',
+            arguments: _autoApplyPriceListId,
+          );
+
+          if (pickedItems != null && pickedItems is List && pickedItems.isNotEmpty) {
+            if (!mounted) return;
+            final buyerName = _buyerNameController.text.trim().isNotEmpty
+                ? _buyerNameController.text.trim()
+                : 'Khách lẻ';
+            final itemCount = pickedItems.length;
+
+            final bool? confirm = await showDialog<bool>(
+              context: context,
+              builder: (dialogContext) {
+                final colorScheme = Theme.of(context).colorScheme;
+                return AlertDialog(
+                  title: const Text('Xác nhận thêm mặt hàng'),
+                  content: Text(
+                    'Bạn có chắc chắn muốn thêm $itemCount mặt hàng đã chọn vào hóa đơn mới cho $buyerName không?'
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: const Text('HỦY'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                      ),
+                      child: const Text('XÁC NHẬN'),
+                    ),
+                  ],
+                );
+              },
+            );
+
+            if (confirm == true) {
+              if (mounted) setState(() => _isLoading = true);
+              try {
+                for (final item in pickedItems) {
+                  final Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
+                  await ApiService().createLineItem(invoiceId, {
+                    "itemID": itemMap['item_id'],
+                    "unitID": itemMap['unit_id'],
+                    "itemNameSnapshot": itemMap['item_name'],
+                    "unitNameSnapshot": itemMap['unit_name'],
+                    "quantity": (itemMap['quantity'] as num?)?.toInt() ?? 1,
+                    "unitPriceCustom": itemMap['price'],
+                  });
+                }
+              } catch (e) {
+                debugPrint('Error applying auto price list items: $e');
+              }
+            }
+          }
+        }
+
+        if (mounted) {
+          Navigator.pushReplacementNamed(
+            context,
+            '/edit_invoice',
+            arguments: {'invoiceId': invoiceId},
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

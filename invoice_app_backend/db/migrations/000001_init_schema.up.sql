@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS units (
     unit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     unit_name VARCHAR(255) NOT NULL,
     unit_price_default BIGINT NOT NULL,
-    item_id UUID REFERENCES items(item_id) ON DELETE SET NULL,
+    item_id UUID REFERENCES items(item_id) ON DELETE CASCADE,
     ratio BIGINT DEFAULT 1 CHECK (ratio > 0) NOT NULL,
     is_base_unit BOOLEAN DEFAULT FALSE NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS units (
 -- 9. Create Invoices table
 CREATE TABLE IF NOT EXISTS invoices (
     invoice_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    account_id UUID REFERENCES accounts(account_id) ON DELETE CASCADE,
+    account_id UUID REFERENCES accounts(account_id) ON DELETE SET NULL,
     buyer_id UUID REFERENCES buyers(buyer_id) ON DELETE SET NULL,
     invoice_code VARCHAR(50) UNIQUE NOT NULL,
     total_amount BIGINT NOT NULL,
@@ -139,6 +139,27 @@ CREATE TABLE IF NOT EXISTS print_queue (
     priority_num INT DEFAULT 0, -- Higher number means higher priority
     created_at TIMESTAMPTZ DEFAULT NOW(),
     printed_at TIMESTAMPTZ
+);
+
+-- 12. Create CustomerPriceLists table
+CREATE TABLE IF NOT EXISTS customer_price_lists (
+    customer_price_list_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    description TEXT NOT NULL,
+    buyer_id UUID REFERENCES buyers(buyer_id) ON DELETE SET NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
+);
+
+-- 13. Create CustomerItemPrices table
+CREATE TABLE IF NOT EXISTS customer_item_prices (
+    customer_item_price_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_price_list_id UUID REFERENCES customer_price_lists(customer_price_list_id) ON DELETE CASCADE,
+    item_id UUID REFERENCES items(item_id) ON DELETE CASCADE,
+    unit_id UUID REFERENCES units(unit_id) ON DELETE SET NULL,
+    unit_price_custom BIGINT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 COMMIT;

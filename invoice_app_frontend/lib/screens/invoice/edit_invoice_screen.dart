@@ -531,16 +531,66 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
             ),
             const SizedBox(height: 24),
             // Danh sách Line Items
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Sản phẩm / Dịch vụ', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                ElevatedButton.icon(
-                  onPressed: () => _openCreateLineItem(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Thêm dòng'),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (headerContext, constraints) {
+                final isNarrow = constraints.maxWidth < 450;
+                if (isNarrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Sản phẩm / Dịch vụ',
+                        style: Theme.of(headerContext).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _openPriceListSelection,
+                              icon: const Icon(Icons.request_quote),
+                              label: const Text('Báo giá'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _openCreateLineItem(),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Thêm dòng'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                } else {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Sản phẩm / Dịch vụ',
+                        style: Theme.of(headerContext).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      Row(
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _openPriceListSelection,
+                            icon: const Icon(Icons.request_quote),
+                            label: const Text('Bảng báo giá'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () => _openCreateLineItem(),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Thêm dòng'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+              },
             ),
             const SizedBox(height: 12),
             if (lineItems.isEmpty)
@@ -673,6 +723,38 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       arguments: {'invoiceId': _invoiceId!},
     );
     if (result == true) _fetchInvoiceDetails();
+  }
+
+  void _openPriceListSelection() async {
+    final result = await Navigator.pushNamed(
+      context,
+      '/pricelist_picker',
+      arguments: _selectedBuyerId,
+    );
+
+    if (result != null && result is List<Map<String, dynamic>> && result.isNotEmpty) {
+      setState(() => _isLoading = true);
+      try {
+        for (final item in result) {
+          await _apiService.createLineItem(_invoiceId!, {
+            "itemID": item['item_id'],
+            "unitID": item['unit_id'],
+            "itemNameSnapshot": item['item_name'],
+            "unitNameSnapshot": item['unit_name'],
+            "quantity": (item['quantity'] as num?)?.toInt() ?? 1, // Quantity chosen in selection screen (must be int)
+            "unitPriceCustom": item['price'],
+          });
+        }
+        _fetchInvoiceDetails();
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi khi thêm mặt hàng từ báo giá: $e')),
+          );
+        }
+      }
+    }
   }
 
   void _openEditLineItem(Map<String, dynamic> lineItem) async {

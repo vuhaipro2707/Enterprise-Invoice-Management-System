@@ -552,6 +552,93 @@ class ApiService {
     }
     throw Exception('Failed to load invoices: ${response.body}');
   }
+
+  // Customer Price List methods
+  Future<List<dynamic>> getCustomerPriceLists({
+    int? limit,
+    int? offset,
+    String? sortBy,
+    String? sortOrder,
+    String? buyerName,
+    String? buyerId,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final queryParams = <String, String>{};
+    if (limit != null) queryParams['limit'] = limit.toString();
+    if (offset != null) queryParams['offset'] = offset.toString();
+    if (sortBy != null) queryParams['sortBy'] = sortBy;
+    if (sortOrder != null) queryParams['sortOrder'] = sortOrder;
+    if (buyerName != null && buyerName.isNotEmpty) queryParams['buyerName'] = buyerName;
+    if (buyerId != null && buyerId.isNotEmpty) queryParams['buyerId'] = buyerId;
+    if (startDate != null) {
+      queryParams['startDate'] = startDate.toUtc().toIso8601String();
+    }
+    if (endDate != null) {
+      queryParams['endDate'] = endDate.toUtc().toIso8601String();
+    }
+
+    final uri = Uri.parse('$baseUrl/pricelist').replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      return decoded['data'] ?? [];
+    }
+    throw Exception('Failed to load customer price lists: ${response.body}');
+  }
+
+  Future<Map<String, dynamic>> getCustomerPriceList(String id) async {
+    final response = await get('/pricelist/id/$id');
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to get customer price list');
+  }
+
+  Future<Map<String, dynamic>> createCustomerPriceList({
+    required String description,
+    String? buyerId,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await post('/pricelist', {
+      'description': description,
+      'buyerId': buyerId,
+      'items': items,
+    });
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to create customer price list');
+  }
+
+  Future<Map<String, dynamic>> updateCustomerPriceList(
+    String id, {
+    required String description,
+    String? buyerId,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await patch('/pricelist/id/$id', {
+      'description': description,
+      'buyerId': buyerId,
+      'items': items,
+    });
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to update customer price list');
+  }
+
+  Future<Map<String, dynamic>> deleteCustomerPriceList(String id) async {
+    final response = await delete('/pricelist/id/$id');
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to delete customer price list');
+  }
 }
 
 // TODO: Add pin top items.

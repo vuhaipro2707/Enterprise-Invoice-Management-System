@@ -4,6 +4,7 @@ import (
 	"invoice_backend/app/auth"
 	"invoice_backend/app/invoice"
 	"invoice_backend/app/item"
+	"invoice_backend/app/pricelist"
 	sqlc "invoice_backend/db/sqlc"
 
 	"github.com/gofiber/fiber/v2"
@@ -14,6 +15,7 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	authHandler := auth.NewAuthHandler(repo)
 	itemHandler := item.NewItemHandler(repo)
 	invoiceHandler := invoice.NewInvoiceHandler(repo)
+	pricelistHandler := pricelist.NewPriceListHandler(repo)
 
 	authGroup := app.Group("/auth")
 	authGroup.Post("/login", authHandler.Login)
@@ -68,4 +70,11 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	invoiceLockGroup.Patch("/lineItem/id/:lineItemId", invoiceHandler.PatchLineItem)
 	invoiceLockGroup.Delete("/lineItem/id/:lineItemId", invoiceHandler.DeleteLineItem)
 	invoiceLockGroup.Post("/finish/invoiceId/:invoiceId", invoiceHandler.Finish)
+
+	pricelistGroup := app.Group("/pricelist", auth.JWTMiddleware())
+	pricelistGroup.Post("", pricelistHandler.CreatePriceList)
+	pricelistGroup.Get("", pricelistHandler.GetPriceLists)
+	pricelistGroup.Get("/id/:pricelistId", pricelistHandler.GetPriceListByID)
+	pricelistGroup.Patch("/id/:pricelistId", pricelistHandler.UpdatePriceList)
+	pricelistGroup.Delete("/id/:pricelistId", pricelistHandler.DeletePriceList)
 }

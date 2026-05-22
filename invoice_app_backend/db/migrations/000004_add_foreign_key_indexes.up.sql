@@ -23,4 +23,12 @@ CREATE INDEX IF NOT EXISTS idx_line_items_unit_id ON line_items(unit_id);
 -- 6. Table: print_queue (invoice_id)
 CREATE INDEX IF NOT EXISTS idx_print_queue_invoice_id ON print_queue(invoice_id);
 
+-- 7. Table: customer_price_lists (buyer_id)
+CREATE INDEX IF NOT EXISTS idx_customer_price_lists_buyer_id ON customer_price_lists(buyer_id);
+
+-- 8. Table: customer_item_prices (customer_price_list_id, item_id, unit_id)
+CREATE INDEX IF NOT EXISTS idx_customer_item_prices_customer_price_list_id ON customer_item_prices(customer_price_list_id);
+CREATE INDEX IF NOT EXISTS idx_customer_item_prices_item_id ON customer_item_prices(item_id);
+CREATE INDEX IF NOT EXISTS idx_customer_item_prices_unit_id ON customer_item_prices(unit_id);
+
 COMMIT;

@@ -146,6 +146,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       {'title': 'Quản lý Mặt hàng', 'icon': Icons.inventory, 'color': Colors.orange},
       {'title': 'Quản lý Người mua', 'icon': Icons.people, 'color': Colors.green},
       {'title': 'Quản lý Hóa đơn', 'icon': Icons.description, 'color': Colors.red},
+      {'title': 'Bảng báo giá', 'icon': Icons.request_quote, 'color': Colors.teal},
       {'title': 'Quản lý Thiết bị', 'icon': Icons.devices, 'color': Colors.purple},
     ];
 
@@ -301,6 +302,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Navigator.pushNamed(context, '/buyer_management');
                           } else if (item['title'] == 'Quản lý Hóa đơn') {
                             Navigator.pushNamed(context, '/invoice_management').then((_) => _fetchEditingInvoices());
+                          } else if (item['title'] == 'Bảng báo giá') {
+                            Navigator.pushNamed(context, '/pricelist_management');
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Chức năng ${item['title']} đang phát triển')),

@@ -37,6 +37,25 @@ type Buyer struct {
 	DeletedAt    sql.NullTime    `json:"deleted_at"`
 }
 
+type CustomerItemPrice struct {
+	CustomerItemPriceID uuid.UUID     `json:"customer_item_price_id"`
+	CustomerPriceListID uuid.NullUUID `json:"customer_price_list_id"`
+	ItemID              uuid.NullUUID `json:"item_id"`
+	UnitID              uuid.NullUUID `json:"unit_id"`
+	UnitPriceCustom     int64         `json:"unit_price_custom"`
+	CreatedAt           sql.NullTime  `json:"created_at"`
+}
+
+type CustomerPriceList struct {
+	CustomerPriceListID uuid.UUID     `json:"customer_price_list_id"`
+	Description         string        `json:"description"`
+	BuyerID             uuid.NullUUID `json:"buyer_id"`
+	IsActive            sql.NullBool  `json:"is_active"`
+	CreatedAt           sql.NullTime  `json:"created_at"`
+	UpdatedAt           sql.NullTime  `json:"updated_at"`
+	DeletedAt           sql.NullTime  `json:"deleted_at"`
+}
+
 type Device struct {
 	DeviceHoldingID string         `json:"device_holding_id"`
 	DeviceName      sql.NullString `json:"device_name"`
