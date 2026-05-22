@@ -5,10 +5,11 @@ INSERT INTO buyers (
     address,
     phone_number,
     id_card_number,
+    tax_id,
     lat,
     lng
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
+    $1, $2, $3, $4, $5, $6, $7, $8
 ) RETURNING *;
 
 -- name: GetBuyerByID :one
@@ -30,10 +31,11 @@ INSERT INTO invoices (
     buyer_name_snapshot,
     address_snapshot,
     phone_number_snapshot,
+    tax_id_snapshot,
     lat_snapshot,
     lng_snapshot
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 ) RETURNING *;
 
 -- name: GetInvoiceByID :one
@@ -83,8 +85,9 @@ SET
     buyer_name_snapshot = $8,
     address_snapshot = $9,
     phone_number_snapshot = $10,
-    lat_snapshot = $11,
-    lng_snapshot = $12,
+    tax_id_snapshot = $11,
+    lat_snapshot = $12,
+    lng_snapshot = $13,
     updated_at = NOW()
 WHERE invoice_id = $1 AND deleted_at IS NULL
 RETURNING *;
@@ -97,8 +100,9 @@ SET
     address = $4,
     phone_number = $5,
     id_card_number = $6,
-    lat = $7,
-    lng = $8,
+    tax_id = $7,
+    lat = $8,
+    lng = $9,
     updated_at = NOW()
 WHERE buyer_id = $1 AND deleted_at IS NULL
 RETURNING *;

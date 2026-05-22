@@ -18,12 +18,14 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
   final _idCardController = TextEditingController();
+  final _taxIdController = TextEditingController();
 
   double? _selectedLat;
   double? _selectedLng;
 
   bool _isLoading = false;
   bool _isGeneratingCode = false;
+  bool _isFetchingBusiness = false;
 
   @override
   void initState() {
@@ -56,6 +58,7 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
         'address': _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
         'phoneNumber': _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
         'idCardNumber': _idCardController.text.trim().isEmpty ? null : _idCardController.text.trim(),
+        'taxId': _taxIdController.text.trim().isEmpty ? null : _taxIdController.text.trim(),
         'lat': _selectedLat,
         'lng': _selectedLng,
       };
@@ -91,6 +94,59 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _lookupVietQR() async {
+    final taxId = _taxIdController.text.trim();
+    if (taxId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập mã số thuế')),
+      );
+      return;
+    }
+
+    setState(() => _isFetchingBusiness = true);
+    try {
+      final business = await _apiService.fetchVietQRBusiness(taxId);
+      if (business != null) {
+        setState(() {
+          _nameController.text = business['name'] ?? '';
+          _addressController.text = business['address'] ?? '';
+        });
+
+        final address = business['address'];
+        if (address != null && address.isNotEmpty) {
+          final coords = await _apiService.googleGeocode(address);
+          if (coords != null) {
+            setState(() {
+              _selectedLat = coords['lat'];
+              _selectedLng = coords['lng'];
+            });
+          }
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã tự động điền thông tin doanh nghiệp')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không tìm thấy thông tin doanh nghiệp cho MST này')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi truy vấn thông tin doanh nghiệp: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isFetchingBusiness = false);
+      }
     }
   }
 
@@ -138,6 +194,27 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
                             ),
                             validator: (value) => 
                               value == null || value.isEmpty ? 'Vui lòng nhập mã' : null,
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _taxIdController,
+                            decoration: InputDecoration(
+                              labelText: 'Mã số thuế (MST)',
+                              prefixIcon: const Icon(Icons.description),
+                              suffixIcon: _isFetchingBusiness
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12.0),
+                                    child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                                  )
+                                : IconButton(
+                                    icon: const Icon(Icons.search),
+                                    onPressed: _lookupVietQR,
+                                    tooltip: 'Lấy thông tin từ MST',
+                                  ),
+                              border: const OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Theme.of(context).colorScheme.surface,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           TextFormField(
@@ -220,6 +297,7 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
     _addressController.dispose();
     _phoneController.dispose();
     _idCardController.dispose();
+    _taxIdController.dispose();
     super.dispose();
   }
 }

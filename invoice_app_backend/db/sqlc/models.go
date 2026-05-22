@@ -28,6 +28,7 @@ type Buyer struct {
 	Address      sql.NullString  `json:"address"`
 	PhoneNumber  sql.NullString  `json:"phone_number"`
 	IDCardNumber sql.NullString  `json:"id_card_number"`
+	TaxID        sql.NullString  `json:"tax_id"`
 	Lat          sql.NullFloat64 `json:"lat"`
 	Lng          sql.NullFloat64 `json:"lng"`
 	IsActive     sql.NullBool    `json:"is_active"`
@@ -54,6 +55,7 @@ type Invoice struct {
 	LatSnapshot         sql.NullFloat64 `json:"lat_snapshot"`
 	LngSnapshot         sql.NullFloat64 `json:"lng_snapshot"`
 	PhoneNumberSnapshot sql.NullString  `json:"phone_number_snapshot"`
+	TaxIDSnapshot       sql.NullString  `json:"tax_id_snapshot"`
 	IsActive            sql.NullBool    `json:"is_active"`
 	CreatedAt           sql.NullTime    `json:"created_at"`
 	UpdatedAt           sql.NullTime    `json:"updated_at"`

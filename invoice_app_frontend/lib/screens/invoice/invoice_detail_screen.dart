@@ -200,6 +200,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     final buyerCode = _getStringValue(inv['buyer_code']);
     final address = _getStringValue(inv['address_snapshot']);
     final phoneNumber = _getStringValue(inv['phone_number_snapshot']);
+    final taxIdSnapshot = _getStringValue(inv['tax_id_snapshot']);
     final lat = inv['lat_snapshot'] != null ? (inv['lat_snapshot'] as num).toDouble() : null;
     final lng = inv['lng_snapshot'] != null ? (inv['lng_snapshot'] as num).toDouble() : null;
     final totalAmount = inv['total_amount'] ?? 0;
@@ -321,6 +322,10 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                           : buyerName,
                       colorScheme,
                     ),
+                    if (taxIdSnapshot != null && taxIdSnapshot.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildDetailRow(Icons.receipt_long, 'Mã số thuế', taxIdSnapshot, colorScheme),
+                    ],
                     if (phoneNumber != null && phoneNumber.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _buildDetailRow(Icons.phone, 'Số điện thoại', phoneNumber, colorScheme),

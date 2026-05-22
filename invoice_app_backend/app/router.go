@@ -52,6 +52,7 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	invoiceGroup.Get("/google/autocomplete", invoiceHandler.GooglePlaceAutocomplete)
 	invoiceGroup.Get("/google/details", invoiceHandler.GooglePlaceDetails)
 	invoiceGroup.Get("/google/reverse-geocode", invoiceHandler.GoogleReverseGeocode)
+	invoiceGroup.Get("/google/geocode", invoiceHandler.GoogleGeocode)
 	invoiceGroup.Post("", invoiceHandler.CreateInvoice)
 	invoiceGroup.Post("/buyer", invoiceHandler.CreateBuyer)
 	invoiceGroup.Patch("/buyer/id/:buyerId", invoiceHandler.PatchBuyer)

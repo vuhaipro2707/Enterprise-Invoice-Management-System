@@ -20,11 +20,13 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
   late final TextEditingController _addressController;
   late final TextEditingController _phoneController;
   late final TextEditingController _idCardController;
+  late final TextEditingController _taxIdController;
 
   double? _selectedLat;
   double? _selectedLng;
 
   bool _isLoading = false;
+  bool _isFetchingBusiness = false;
 
   @override
   void initState() {
@@ -34,6 +36,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
     _addressController = TextEditingController(text: widget.buyer['address']);
     _phoneController = TextEditingController(text: widget.buyer['phone_number']);
     _idCardController = TextEditingController(text: widget.buyer['id_card_number']);
+    _taxIdController = TextEditingController(text: widget.buyer['tax_id']);
     _selectedLat = widget.buyer['lat'] != null ? (widget.buyer['lat'] as num).toDouble() : null;
     _selectedLng = widget.buyer['lng'] != null ? (widget.buyer['lng'] as num).toDouble() : null;
   }
@@ -45,6 +48,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
     _addressController.dispose();
     _phoneController.dispose();
     _idCardController.dispose();
+    _taxIdController.dispose();
     super.dispose();
   }
 
@@ -60,6 +64,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
       if (_addressController.text != widget.buyer['address']) updates['address'] = _addressController.text;
       if (_phoneController.text != widget.buyer['phone_number']) updates['phoneNumber'] = _phoneController.text;
       if (_idCardController.text != widget.buyer['id_card_number']) updates['idCardNumber'] = _idCardController.text;
+      if (_taxIdController.text != widget.buyer['tax_id']) updates['taxId'] = _taxIdController.text;
       
       // Update coordinates if they changed or were not set
       if (_selectedLat != (widget.buyer['lat'] != null ? (widget.buyer['lat'] as num).toDouble() : null)) {
@@ -105,6 +110,59 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _lookupVietQR() async {
+    final taxId = _taxIdController.text.trim();
+    if (taxId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập mã số thuế')),
+      );
+      return;
+    }
+
+    setState(() => _isFetchingBusiness = true);
+    try {
+      final business = await _apiService.fetchVietQRBusiness(taxId);
+      if (business != null) {
+        setState(() {
+          _nameController.text = business['name'] ?? '';
+          _addressController.text = business['address'] ?? '';
+        });
+
+        final address = business['address'];
+        if (address != null && address.isNotEmpty) {
+          final coords = await _apiService.googleGeocode(address);
+          if (coords != null) {
+            setState(() {
+              _selectedLat = coords['lat'];
+              _selectedLng = coords['lng'];
+            });
+          }
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã tự động điền thông tin doanh nghiệp')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không tìm thấy thông tin doanh nghiệp cho MST này')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi truy vấn thông tin doanh nghiệp: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isFetchingBusiness = false);
+      }
     }
   }
 
@@ -155,6 +213,27 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
                           fillColor: Theme.of(context).colorScheme.surface,
                         ),
                         validator: (v) => v!.isEmpty ? 'Không được để trống' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _taxIdController,
+                        decoration: InputDecoration(
+                          labelText: 'Mã số thuế (MST)',
+                          prefixIcon: const Icon(Icons.description),
+                          suffixIcon: _isFetchingBusiness
+                            ? const Padding(
+                                padding: EdgeInsets.all(12.0),
+                                child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                              )
+                            : IconButton(
+                                icon: const Icon(Icons.search),
+                                onPressed: _lookupVietQR,
+                                tooltip: 'Lấy thông tin từ MST',
+                              ),
+                          border: const OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Theme.of(context).colorScheme.surface,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       TextFormField(

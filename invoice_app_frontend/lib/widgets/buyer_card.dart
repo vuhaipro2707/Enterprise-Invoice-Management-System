@@ -36,8 +36,6 @@ class BuyerCard extends StatelessWidget {
                       ? buyer['buyer_name'] 
                       : 'Không có tên',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -67,6 +65,13 @@ class BuyerCard extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           'CCCD: ${(buyer['id_card_number'] != null && buyer['id_card_number'].toString().isNotEmpty) ? buyer['id_card_number'] : 'Không có'}', 
+          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'MST: ${(buyer['tax_id'] != null && buyer['tax_id'].toString().isNotEmpty) ? buyer['tax_id'] : 'Không có'}', 
           style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

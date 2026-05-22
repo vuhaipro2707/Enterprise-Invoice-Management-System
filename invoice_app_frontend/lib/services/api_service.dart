@@ -326,6 +326,7 @@ class ApiService {
     String? buyerNameSnapshot,
     String? addressSnapshot,
     String? phoneNumberSnapshot,
+    String? taxIdSnapshot,
     double? latSnapshot,
     double? lngSnapshot,
   }) async {
@@ -336,6 +337,7 @@ class ApiService {
       'buyerNameSnapshot': buyerNameSnapshot,
       'addressSnapshot': addressSnapshot,
       'phoneNumberSnapshot': phoneNumberSnapshot,
+      'taxIdSnapshot': taxIdSnapshot,
       'latSnapshot': latSnapshot,
       'lngSnapshot': lngSnapshot,
     });
@@ -485,6 +487,31 @@ class ApiService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['address'];
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> googleGeocode(String address) async {
+    final queryParams = {'address': address};
+    final uri = Uri.parse('$baseUrl/invoice/google/geocode').replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return {
+        'lat': data['lat'],
+        'lng': data['lng'],
+      };
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> fetchVietQRBusiness(String taxId) async {
+    final response = await http.get(Uri.parse('https://api.vietqr.io/v2/business/$taxId'));
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded['code'] == '00' && decoded['data'] != null) {
+        return decoded['data'] as Map<String, dynamic>;
+      }
     }
     return null;
   }

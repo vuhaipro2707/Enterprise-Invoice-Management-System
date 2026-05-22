@@ -16,6 +16,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   final _buyerNameController = TextEditingController();
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _taxIdController = TextEditingController();
 
   String? _selectedBuyerId;
   double? _selectedLat;
@@ -23,6 +24,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   bool _isLoading = false;
   bool _isFetchingBuyer = false;
   bool _isFetchingInvoiceCode = false;
+  bool _isFetchingBusiness = false;
 
   @override
   void initState() {
@@ -58,6 +60,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
         _addressController.text = buyer['address'] ?? '';
         _phoneController.text = buyer['phone_number'] ?? '';
+        _taxIdController.text = buyer['tax_id'] ?? '';
       });
     } catch (e) {
       if (mounted) {
@@ -81,6 +84,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
         _addressController.text = buyer['address'] ?? '';
         _phoneController.text = buyer['phone_number'] ?? '';
+        _taxIdController.text = buyer['tax_id'] ?? '';
       });
     }
   }
@@ -98,6 +102,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         lngSnapshot: _selectedLng,
         addressSnapshot: _addressController.text.trim(),
         phoneNumberSnapshot: _phoneController.text.trim(),
+        taxIdSnapshot: _taxIdController.text.trim().isEmpty ? null : _taxIdController.text.trim(),
       );
 
       if (mounted) {
@@ -169,6 +174,59 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _lookupVietQR() async {
+    final taxId = _taxIdController.text.trim();
+    if (taxId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập mã số thuế')),
+      );
+      return;
+    }
+
+    setState(() => _isFetchingBusiness = true);
+    try {
+      final business = await ApiService().fetchVietQRBusiness(taxId);
+      if (business != null) {
+        setState(() {
+          _buyerNameController.text = business['name'] ?? '';
+          _addressController.text = business['address'] ?? '';
+        });
+
+        final address = business['address'];
+        if (address != null && address.isNotEmpty) {
+          final coords = await ApiService().googleGeocode(address);
+          if (coords != null) {
+            setState(() {
+              _selectedLat = coords['lat'];
+              _selectedLng = coords['lng'];
+            });
+          }
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã tự động điền thông tin doanh nghiệp')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không tìm thấy thông tin doanh nghiệp cho MST này')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi truy vấn thông tin doanh nghiệp: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isFetchingBusiness = false);
+      }
+    }
   }
 
   @override
@@ -292,6 +350,24 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                               ),
                               const SizedBox(height: 16),
                               TextFormField(
+                                controller: _taxIdController,
+                                decoration: InputDecoration(
+                                  labelText: 'Mã số thuế (Tùy chọn)',
+                                  suffixIcon: _isFetchingBusiness
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(12.0),
+                                        child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                                      )
+                                    : IconButton(
+                                        icon: const Icon(Icons.search),
+                                        onPressed: _lookupVietQR,
+                                        tooltip: 'Lấy thông tin từ MST',
+                                      ),
+                                  border: const OutlineInputBorder(),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
                                 controller: _buyerNameController,
                                 decoration: const InputDecoration(
                                   labelText: 'Tên khách hàng *',
@@ -353,6 +429,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     _buyerNameController.dispose();
     _addressController.dispose();
     _phoneController.dispose();
+    _taxIdController.dispose();
     super.dispose();
   }
 }

@@ -34,17 +34,18 @@ func (h *InvoiceHandler) CreateBuyer(c *fiber.Ctx) error {
 		Address      *string  `json:"address"`
 		PhoneNumber  *string  `json:"phoneNumber"`
 		IdCardNumber *string  `json:"idCardNumber"`
+		TaxId        *string  `json:"taxId"`
 		Lat          *float64 `json:"lat"`
 		Lng          *float64 `json:"lng"`
 	}
 
 	var req createBuyerRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required keys: buyerCode, buyerName. Optional: address, phoneNumber, idCardNumber, lat, lng"})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required keys: buyerCode, buyerName. Optional: address, phoneNumber, idCardNumber, taxId, lat, lng"})
 	}
 
 	if req.BuyerCode == "" || req.BuyerName == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: buyerCode, buyerName, address(optional), phoneNumber(optional), idCardNumber(optional), lat(optional), lng(optional)"})
+		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: buyerCode, buyerName, address(optional), phoneNumber(optional), idCardNumber(optional), taxId(optional), lat(optional), lng(optional)"})
 	}
 
 	if strings.HasPrefix(req.BuyerCode, "KH-") {
@@ -54,12 +55,12 @@ func (h *InvoiceHandler) CreateBuyer(c *fiber.Ctx) error {
 		}
 	}
 
-	buyer, err := h.service.CreateBuyer(context.Background(), req.BuyerCode, req.BuyerName, req.Address, req.PhoneNumber, req.IdCardNumber, req.Lat, req.Lng)
+	buyer, err := h.service.CreateBuyer(context.Background(), req.BuyerCode, req.BuyerName, req.Address, req.PhoneNumber, req.IdCardNumber, req.TaxId, req.Lat, req.Lng)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	var addr, phone, idCard *string
+	var addr, phone, idCard, taxID *string
 	var lat, lng *float64
 	if buyer.Address.Valid {
 		addr = &buyer.Address.String
@@ -69,6 +70,9 @@ func (h *InvoiceHandler) CreateBuyer(c *fiber.Ctx) error {
 	}
 	if buyer.IDCardNumber.Valid {
 		idCard = &buyer.IDCardNumber.String
+	}
+	if buyer.TaxID.Valid {
+		taxID = &buyer.TaxID.String
 	}
 	if buyer.Lat.Valid {
 		lat = &buyer.Lat.Float64
@@ -86,6 +90,7 @@ func (h *InvoiceHandler) CreateBuyer(c *fiber.Ctx) error {
 			"address":        addr,
 			"phone_number":   phone,
 			"id_card_number": idCard,
+			"tax_id":         taxID,
 			"lat":            lat,
 			"lng":            lng,
 		},
@@ -100,6 +105,7 @@ func (h *InvoiceHandler) CreateInvoice(c *fiber.Ctx) error {
 		BuyerNameSnap *string  `json:"buyerNameSnapshot"`
 		AddressSnap   *string  `json:"addressSnapshot"`
 		PhoneSnap     *string  `json:"phoneNumberSnapshot"`
+		TaxIDSnap     *string  `json:"taxIdSnapshot"`
 		LatSnap       *float64 `json:"latSnapshot"`
 		LngSnap       *float64 `json:"lngSnapshot"`
 	}
@@ -111,11 +117,11 @@ func (h *InvoiceHandler) CreateInvoice(c *fiber.Ctx) error {
 
 	var req createInvoiceRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required: invoiceCode. Optional: buyerId, editStatus, buyerNameSnapshot, addressSnapshot, phoneNumberSnapshot, latSnapshot, lngSnapshot"})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body. Required: invoiceCode. Optional: buyerId, editStatus, buyerNameSnapshot, addressSnapshot, phoneNumberSnapshot, taxIdSnapshot, latSnapshot, lngSnapshot"})
 	}
 
 	if req.InvoiceCode == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: invoiceCode, buyerId(optional), editStatus(optional), buyerNameSnapshot(optional if buyerId provided), addressSnapshot(optional), phoneNumberSnapshot(optional), latSnapshot(optional), lngSnapshot(optional)"})
+		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: invoiceCode, buyerId(optional), editStatus(optional), buyerNameSnapshot(optional if buyerId provided), addressSnapshot(optional), phoneNumberSnapshot(optional), taxIdSnapshot(optional), latSnapshot(optional), lngSnapshot(optional)"})
 	}
 
 	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
@@ -157,7 +163,7 @@ func (h *InvoiceHandler) CreateInvoice(c *fiber.Ctx) error {
 	}
 
 	// Snapshot logic
-	if req.BuyerID != nil && (req.BuyerNameSnap == nil || req.AddressSnap == nil || req.PhoneSnap == nil || req.LatSnap == nil || req.LngSnap == nil) {
+	if req.BuyerID != nil && (req.BuyerNameSnap == nil || req.AddressSnap == nil || req.PhoneSnap == nil || req.TaxIDSnap == nil || req.LatSnap == nil || req.LngSnap == nil) {
 		buyer, err := h.service.GetBuyerByID(context.Background(), buyID.UUID)
 		if err == nil {
 			if req.BuyerNameSnap == nil {
@@ -169,6 +175,9 @@ func (h *InvoiceHandler) CreateInvoice(c *fiber.Ctx) error {
 			if req.PhoneSnap == nil && buyer.PhoneNumber.Valid {
 				req.PhoneSnap = &buyer.PhoneNumber.String
 			}
+			if req.TaxIDSnap == nil && buyer.TaxID.Valid {
+				req.TaxIDSnap = &buyer.TaxID.String
+			}
 			if req.LatSnap == nil && buyer.Lat.Valid {
 				req.LatSnap = &buyer.Lat.Float64
 			}
@@ -179,7 +188,7 @@ func (h *InvoiceHandler) CreateInvoice(c *fiber.Ctx) error {
 	}
 
 	// TotalAmount is handled by trigger based on line items, initial is 0
-	invoice, err := h.service.CreateInvoice(context.Background(), account.AccountID, buyID, req.InvoiceCode, 0, deviceHoldingID, req.EditStatus, req.BuyerNameSnap, req.AddressSnap, req.PhoneSnap, req.LatSnap, req.LngSnap)
+	invoice, err := h.service.CreateInvoice(context.Background(), account.AccountID, buyID, req.InvoiceCode, 0, deviceHoldingID, req.EditStatus, req.BuyerNameSnap, req.AddressSnap, req.PhoneSnap, req.TaxIDSnap, req.LatSnap, req.LngSnap)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to create invoice: %v", err)})
 	}
@@ -194,6 +203,7 @@ func (h *InvoiceHandler) CreateInvoice(c *fiber.Ctx) error {
 			"lat_snapshot":          invoice.LatSnapshot.Float64,
 			"lng_snapshot":          invoice.LngSnapshot.Float64,
 			"phone_number_snapshot": invoice.PhoneNumberSnapshot.String,
+			"tax_id_snapshot":       invoice.TaxIDSnapshot.String,
 		},
 	})
 }
@@ -499,7 +509,7 @@ func (h *InvoiceHandler) GetBuyerByCode(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to get buyer: %v", err)})
 	}
 
-	var addr, phone, idCard *string
+	var addr, phone, idCard, taxID *string
 	var lat, lng *float64
 	if buyer.Address.Valid {
 		addr = &buyer.Address.String
@@ -509,6 +519,9 @@ func (h *InvoiceHandler) GetBuyerByCode(c *fiber.Ctx) error {
 	}
 	if buyer.IDCardNumber.Valid {
 		idCard = &buyer.IDCardNumber.String
+	}
+	if buyer.TaxID.Valid {
+		taxID = &buyer.TaxID.String
 	}
 	if buyer.Lat.Valid {
 		lat = &buyer.Lat.Float64
@@ -524,6 +537,7 @@ func (h *InvoiceHandler) GetBuyerByCode(c *fiber.Ctx) error {
 		"address":        addr,
 		"phone_number":   phone,
 		"id_card_number": idCard,
+		"tax_id":         taxID,
 		"lat":            lat,
 		"lng":            lng,
 	})
@@ -637,6 +651,7 @@ func (h *InvoiceHandler) GetInvoiceWithLines(c *fiber.Ctx) error {
 		"lat_snapshot":          nil,
 		"lng_snapshot":          nil,
 		"phone_number_snapshot": invoice.PhoneNumberSnapshot.String,
+		"tax_id_snapshot":       invoice.TaxIDSnapshot.String,
 		"is_active":             invoice.IsActive.Bool,
 		"created_at":            invoice.CreatedAt.Time,
 		"updated_at":            invoice.UpdatedAt.Time,
@@ -793,6 +808,50 @@ func (h *InvoiceHandler) GoogleReverseGeocode(c *fiber.Ctx) error {
 	return c.Status(404).JSON(fiber.Map{"error": "No address found for these coordinates"})
 }
 
+func (h *InvoiceHandler) GoogleGeocode(c *fiber.Ctx) error {
+	address := c.Query("address")
+	if address == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing query param: address"})
+	}
+
+	apiKey := h.service.GetGoogleMapsAPIKey()
+	if apiKey == "" {
+		return c.Status(500).JSON(fiber.Map{"error": "Google Maps API Key not configured on server"})
+	}
+
+	googleUrl := fmt.Sprintf("https://maps.googleapis.com/maps/api/geocode/json?address=%s&key=%s", url.QueryEscape(address), apiKey)
+
+	agent := fiber.Get(googleUrl)
+	statusCode, body, errs := agent.Bytes()
+	if len(errs) > 0 {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to call Google API: %v", errs[0])})
+	}
+
+	if statusCode != 200 {
+		return c.Status(statusCode).Send(body)
+	}
+
+	var result map[string]interface{}
+	json.Unmarshal(body, &result)
+
+	if results, ok := result["results"].([]interface{}); ok && len(results) > 0 {
+		if firstResult, ok := results[0].(map[string]interface{}); ok {
+			if geometry, ok := firstResult["geometry"].(map[string]interface{}); ok {
+				if location, ok := geometry["location"].(map[string]interface{}); ok {
+					lat := location["lat"]
+					lng := location["lng"]
+					return c.JSON(fiber.Map{
+						"lat": lat,
+						"lng": lng,
+					})
+				}
+			}
+		}
+	}
+
+	return c.Status(404).JSON(fiber.Map{"error": "No coordinates found for this address"})
+}
+
 func (h *InvoiceHandler) GetBuyers(c *fiber.Ctx) error {
 	limit := c.QueryInt("limit", 20)
 	offset := c.QueryInt("offset", 0)
@@ -808,7 +867,7 @@ func (h *InvoiceHandler) GetBuyers(c *fiber.Ctx) error {
 
 	resp := make([]fiber.Map, len(buyers))
 	for i, b := range buyers {
-		var addr, phone, idCard *string
+		var addr, phone, idCard, taxID *string
 		var lat, lng *float64
 		if b.Address.Valid {
 			addr = &b.Address.String
@@ -818,6 +877,9 @@ func (h *InvoiceHandler) GetBuyers(c *fiber.Ctx) error {
 		}
 		if b.IDCardNumber.Valid {
 			idCard = &b.IDCardNumber.String
+		}
+		if b.TaxID.Valid {
+			taxID = &b.TaxID.String
 		}
 		if b.Lat.Valid {
 			lat = &b.Lat.Float64
@@ -832,6 +894,7 @@ func (h *InvoiceHandler) GetBuyers(c *fiber.Ctx) error {
 			"address":        addr,
 			"phone_number":   phone,
 			"id_card_number": idCard,
+			"tax_id":         taxID,
 			"lat":            lat,
 			"lng":            lng,
 		}
@@ -858,7 +921,7 @@ func (h *InvoiceHandler) SearchBuyers(c *fiber.Ctx) error {
 
 	resp := make([]fiber.Map, len(buyers))
 	for i, b := range buyers {
-		var addr, phone, idCard *string
+		var addr, phone, idCard, taxID *string
 		var lat, lng *float64
 		if b.Address.Valid {
 			addr = &b.Address.String
@@ -868,6 +931,9 @@ func (h *InvoiceHandler) SearchBuyers(c *fiber.Ctx) error {
 		}
 		if b.IDCardNumber.Valid {
 			idCard = &b.IDCardNumber.String
+		}
+		if b.TaxID.Valid {
+			taxID = &b.TaxID.String
 		}
 		if b.Lat.Valid {
 			lat = &b.Lat.Float64
@@ -882,6 +948,7 @@ func (h *InvoiceHandler) SearchBuyers(c *fiber.Ctx) error {
 			"address":        addr,
 			"phone_number":   phone,
 			"id_card_number": idCard,
+			"tax_id":         taxID,
 			"lat":            lat,
 			"lng":            lng,
 		}
@@ -907,6 +974,7 @@ func (h *InvoiceHandler) PatchBuyer(c *fiber.Ctx) error {
 		"address":      {},
 		"phoneNumber":  {},
 		"idCardNumber": {},
+		"taxId":        {},
 		"lat":          {},
 		"lng":          {},
 	}
@@ -954,6 +1022,12 @@ func (h *InvoiceHandler) PatchBuyer(c *fiber.Ctx) error {
 		input.IDCardNumber = sql.NullString{String: getString(val), Valid: val != nil}
 		input.SetIDCardNumber = true
 	}
+	if raw, ok := body["taxId"]; ok {
+		var val *string
+		json.Unmarshal(raw, &val)
+		input.TaxID = sql.NullString{String: getString(val), Valid: val != nil}
+		input.SetTaxID = true
+	}
 	if raw, ok := body["lat"]; ok {
 		var val *float64
 		json.Unmarshal(raw, &val)
@@ -973,7 +1047,7 @@ func (h *InvoiceHandler) PatchBuyer(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	var addr, phone, idCard *string
+	var addr, phone, idCard, taxID *string
 	var lat, lng *float64
 	if buyer.Address.Valid {
 		addr = &buyer.Address.String
@@ -983,6 +1057,9 @@ func (h *InvoiceHandler) PatchBuyer(c *fiber.Ctx) error {
 	}
 	if buyer.IDCardNumber.Valid {
 		idCard = &buyer.IDCardNumber.String
+	}
+	if buyer.TaxID.Valid {
+		taxID = &buyer.TaxID.String
 	}
 	if buyer.Lat.Valid {
 		lat = &buyer.Lat.Float64
@@ -1000,6 +1077,7 @@ func (h *InvoiceHandler) PatchBuyer(c *fiber.Ctx) error {
 			"address":        addr,
 			"phone_number":   phone,
 			"id_card_number": idCard,
+			"tax_id":         taxID,
 			"lat":            lat,
 			"lng":            lng,
 		},
@@ -1063,6 +1141,12 @@ func (h *InvoiceHandler) PatchInvoice(c *fiber.Ctx) error {
 		input.LatSnapshot = sql.NullFloat64{Float64: getFloat(val), Valid: val != nil}
 		input.SetLatSnapshot = true
 	}
+	if raw, ok := body["taxIdSnapshot"]; ok {
+		var val *string
+		json.Unmarshal(raw, &val)
+		input.TaxIDSnapshot = sql.NullString{String: getString(val), Valid: val != nil}
+		input.SetTaxIDSnapshot = true
+	}
 	if raw, ok := body["lngSnapshot"]; ok {
 		var val *float64
 		json.Unmarshal(raw, &val)
@@ -1086,6 +1170,7 @@ func (h *InvoiceHandler) PatchInvoice(c *fiber.Ctx) error {
 			"lat_snapshot":          invoice.LatSnapshot.Float64,
 			"lng_snapshot":          invoice.LngSnapshot.Float64,
 			"phone_number_snapshot": invoice.PhoneNumberSnapshot.String,
+			"tax_id_snapshot":       invoice.TaxIDSnapshot.String,
 		},
 	})
 }
@@ -1265,6 +1350,7 @@ func (h *InvoiceHandler) GetInvoices(c *fiber.Ctx) error {
 			"buyer_name_snapshot":   inv.BuyerNameSnapshot.String,
 			"address_snapshot":      inv.AddressSnapshot.String,
 			"phone_number_snapshot": inv.PhoneNumberSnapshot.String,
+			"tax_id_snapshot":       inv.TaxIDSnapshot.String,
 			"created_at":            inv.CreatedAt.Time,
 			"updated_at":            inv.UpdatedAt.Time,
 		})
