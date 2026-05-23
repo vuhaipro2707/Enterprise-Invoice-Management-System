@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS invoices (
     total_amount BIGINT NOT NULL,
     device_holding_id VARCHAR(255) REFERENCES devices(device_holding_id) ON DELETE SET NULL,
     edit_status BOOLEAN DEFAULT FALSE,
+    paid_locked BOOLEAN DEFAULT FALSE,
     buyer_name_snapshot VARCHAR(255),
     address_snapshot TEXT,
     id_card_number_snapshot VARCHAR(50),

@@ -30,6 +30,7 @@ class InvoiceCard extends StatelessWidget {
     final buyerName = invoice['buyer_name_snapshot']?.toString() ?? 'Khách vãng lai';
     final buyerCode = invoice['buyer_code']?.toString();
     final editStatus = invoice['edit_status'] == true;
+    final paidLocked = invoice['paid_locked'] == true;
     final amount = invoice['total_amount'] ?? 0;
     final deviceName = invoice['device_name']?.toString() ?? '';
     
@@ -43,8 +44,10 @@ class InvoiceCard extends StatelessWidget {
         side: BorderSide(
           color: editStatus
               ? Colors.orange.withValues(alpha: 0.5)
-              : colorScheme.outlineVariant.withValues(alpha: 0.3),
-          width: editStatus ? 1.5 : 1,
+              : (paidLocked
+                  ? colorScheme.outlineVariant.withValues(alpha: 0.3)
+                  : Colors.blue.withValues(alpha: 0.5)),
+          width: (editStatus || !paidLocked) ? 1.5 : 1,
         ),
       ),
       color: editStatus
@@ -52,7 +55,12 @@ class InvoiceCard extends StatelessWidget {
               Colors.orange.withValues(alpha: 0.1),
               colorScheme.surfaceContainerLowest,
             )
-          : colorScheme.surfaceContainer,
+          : (paidLocked
+              ? colorScheme.surfaceContainer
+              : Color.alphaBlend(
+                  Colors.blue.withValues(alpha: 0.05),
+                  colorScheme.surfaceContainer,
+                )),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
@@ -151,17 +159,27 @@ class InvoiceCard extends StatelessWidget {
                   Row(
                     children: [
                       Icon(
-                        editStatus ? Icons.edit_document : Icons.lock_outline,
+                        editStatus
+                            ? Icons.edit_document
+                            : (paidLocked
+                                ? Icons.lock_outline
+                                : Icons.check_circle_outline_rounded),
                         size: 14,
-                        color: editStatus ? Colors.orange : Colors.green,
+                        color: editStatus
+                            ? Colors.orange
+                            : (paidLocked ? Colors.green : Colors.blue),
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        editStatus ? 'Đang sửa' : 'Hoàn thành',
+                        editStatus
+                            ? 'Đang sửa'
+                            : (paidLocked ? 'Hoàn thành' : 'Đã lưu'),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: editStatus ? Colors.orange : Colors.green,
+                          color: editStatus
+                              ? Colors.orange
+                              : (paidLocked ? Colors.green : Colors.blue),
                         ),
                       ),
                     ],

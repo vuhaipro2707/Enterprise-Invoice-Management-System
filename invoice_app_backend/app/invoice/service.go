@@ -111,6 +111,10 @@ func (s *InvoiceService) UpdateInvoiceStatus(ctx context.Context, invoiceID uuid
 	return s.Repo.UpdateInvoiceStatus(ctx, arg)
 }
 
+func (s *InvoiceService) LockInvoice(ctx context.Context, invoiceID uuid.UUID) (sqlc.Invoice, error) {
+	return s.Repo.LockInvoice(ctx, invoiceID)
+}
+
 func (s *InvoiceService) GetBuyerByCode(ctx context.Context, code string) (sqlc.Buyer, error) {
 	return s.Repo.GetBuyerByCode(ctx, code)
 }
@@ -167,10 +171,6 @@ func (s *InvoiceService) GetNextInvoiceCodeInternal(ctx context.Context) string 
 	}
 
 	return fmt.Sprintf("%s%03d", prefix, num+1)
-}
-
-func (s *InvoiceService) ListEditingInvoices(ctx context.Context) ([]sqlc.ListEditingInvoicesRow, error) {
-	return s.Repo.ListEditingInvoices(ctx)
 }
 
 func (s *InvoiceService) ListBuyers(ctx context.Context, limit, offset int32) ([]sqlc.Buyer, error) {
@@ -432,13 +432,15 @@ func getInt64(i *int64) int64 {
 	return *i
 }
 
-func (s *InvoiceService) ListInvoicesFiltered(ctx context.Context, showEditing bool, buyerID *uuid.UUID, invoiceCode string, itemID *uuid.UUID, startDate *time.Time, endDate *time.Time, limit int32, offset int32, sortBy string, sortOrder string) ([]sqlc.ListInvoicesFilteredRow, error) {
+func (s *InvoiceService) ListInvoicesFiltered(ctx context.Context, showDraft, showSaved, showLocked bool, buyerID *uuid.UUID, invoiceCode string, itemID *uuid.UUID, startDate *time.Time, endDate *time.Time, limit int32, offset int32, sortBy string, sortOrder string) ([]sqlc.ListInvoicesFilteredRow, error) {
 	params := sqlc.ListInvoicesFilteredParams{
-		ShowEditing: showEditing,
-		LimitVal:    limit,
-		OffsetVal:   offset,
-		SortBy:      sortBy,
-		SortOrder:   sortOrder,
+		ShowDraft:  showDraft,
+		ShowSaved:  showSaved,
+		ShowLocked: showLocked,
+		LimitVal:   limit,
+		OffsetVal:  offset,
+		SortBy:     sortBy,
+		SortOrder:  sortOrder,
 	}
 	if buyerID != nil {
 		params.BuyerID = uuid.NullUUID{UUID: *buyerID, Valid: true}

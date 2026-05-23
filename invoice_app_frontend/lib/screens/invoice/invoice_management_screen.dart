@@ -28,6 +28,8 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
 
   // Search & Filter state
   bool _showEditing = false;
+  bool _showSaved = true;
+  bool _showLocked = false;
   String? _sortBy = 'updated_at'; // 'updated_at' or 'created_at'
   String? _sortOrder = 'desc';   // 'desc' or 'asc'
   SortState _sortState = SortState.updatedAtDesc;
@@ -118,7 +120,9 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
         offset: 0,
         sortBy: _sortBy,
         sortOrder: _sortOrder,
-        showEditing: _showEditing,
+        showDraft: _showEditing,
+        showSaved: _showSaved,
+        showLocked: _showLocked,
         buyerId: _selectedBuyer?['buyer_id']?.toString(),
         itemId: _selectedItem?['item_id']?.toString(),
         invoiceCode: _searchController.text,
@@ -154,7 +158,9 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
         offset: _offset,
         sortBy: _sortBy,
         sortOrder: _sortOrder,
-        showEditing: _showEditing,
+        showDraft: _showEditing,
+        showSaved: _showSaved,
+        showLocked: _showLocked,
         buyerId: _selectedBuyer?['buyer_id']?.toString(),
         itemId: _selectedItem?['item_id']?.toString(),
         invoiceCode: _searchController.text,
@@ -431,13 +437,49 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
                   avatar: Icon(
                     _showEditing ? Icons.edit : Icons.edit_off,
                     size: 16,
-                    color: _showEditing ? colorScheme.primary : colorScheme.outline,
+                    color: _showEditing ? Colors.orange : colorScheme.outline,
                   ),
                   label: const Text('Đang sửa'),
                   selected: _showEditing,
                   onSelected: (selected) {
                     setState(() {
                       _showEditing = selected;
+                    });
+                    _fetchInitialInvoices();
+                  },
+                ),
+                const SizedBox(width: 8),
+
+                // Show Saved Toggle (FilterChip)
+                FilterChip(
+                  avatar: Icon(
+                    _showSaved ? Icons.check_circle : Icons.check_circle_outline,
+                    size: 16,
+                    color: _showSaved ? Colors.blue : colorScheme.outline,
+                  ),
+                  label: const Text('Đã lưu'),
+                  selected: _showSaved,
+                  onSelected: (selected) {
+                    setState(() {
+                      _showSaved = selected;
+                    });
+                    _fetchInitialInvoices();
+                  },
+                ),
+                const SizedBox(width: 8),
+
+                // Show Locked Toggle (FilterChip)
+                FilterChip(
+                  avatar: Icon(
+                    _showLocked ? Icons.lock : Icons.lock_open,
+                    size: 16,
+                    color: _showLocked ? Colors.green : colorScheme.outline,
+                  ),
+                  label: const Text('Đã khóa'),
+                  selected: _showLocked,
+                  onSelected: (selected) {
+                    setState(() {
+                      _showLocked = selected;
                     });
                     _fetchInitialInvoices();
                   },

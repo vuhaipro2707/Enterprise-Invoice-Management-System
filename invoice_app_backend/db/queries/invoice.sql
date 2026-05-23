@@ -223,7 +223,12 @@ FROM invoices i
 LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
 LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
 WHERE i.deleted_at IS NULL
-  AND (sqlc.arg('show_editing')::boolean = TRUE OR i.edit_status = FALSE)
+  AND (
+    (sqlc.arg('show_draft')::boolean = FALSE AND sqlc.arg('show_saved')::boolean = FALSE AND sqlc.arg('show_locked')::boolean = FALSE)
+    OR (sqlc.arg('show_draft')::boolean = TRUE AND i.edit_status = TRUE)
+    OR (sqlc.arg('show_saved')::boolean = TRUE AND i.edit_status = FALSE AND i.paid_locked = FALSE)
+    OR (sqlc.arg('show_locked')::boolean = TRUE AND i.paid_locked = TRUE)
+  )
   AND (sqlc.narg('buyer_id')::UUID IS NULL OR i.buyer_id = sqlc.narg('buyer_id')::UUID)
   AND (sqlc.narg('invoice_code')::text IS NULL OR my_unaccent(i.invoice_code) ILIKE my_unaccent(concat('%', sqlc.narg('invoice_code')::text, '%')))
   AND (sqlc.narg('item_id')::UUID IS NULL OR EXISTS (
@@ -277,4 +282,12 @@ LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
 LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
 WHERE i.deleted_at IS NOT NULL
 ORDER BY i.deleted_at DESC;
+
+-- name: LockInvoice :one
+UPDATE invoices
+SET paid_locked = TRUE,
+    edit_status = FALSE,
+    updated_at = NOW()
+WHERE invoice_id = $1 AND deleted_at IS NULL
+RETURNING *;
 

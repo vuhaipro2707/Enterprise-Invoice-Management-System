@@ -51,7 +51,6 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	invoiceGroup.Get("", invoiceHandler.GetInvoices)
 	invoiceGroup.Get("/deleted", invoiceHandler.GetDeletedInvoices)
 	invoiceGroup.Get("/next-code", invoiceHandler.GetNextInvoiceCode)
-	invoiceGroup.Get("/editing", invoiceHandler.ListEditingInvoices)
 	invoiceGroup.Get("/buyer", invoiceHandler.GetBuyers)
 	invoiceGroup.Get("/buyer/deleted", invoiceHandler.GetDeletedBuyers)
 	invoiceGroup.Get("/buyer/next-code", invoiceHandler.GetNextBuyerCode)
@@ -71,6 +70,7 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	invoiceGroup.Post("/takeTurn/invoiceId/:invoiceId", invoiceHandler.TakeTurn)
 	invoiceGroup.Get("/ping/invoiceId/:invoiceId", invoiceHandler.PingInvoice)
 	invoiceGroup.Get("/id/:invoiceId", invoiceHandler.GetInvoiceWithLines)
+	invoiceGroup.Post("/lock/invoiceId/:invoiceId", invoiceHandler.LockInvoice)
 
 	// Các route yêu cầu phải đang giữ quyền chỉnh sửa (Edit Lock)
 	invoiceLockGroup := invoiceGroup.Group("", auth.CheckHoldingDevice(repo))

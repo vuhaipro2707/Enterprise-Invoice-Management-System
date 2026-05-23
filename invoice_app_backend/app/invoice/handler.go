@@ -500,6 +500,49 @@ func (h *InvoiceHandler) Finish(c *fiber.Ctx) error {
 	})
 }
 
+func (h *InvoiceHandler) LockInvoice(c *fiber.Ctx) error {
+	invoiceIDStr := c.Params("invoiceId")
+	if invoiceIDStr == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: invoiceId"})
+	}
+
+	invID, err := uuid.Parse(invoiceIDStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid invoiceId (must be UUID)"})
+	}
+
+	invoice, err := h.service.GetInvoiceByID(context.Background(), invID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Invoice not found"})
+	}
+
+	// Custom security logic:
+	// Only enforce holding check if the invoice is currently in edit status (editStatus = true)
+	if invoice.EditStatus.Bool {
+		deviceHoldingID := c.Get("X-Device-Holding-ID")
+		if deviceHoldingID == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "Missing header X-Device-Holding-ID"})
+		}
+		if !invoice.DeviceHoldingID.Valid || invoice.DeviceHoldingID.String != deviceHoldingID {
+			return c.Status(403).JSON(fiber.Map{"error": "deviceHoldingId mismatch (invoice is currently being edited by another device)"})
+		}
+	}
+
+	updatedInvoice, err := h.service.LockInvoice(context.Background(), invID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to lock invoice: %v", err)})
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"message": "Locked invoice successfully",
+		"data": fiber.Map{
+			"invoice_id":  updatedInvoice.InvoiceID,
+			"paid_locked": updatedInvoice.PaidLocked.Bool,
+			"edit_status": updatedInvoice.EditStatus.Bool,
+		},
+	})
+}
+
 func (h *InvoiceHandler) PingInvoice(c *fiber.Ctx) error {
 	invoiceIDStr := c.Params("invoiceId")
 	if invoiceIDStr == "" {
@@ -520,6 +563,7 @@ func (h *InvoiceHandler) PingInvoice(c *fiber.Ctx) error {
 		"device_holding_id": invoice.DeviceHoldingID.String,
 		"device_name":       invoice.DeviceName.String,
 		"edit_status":       invoice.EditStatus.Bool,
+		"paid_locked":       invoice.PaidLocked.Bool,
 	})
 }
 
@@ -634,19 +678,6 @@ func (h *InvoiceHandler) GetNextInvoiceCode(c *fiber.Ctx) error {
 	return c.Status(200).JSON(fiber.Map{"nextCode": nextCode})
 }
 
-func (h *InvoiceHandler) ListEditingInvoices(c *fiber.Ctx) error {
-	invoices, err := h.service.ListEditingInvoices(context.Background())
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to list editing invoices: %v", err)})
-	}
-
-	if invoices == nil {
-		invoices = []sqlc.ListEditingInvoicesRow{}
-	}
-
-	return c.Status(200).JSON(invoices)
-}
-
 func (h *InvoiceHandler) GetInvoiceWithLines(c *fiber.Ctx) error {
 	invoiceIDStr := c.Params("invoiceId")
 	invoiceID, err := uuid.Parse(invoiceIDStr)
@@ -678,6 +709,7 @@ func (h *InvoiceHandler) GetInvoiceWithLines(c *fiber.Ctx) error {
 		"device_holding_id":       nil,
 		"device_name":             nil,
 		"edit_status":             invoice.EditStatus.Bool,
+		"paid_locked":             invoice.PaidLocked.Bool,
 		"buyer_name_snapshot":     invoice.BuyerNameSnapshot.String,
 		"address_snapshot":        invoice.AddressSnapshot.String,
 		"id_card_number_snapshot": invoice.IDCardNumberSnapshot.String,
@@ -723,8 +755,8 @@ func (h *InvoiceHandler) GooglePlaceAutocomplete(c *fiber.Ctx) error {
 	}
 
 	reqBody := map[string]interface{}{
-		"input":        keyword,
-		"languageCode": "vi",
+		"input":               keyword,
+		"languageCode":        "vi",
 		"includedRegionCodes": []string{"vn"},
 		"locationBias": map[string]interface{}{
 			"circle": map[string]interface{}{
@@ -1464,7 +1496,9 @@ func (h *InvoiceHandler) DeleteLineItem(c *fiber.Ctx) error {
 }
 
 func (h *InvoiceHandler) GetInvoices(c *fiber.Ctx) error {
-	showEditingStr := c.Query("showEditing", "true")
+	showDraftStr := c.Query("showDraft")
+	showSavedStr := c.Query("showSaved")
+	showLockedStr := c.Query("showLocked")
 	buyerIDStr := c.Query("buyerId")
 	invoiceCode := c.Query("invoiceCode")
 	itemIDStr := c.Query("itemId")
@@ -1473,7 +1507,21 @@ func (h *InvoiceHandler) GetInvoices(c *fiber.Ctx) error {
 	sortBy := c.Query("sortBy", "updated_at")
 	sortOrder := c.Query("sortOrder", "desc")
 
-	showEditing := showEditingStr == "true"
+	var showDraft, showSaved, showLocked bool
+	if showDraftStr != "" || showSavedStr != "" || showLockedStr != "" {
+		showDraft = showDraftStr == "true"
+		showSaved = showSavedStr == "true"
+		showLocked = showLockedStr == "true"
+	} else {
+		// Backward compatibility
+		showEditingStr := c.Query("showEditing", "true")
+		paidLockedStr := c.Query("paidLocked")
+
+		showDraft = showEditingStr == "true"
+		showLocked = paidLockedStr == "true"
+		// If editing is enabled, saved (non-draft) are also enabled by default for back-compat
+		showSaved = showEditingStr == "true"
+	}
 
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit <= 0 {
@@ -1526,7 +1574,7 @@ func (h *InvoiceHandler) GetInvoices(c *fiber.Ctx) error {
 		}
 	}
 
-	invoices, err := h.service.ListInvoicesFiltered(context.Background(), showEditing, buyerID, invoiceCode, itemID, startDate, endDate, int32(limit), int32(offset), sortBy, sortOrder)
+	invoices, err := h.service.ListInvoicesFiltered(context.Background(), showDraft, showSaved, showLocked, buyerID, invoiceCode, itemID, startDate, endDate, int32(limit), int32(offset), sortBy, sortOrder)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to list invoices: %v", err)})
 	}
@@ -1556,6 +1604,7 @@ func (h *InvoiceHandler) GetInvoices(c *fiber.Ctx) error {
 			"device_holding_id":       deviceIDVal,
 			"device_name":             inv.DeviceName.String,
 			"edit_status":             inv.EditStatus.Bool,
+			"paid_locked":             inv.PaidLocked.Bool,
 			"buyer_name_snapshot":     inv.BuyerNameSnapshot.String,
 			"address_snapshot":        inv.AddressSnapshot.String,
 			"phone_number_snapshot":   inv.PhoneNumberSnapshot.String,
@@ -1702,6 +1751,7 @@ func (h *InvoiceHandler) GetDeletedInvoices(c *fiber.Ctx) error {
 			"device_holding_id":     deviceIDVal,
 			"device_name":           inv.DeviceName.String,
 			"edit_status":           inv.EditStatus.Bool,
+			"paid_locked":           inv.PaidLocked.Bool,
 			"buyer_name_snapshot":   inv.BuyerNameSnapshot.String,
 			"address_snapshot":      inv.AddressSnapshot.String,
 			"phone_number_snapshot": inv.PhoneNumberSnapshot.String,

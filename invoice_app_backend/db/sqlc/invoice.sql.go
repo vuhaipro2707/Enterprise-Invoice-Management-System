@@ -114,7 +114,7 @@ INSERT INTO invoices (
     lng_snapshot
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
-) RETURNING invoice_id, account_id, buyer_id, invoice_code, total_amount, device_holding_id, edit_status, buyer_name_snapshot, address_snapshot, id_card_number_snapshot, email_snapshot, lat_snapshot, lng_snapshot, phone_number_snapshot, tax_id_snapshot, is_active, created_at, updated_at, deleted_at
+) RETURNING invoice_id, account_id, buyer_id, invoice_code, total_amount, device_holding_id, edit_status, paid_locked, buyer_name_snapshot, address_snapshot, id_card_number_snapshot, email_snapshot, lat_snapshot, lng_snapshot, phone_number_snapshot, tax_id_snapshot, is_active, created_at, updated_at, deleted_at
 `
 
 type CreateInvoiceParams struct {
@@ -160,6 +160,7 @@ func (q *Queries) CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (I
 		&i.TotalAmount,
 		&i.DeviceHoldingID,
 		&i.EditStatus,
+		&i.PaidLocked,
 		&i.BuyerNameSnapshot,
 		&i.AddressSnapshot,
 		&i.IDCardNumberSnapshot,
@@ -334,7 +335,7 @@ func (q *Queries) GetDeviceByID(ctx context.Context, deviceHoldingID string) (De
 }
 
 const getInvoiceByID = `-- name: GetInvoiceByID :one
-SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at, b.buyer_code
+SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.paid_locked, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at, b.buyer_code
 FROM invoices i
 LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
 WHERE i.invoice_id = $1 AND i.deleted_at IS NULL
@@ -348,6 +349,7 @@ type GetInvoiceByIDRow struct {
 	TotalAmount          int64           `json:"total_amount"`
 	DeviceHoldingID      sql.NullString  `json:"device_holding_id"`
 	EditStatus           sql.NullBool    `json:"edit_status"`
+	PaidLocked           sql.NullBool    `json:"paid_locked"`
 	BuyerNameSnapshot    sql.NullString  `json:"buyer_name_snapshot"`
 	AddressSnapshot      sql.NullString  `json:"address_snapshot"`
 	IDCardNumberSnapshot sql.NullString  `json:"id_card_number_snapshot"`
@@ -374,6 +376,7 @@ func (q *Queries) GetInvoiceByID(ctx context.Context, invoiceID uuid.UUID) (GetI
 		&i.TotalAmount,
 		&i.DeviceHoldingID,
 		&i.EditStatus,
+		&i.PaidLocked,
 		&i.BuyerNameSnapshot,
 		&i.AddressSnapshot,
 		&i.IDCardNumberSnapshot,
@@ -392,7 +395,7 @@ func (q *Queries) GetInvoiceByID(ctx context.Context, invoiceID uuid.UUID) (GetI
 }
 
 const getInvoiceWithDeviceName = `-- name: GetInvoiceWithDeviceName :one
-SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at, d.device_name
+SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.paid_locked, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at, d.device_name
 FROM invoices i
 LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
 WHERE i.invoice_id = $1 AND i.deleted_at IS NULL
@@ -406,6 +409,7 @@ type GetInvoiceWithDeviceNameRow struct {
 	TotalAmount          int64           `json:"total_amount"`
 	DeviceHoldingID      sql.NullString  `json:"device_holding_id"`
 	EditStatus           sql.NullBool    `json:"edit_status"`
+	PaidLocked           sql.NullBool    `json:"paid_locked"`
 	BuyerNameSnapshot    sql.NullString  `json:"buyer_name_snapshot"`
 	AddressSnapshot      sql.NullString  `json:"address_snapshot"`
 	IDCardNumberSnapshot sql.NullString  `json:"id_card_number_snapshot"`
@@ -432,6 +436,7 @@ func (q *Queries) GetInvoiceWithDeviceName(ctx context.Context, invoiceID uuid.U
 		&i.TotalAmount,
 		&i.DeviceHoldingID,
 		&i.EditStatus,
+		&i.PaidLocked,
 		&i.BuyerNameSnapshot,
 		&i.AddressSnapshot,
 		&i.IDCardNumberSnapshot,
@@ -450,7 +455,7 @@ func (q *Queries) GetInvoiceWithDeviceName(ctx context.Context, invoiceID uuid.U
 }
 
 const getInvoiceWithLines = `-- name: GetInvoiceWithLines :one
-SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at,
+SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.paid_locked, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at,
        b.buyer_code,
        COALESCE(JSON_AGG(JSONB_BUILD_OBJECT(
          'line_item_id', li.line_item_id,
@@ -478,6 +483,7 @@ type GetInvoiceWithLinesRow struct {
 	TotalAmount          int64           `json:"total_amount"`
 	DeviceHoldingID      sql.NullString  `json:"device_holding_id"`
 	EditStatus           sql.NullBool    `json:"edit_status"`
+	PaidLocked           sql.NullBool    `json:"paid_locked"`
 	BuyerNameSnapshot    sql.NullString  `json:"buyer_name_snapshot"`
 	AddressSnapshot      sql.NullString  `json:"address_snapshot"`
 	IDCardNumberSnapshot sql.NullString  `json:"id_card_number_snapshot"`
@@ -505,6 +511,7 @@ func (q *Queries) GetInvoiceWithLines(ctx context.Context, invoiceID uuid.UUID) 
 		&i.TotalAmount,
 		&i.DeviceHoldingID,
 		&i.EditStatus,
+		&i.PaidLocked,
 		&i.BuyerNameSnapshot,
 		&i.AddressSnapshot,
 		&i.IDCardNumberSnapshot,
@@ -670,7 +677,7 @@ func (q *Queries) ListDeletedBuyers(ctx context.Context) ([]Buyer, error) {
 }
 
 const listDeletedInvoices = `-- name: ListDeletedInvoices :many
-SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at, d.device_name, b.buyer_code
+SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.paid_locked, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at, d.device_name, b.buyer_code
 FROM invoices i
 LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
 LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
@@ -686,6 +693,7 @@ type ListDeletedInvoicesRow struct {
 	TotalAmount          int64           `json:"total_amount"`
 	DeviceHoldingID      sql.NullString  `json:"device_holding_id"`
 	EditStatus           sql.NullBool    `json:"edit_status"`
+	PaidLocked           sql.NullBool    `json:"paid_locked"`
 	BuyerNameSnapshot    sql.NullString  `json:"buyer_name_snapshot"`
 	AddressSnapshot      sql.NullString  `json:"address_snapshot"`
 	IDCardNumberSnapshot sql.NullString  `json:"id_card_number_snapshot"`
@@ -719,6 +727,7 @@ func (q *Queries) ListDeletedInvoices(ctx context.Context) ([]ListDeletedInvoice
 			&i.TotalAmount,
 			&i.DeviceHoldingID,
 			&i.EditStatus,
+			&i.PaidLocked,
 			&i.BuyerNameSnapshot,
 			&i.AddressSnapshot,
 			&i.IDCardNumberSnapshot,
@@ -748,7 +757,7 @@ func (q *Queries) ListDeletedInvoices(ctx context.Context) ([]ListDeletedInvoice
 }
 
 const listEditingInvoices = `-- name: ListEditingInvoices :many
-SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at, d.device_name, b.buyer_code
+SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.paid_locked, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at, d.device_name, b.buyer_code
 FROM invoices i
 LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
 LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
@@ -764,6 +773,7 @@ type ListEditingInvoicesRow struct {
 	TotalAmount          int64           `json:"total_amount"`
 	DeviceHoldingID      sql.NullString  `json:"device_holding_id"`
 	EditStatus           sql.NullBool    `json:"edit_status"`
+	PaidLocked           sql.NullBool    `json:"paid_locked"`
 	BuyerNameSnapshot    sql.NullString  `json:"buyer_name_snapshot"`
 	AddressSnapshot      sql.NullString  `json:"address_snapshot"`
 	IDCardNumberSnapshot sql.NullString  `json:"id_card_number_snapshot"`
@@ -797,6 +807,7 @@ func (q *Queries) ListEditingInvoices(ctx context.Context) ([]ListEditingInvoice
 			&i.TotalAmount,
 			&i.DeviceHoldingID,
 			&i.EditStatus,
+			&i.PaidLocked,
 			&i.BuyerNameSnapshot,
 			&i.AddressSnapshot,
 			&i.IDCardNumberSnapshot,
@@ -826,32 +837,39 @@ func (q *Queries) ListEditingInvoices(ctx context.Context) ([]ListEditingInvoice
 }
 
 const listInvoicesFiltered = `-- name: ListInvoicesFiltered :many
-SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at, d.device_name, b.buyer_code
+SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.paid_locked, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at, d.device_name, b.buyer_code
 FROM invoices i
 LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
 LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
 WHERE i.deleted_at IS NULL
-  AND ($1::boolean = TRUE OR i.edit_status = FALSE)
-  AND ($2::UUID IS NULL OR i.buyer_id = $2::UUID)
-  AND ($3::text IS NULL OR my_unaccent(i.invoice_code) ILIKE my_unaccent(concat('%', $3::text, '%')))
-  AND ($4::UUID IS NULL OR EXISTS (
+  AND (
+    ($1::boolean = FALSE AND $2::boolean = FALSE AND $3::boolean = FALSE)
+    OR ($1::boolean = TRUE AND i.edit_status = TRUE)
+    OR ($2::boolean = TRUE AND i.edit_status = FALSE AND i.paid_locked = FALSE)
+    OR ($3::boolean = TRUE AND i.paid_locked = TRUE)
+  )
+  AND ($4::UUID IS NULL OR i.buyer_id = $4::UUID)
+  AND ($5::text IS NULL OR my_unaccent(i.invoice_code) ILIKE my_unaccent(concat('%', $5::text, '%')))
+  AND ($6::UUID IS NULL OR EXISTS (
       SELECT 1 FROM line_items li 
-      WHERE li.invoice_id = i.invoice_id AND li.item_id = $4::UUID
+      WHERE li.invoice_id = i.invoice_id AND li.item_id = $6::UUID
   ))
-  AND ($5::timestamptz IS NULL OR i.created_at >= $5::timestamptz)
-  AND ($6::timestamptz IS NULL OR i.created_at <= $6::timestamptz)
+  AND ($7::timestamptz IS NULL OR i.created_at >= $7::timestamptz)
+  AND ($8::timestamptz IS NULL OR i.created_at <= $8::timestamptz)
 ORDER BY 
-  CASE WHEN $7::text = 'updated_at' AND $8::text = 'desc' THEN i.updated_at END DESC,
-  CASE WHEN $7::text = 'updated_at' AND $8::text = 'asc' THEN i.updated_at END ASC,
-  CASE WHEN $7::text = 'created_at' AND $8::text = 'desc' THEN i.created_at END DESC,
-  CASE WHEN $7::text = 'created_at' AND $8::text = 'asc' THEN i.created_at END ASC,
+  CASE WHEN $9::text = 'updated_at' AND $10::text = 'desc' THEN i.updated_at END DESC,
+  CASE WHEN $9::text = 'updated_at' AND $10::text = 'asc' THEN i.updated_at END ASC,
+  CASE WHEN $9::text = 'created_at' AND $10::text = 'desc' THEN i.created_at END DESC,
+  CASE WHEN $9::text = 'created_at' AND $10::text = 'asc' THEN i.created_at END ASC,
   i.updated_at DESC
-LIMIT $10
-OFFSET $9
+LIMIT $12
+OFFSET $11
 `
 
 type ListInvoicesFilteredParams struct {
-	ShowEditing bool           `json:"show_editing"`
+	ShowDraft   bool           `json:"show_draft"`
+	ShowSaved   bool           `json:"show_saved"`
+	ShowLocked  bool           `json:"show_locked"`
 	BuyerID     uuid.NullUUID  `json:"buyer_id"`
 	InvoiceCode sql.NullString `json:"invoice_code"`
 	ItemID      uuid.NullUUID  `json:"item_id"`
@@ -871,6 +889,7 @@ type ListInvoicesFilteredRow struct {
 	TotalAmount          int64           `json:"total_amount"`
 	DeviceHoldingID      sql.NullString  `json:"device_holding_id"`
 	EditStatus           sql.NullBool    `json:"edit_status"`
+	PaidLocked           sql.NullBool    `json:"paid_locked"`
 	BuyerNameSnapshot    sql.NullString  `json:"buyer_name_snapshot"`
 	AddressSnapshot      sql.NullString  `json:"address_snapshot"`
 	IDCardNumberSnapshot sql.NullString  `json:"id_card_number_snapshot"`
@@ -889,7 +908,9 @@ type ListInvoicesFilteredRow struct {
 
 func (q *Queries) ListInvoicesFiltered(ctx context.Context, arg ListInvoicesFilteredParams) ([]ListInvoicesFilteredRow, error) {
 	rows, err := q.db.QueryContext(ctx, listInvoicesFiltered,
-		arg.ShowEditing,
+		arg.ShowDraft,
+		arg.ShowSaved,
+		arg.ShowLocked,
 		arg.BuyerID,
 		arg.InvoiceCode,
 		arg.ItemID,
@@ -915,6 +936,7 @@ func (q *Queries) ListInvoicesFiltered(ctx context.Context, arg ListInvoicesFilt
 			&i.TotalAmount,
 			&i.DeviceHoldingID,
 			&i.EditStatus,
+			&i.PaidLocked,
 			&i.BuyerNameSnapshot,
 			&i.AddressSnapshot,
 			&i.IDCardNumberSnapshot,
@@ -941,6 +963,43 @@ func (q *Queries) ListInvoicesFiltered(ctx context.Context, arg ListInvoicesFilt
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockInvoice = `-- name: LockInvoice :one
+UPDATE invoices
+SET paid_locked = TRUE,
+    edit_status = FALSE,
+    updated_at = NOW()
+WHERE invoice_id = $1 AND deleted_at IS NULL
+RETURNING invoice_id, account_id, buyer_id, invoice_code, total_amount, device_holding_id, edit_status, paid_locked, buyer_name_snapshot, address_snapshot, id_card_number_snapshot, email_snapshot, lat_snapshot, lng_snapshot, phone_number_snapshot, tax_id_snapshot, is_active, created_at, updated_at, deleted_at
+`
+
+func (q *Queries) LockInvoice(ctx context.Context, invoiceID uuid.UUID) (Invoice, error) {
+	row := q.db.QueryRowContext(ctx, lockInvoice, invoiceID)
+	var i Invoice
+	err := row.Scan(
+		&i.InvoiceID,
+		&i.AccountID,
+		&i.BuyerID,
+		&i.InvoiceCode,
+		&i.TotalAmount,
+		&i.DeviceHoldingID,
+		&i.EditStatus,
+		&i.PaidLocked,
+		&i.BuyerNameSnapshot,
+		&i.AddressSnapshot,
+		&i.IDCardNumberSnapshot,
+		&i.EmailSnapshot,
+		&i.LatSnapshot,
+		&i.LngSnapshot,
+		&i.PhoneNumberSnapshot,
+		&i.TaxIDSnapshot,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
 const restoreBuyer = `-- name: RestoreBuyer :exec
@@ -1110,7 +1169,7 @@ SET
     lng_snapshot = $15,
     updated_at = NOW()
 WHERE invoice_id = $1 AND deleted_at IS NULL
-RETURNING invoice_id, account_id, buyer_id, invoice_code, total_amount, device_holding_id, edit_status, buyer_name_snapshot, address_snapshot, id_card_number_snapshot, email_snapshot, lat_snapshot, lng_snapshot, phone_number_snapshot, tax_id_snapshot, is_active, created_at, updated_at, deleted_at
+RETURNING invoice_id, account_id, buyer_id, invoice_code, total_amount, device_holding_id, edit_status, paid_locked, buyer_name_snapshot, address_snapshot, id_card_number_snapshot, email_snapshot, lat_snapshot, lng_snapshot, phone_number_snapshot, tax_id_snapshot, is_active, created_at, updated_at, deleted_at
 `
 
 type UpdateInvoiceParams struct {
@@ -1158,6 +1217,7 @@ func (q *Queries) UpdateInvoice(ctx context.Context, arg UpdateInvoiceParams) (I
 		&i.TotalAmount,
 		&i.DeviceHoldingID,
 		&i.EditStatus,
+		&i.PaidLocked,
 		&i.BuyerNameSnapshot,
 		&i.AddressSnapshot,
 		&i.IDCardNumberSnapshot,
@@ -1181,7 +1241,7 @@ SET
     edit_status = $3,
     updated_at = NOW()
 WHERE invoice_id = $1 AND deleted_at IS NULL
-RETURNING invoice_id, account_id, buyer_id, invoice_code, total_amount, device_holding_id, edit_status, buyer_name_snapshot, address_snapshot, id_card_number_snapshot, email_snapshot, lat_snapshot, lng_snapshot, phone_number_snapshot, tax_id_snapshot, is_active, created_at, updated_at, deleted_at
+RETURNING invoice_id, account_id, buyer_id, invoice_code, total_amount, device_holding_id, edit_status, paid_locked, buyer_name_snapshot, address_snapshot, id_card_number_snapshot, email_snapshot, lat_snapshot, lng_snapshot, phone_number_snapshot, tax_id_snapshot, is_active, created_at, updated_at, deleted_at
 `
 
 type UpdateInvoiceStatusParams struct {
@@ -1201,6 +1261,7 @@ func (q *Queries) UpdateInvoiceStatus(ctx context.Context, arg UpdateInvoiceStat
 		&i.TotalAmount,
 		&i.DeviceHoldingID,
 		&i.EditStatus,
+		&i.PaidLocked,
 		&i.BuyerNameSnapshot,
 		&i.AddressSnapshot,
 		&i.IDCardNumberSnapshot,

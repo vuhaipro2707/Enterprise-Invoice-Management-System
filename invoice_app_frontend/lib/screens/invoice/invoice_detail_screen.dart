@@ -123,6 +123,55 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
+  Future<void> _lockInvoice() async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Xác nhận chốt & khóa'),
+          content: const Text(
+            'Hành động này sẽ chốt hóa đơn hoàn chỉnh và KHÓA vĩnh viễn. '
+            'Bạn sẽ KHÔNG THỂ chỉnh sửa hay xóa hóa đơn này nữa. Bạn có chắc chắn không?'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('HỦY'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('KHÓA NGAY'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _apiService.lockInvoice(_invoiceId!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã chốt và khóa hóa đơn thành công!')),
+        );
+        _fetchInvoiceDetails();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi khóa hóa đơn: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _handleEditPress() async {
     final inv = _invoiceData;
     if (inv == null) return;
@@ -276,6 +325,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     final lng = inv['lng_snapshot'] != null ? (inv['lng_snapshot'] as num).toDouble() : null;
     final totalAmount = inv['total_amount'] ?? 0;
     final editStatus = inv['edit_status'] == true;
+    final paidLocked = inv['paid_locked'] == true;
     final deviceName = _getStringValue(inv['device_name']) ?? 'Không rõ';
 
     final createdAtStr = _formatDateTime(inv['created_at']);
@@ -294,11 +344,12 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               tooltip: 'Khôi phục',
             ),
           ] else ...[
-            IconButton(
-              icon: const Icon(Icons.delete_outline_rounded),
-              onPressed: _deleteInvoice,
-              tooltip: 'Xóa hóa đơn',
-            ),
+            if (!paidLocked)
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded),
+                onPressed: _deleteInvoice,
+                tooltip: 'Xóa hóa đơn',
+              ),
             IconButton(
               icon: const Icon(Icons.copy_rounded),
               onPressed: () async {
@@ -641,28 +692,104 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isDeleted ? colorScheme.primaryContainer : Colors.green,
-                  foregroundColor: _isDeleted ? colorScheme.onPrimaryContainer : Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+            if (paidLocked) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: colorScheme.outline.withValues(alpha: 0.3)),
                 ),
-                onPressed: _isDeleted ? _restoreInvoice : _handleEditPress,
-                icon: Icon(_isDeleted ? Icons.restore_rounded : Icons.edit),
-                label: Text(
-                  _isDeleted ? 'KHÔI PHỤC HÓA ĐƠN' : 'CHỈNH SỬA HÓA ĐƠN',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.verified_user_rounded, color: Colors.green),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'HÓA ĐƠN ĐÃ ĐƯỢC CHỐT & KHÓA VĨNH VIỄN',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: colorScheme.onSurface,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (_isDeleted) ...[
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primaryContainer,
+                    foregroundColor: colorScheme.onPrimaryContainer,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _restoreInvoice,
+                  icon: const Icon(Icons.restore_rounded),
+                  label: const Text(
+                    'KHÔI PHỤC HÓA ĐƠN',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
               ),
-            ),
+            ] else ...[
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _lockInvoice,
+                  icon: const Icon(Icons.lock_outline),
+                  label: const Text(
+                    'XÁC NHẬN HOÀN THÀNH & KHÓA HÓA ĐƠN',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.green,
+                    side: const BorderSide(color: Colors.green),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _handleEditPress,
+                  icon: const Icon(Icons.edit),
+                  label: const Text(
+                    'CHỈNH SỬA HÓA ĐƠN',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

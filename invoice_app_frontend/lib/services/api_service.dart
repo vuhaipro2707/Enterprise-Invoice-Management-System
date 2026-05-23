@@ -314,13 +314,6 @@ class ApiService {
     throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to get next invoice code');
   }
 
-  Future<List<dynamic>> getEditingInvoices() async {
-    final response = await get('/invoice/editing');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
-    }
-    throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to load editing invoices');
-  }
 
   Future<Map<String, dynamic>> takeTurn(String invoiceId) async {
     final response = await post('/invoice/takeTurn/invoiceId/$invoiceId', {});
@@ -537,7 +530,9 @@ class ApiService {
     int? offset,
     String? sortBy,
     String? sortOrder,
-    bool? showEditing,
+    bool? showDraft,
+    bool? showSaved,
+    bool? showLocked,
     String? buyerId,
     String? itemId,
     String? invoiceCode,
@@ -549,7 +544,9 @@ class ApiService {
     if (offset != null) queryParams['offset'] = offset.toString();
     if (sortBy != null) queryParams['sortBy'] = sortBy;
     if (sortOrder != null) queryParams['sortOrder'] = sortOrder;
-    if (showEditing != null) queryParams['showEditing'] = showEditing.toString();
+    if (showDraft != null) queryParams['showDraft'] = showDraft.toString();
+    if (showSaved != null) queryParams['showSaved'] = showSaved.toString();
+    if (showLocked != null) queryParams['showLocked'] = showLocked.toString();
     if (buyerId != null) queryParams['buyerId'] = buyerId;
     if (itemId != null) queryParams['itemId'] = itemId;
     if (invoiceCode != null && invoiceCode.isNotEmpty) queryParams['invoiceCode'] = invoiceCode;
@@ -567,6 +564,16 @@ class ApiService {
       return decoded['data'] ?? [];
     }
     throw Exception('Failed to load invoices: ${response.body}');
+  }
+
+  Future<void> lockInvoice(String invoiceId) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/invoice/lock/invoiceId/$invoiceId'),
+      headers: _headers,
+    );
+    if (response.statusCode != 200) {
+      throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to lock invoice');
+    }
   }
 
   // Customer Price List methods

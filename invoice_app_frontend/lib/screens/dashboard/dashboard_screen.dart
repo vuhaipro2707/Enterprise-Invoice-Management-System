@@ -50,7 +50,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     try {
-      final invoices = await _apiService.getEditingInvoices();
+      final invoices = await _apiService.getInvoices(
+        showDraft: true,
+        showSaved: false,
+        showLocked: false,
+      );
       if (mounted) {
         setState(() {
           _editingInvoices = invoices;
