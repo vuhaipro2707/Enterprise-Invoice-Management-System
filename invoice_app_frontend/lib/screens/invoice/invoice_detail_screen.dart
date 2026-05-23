@@ -463,6 +463,14 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                       const SizedBox(height: 12),
                       _buildDetailRow(Icons.receipt_long, 'Mã số thuế', taxIdSnapshot, colorScheme),
                     ],
+                    if (_getStringValue(inv['id_card_number_snapshot']) != null && _getStringValue(inv['id_card_number_snapshot'])!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildDetailRow(Icons.credit_card, 'Số CMND/CCCD', _getStringValue(inv['id_card_number_snapshot'])!, colorScheme),
+                    ],
+                    if (_getStringValue(inv['email_snapshot']) != null && _getStringValue(inv['email_snapshot'])!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildDetailRow(Icons.email, 'Email', _getStringValue(inv['email_snapshot'])!, colorScheme),
+                    ],
                     if (phoneNumber != null && phoneNumber.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _buildDetailRow(Icons.phone, 'Số điện thoại', phoneNumber, colorScheme),

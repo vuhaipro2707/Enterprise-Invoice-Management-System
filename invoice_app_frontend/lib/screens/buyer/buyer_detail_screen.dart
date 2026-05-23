@@ -21,6 +21,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
   late final TextEditingController _addressController;
   late final TextEditingController _phoneController;
   late final TextEditingController _idCardController;
+  late final TextEditingController _emailController;
   late final TextEditingController _taxIdController;
 
   double? _selectedLat;
@@ -37,6 +38,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
     _addressController = TextEditingController(text: widget.buyer['address']);
     _phoneController = TextEditingController(text: widget.buyer['phone_number']);
     _idCardController = TextEditingController(text: widget.buyer['id_card_number']);
+    _emailController = TextEditingController(text: widget.buyer['email']);
     _taxIdController = TextEditingController(text: widget.buyer['tax_id']);
     _selectedLat = widget.buyer['lat'] != null ? (widget.buyer['lat'] as num).toDouble() : null;
     _selectedLng = widget.buyer['lng'] != null ? (widget.buyer['lng'] as num).toDouble() : null;
@@ -49,6 +51,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
     _addressController.dispose();
     _phoneController.dispose();
     _idCardController.dispose();
+    _emailController.dispose();
     _taxIdController.dispose();
     super.dispose();
   }
@@ -65,6 +68,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
       if (_addressController.text != widget.buyer['address']) updates['address'] = _addressController.text;
       if (_phoneController.text != widget.buyer['phone_number']) updates['phoneNumber'] = _phoneController.text;
       if (_idCardController.text != widget.buyer['id_card_number']) updates['idCardNumber'] = _idCardController.text;
+      if (_emailController.text != widget.buyer['email']) updates['email'] = _emailController.text.trim().isEmpty ? null : _emailController.text.trim();
       if (_taxIdController.text != widget.buyer['tax_id']) updates['taxId'] = _taxIdController.text;
       
       // Update coordinates if they changed or were not set
@@ -380,6 +384,25 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _emailController,
+                enabled: !widget.isDeleted,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email),
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) return null;
+                  final emailRegex = RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
+                  if (!emailRegex.hasMatch(value.trim())) {
+                    return 'Định dạng email không hợp lệ';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 32),
               SizedBox(

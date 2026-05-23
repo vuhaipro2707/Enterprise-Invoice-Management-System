@@ -28,6 +28,7 @@ type Buyer struct {
 	Address      sql.NullString  `json:"address"`
 	PhoneNumber  sql.NullString  `json:"phone_number"`
 	IDCardNumber sql.NullString  `json:"id_card_number"`
+	Email        sql.NullString  `json:"email"`
 	TaxID        sql.NullString  `json:"tax_id"`
 	Lat          sql.NullFloat64 `json:"lat"`
 	Lng          sql.NullFloat64 `json:"lng"`
@@ -63,23 +64,25 @@ type Device struct {
 }
 
 type Invoice struct {
-	InvoiceID           uuid.UUID       `json:"invoice_id"`
-	AccountID           uuid.NullUUID   `json:"account_id"`
-	BuyerID             uuid.NullUUID   `json:"buyer_id"`
-	InvoiceCode         string          `json:"invoice_code"`
-	TotalAmount         int64           `json:"total_amount"`
-	DeviceHoldingID     sql.NullString  `json:"device_holding_id"`
-	EditStatus          sql.NullBool    `json:"edit_status"`
-	BuyerNameSnapshot   sql.NullString  `json:"buyer_name_snapshot"`
-	AddressSnapshot     sql.NullString  `json:"address_snapshot"`
-	LatSnapshot         sql.NullFloat64 `json:"lat_snapshot"`
-	LngSnapshot         sql.NullFloat64 `json:"lng_snapshot"`
-	PhoneNumberSnapshot sql.NullString  `json:"phone_number_snapshot"`
-	TaxIDSnapshot       sql.NullString  `json:"tax_id_snapshot"`
-	IsActive            sql.NullBool    `json:"is_active"`
-	CreatedAt           sql.NullTime    `json:"created_at"`
-	UpdatedAt           sql.NullTime    `json:"updated_at"`
-	DeletedAt           sql.NullTime    `json:"deleted_at"`
+	InvoiceID            uuid.UUID       `json:"invoice_id"`
+	AccountID            uuid.NullUUID   `json:"account_id"`
+	BuyerID              uuid.NullUUID   `json:"buyer_id"`
+	InvoiceCode          string          `json:"invoice_code"`
+	TotalAmount          int64           `json:"total_amount"`
+	DeviceHoldingID      sql.NullString  `json:"device_holding_id"`
+	EditStatus           sql.NullBool    `json:"edit_status"`
+	BuyerNameSnapshot    sql.NullString  `json:"buyer_name_snapshot"`
+	AddressSnapshot      sql.NullString  `json:"address_snapshot"`
+	IDCardNumberSnapshot sql.NullString  `json:"id_card_number_snapshot"`
+	EmailSnapshot        sql.NullString  `json:"email_snapshot"`
+	LatSnapshot          sql.NullFloat64 `json:"lat_snapshot"`
+	LngSnapshot          sql.NullFloat64 `json:"lng_snapshot"`
+	PhoneNumberSnapshot  sql.NullString  `json:"phone_number_snapshot"`
+	TaxIDSnapshot        sql.NullString  `json:"tax_id_snapshot"`
+	IsActive             sql.NullBool    `json:"is_active"`
+	CreatedAt            sql.NullTime    `json:"created_at"`
+	UpdatedAt            sql.NullTime    `json:"updated_at"`
+	DeletedAt            sql.NullTime    `json:"deleted_at"`
 }
 
 type Item struct {

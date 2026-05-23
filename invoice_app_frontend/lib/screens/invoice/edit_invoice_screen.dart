@@ -21,11 +21,14 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   bool _isLoading = true;
   int? _pickedIndex;
   String _localSearchQuery = '';
+  final _formKey = GlobalKey<FormState>();
 
   final _buyerCodeController = TextEditingController();
   final _buyerNameController = TextEditingController();
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _idCardController = TextEditingController();
+  final _emailController = TextEditingController();
   final _taxIdController = TextEditingController();
   String? _selectedBuyerId;
   double? _selectedLat;
@@ -183,8 +186,66 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     }
   }
 
+  bool _hasUnsavedBuyerEdits() {
+    if (_invoiceData == null) return false;
+    final data = _invoiceData!;
+
+    final currentBuyerId = _selectedBuyerId;
+    final initialBuyerId = data['buyer_id'];
+
+    final currentBuyerCode = _buyerCodeController.text.trim();
+    final initialBuyerCode = (data['buyer_code']?.toString() ?? '').trim();
+
+    final currentName = _buyerNameController.text.trim();
+    final initialName = (data['buyer_name_snapshot']?.toString() ?? '').trim();
+
+    final currentAddress = _addressController.text.trim();
+    final initialAddress = (data['address_snapshot']?.toString() ?? '').trim();
+
+    final currentPhone = _phoneController.text.trim();
+    final initialPhone = (data['phone_number_snapshot']?.toString() ?? '').trim();
+
+    final currentIdCard = _idCardController.text.trim();
+    final initialIdCard = (data['id_card_number_snapshot']?.toString() ?? '').trim();
+
+    final currentEmail = _emailController.text.trim();
+    final initialEmail = (data['email_snapshot']?.toString() ?? '').trim();
+
+    final currentTaxId = _taxIdController.text.trim();
+    final initialTaxId = (data['tax_id_snapshot']?.toString() ?? '').trim();
+
+    final double? initialLat = data['lat_snapshot'] != null ? (data['lat_snapshot'] as num).toDouble() : null;
+    final double? initialLng = data['lng_snapshot'] != null ? (data['lng_snapshot'] as num).toDouble() : null;
+
+    return currentBuyerId != initialBuyerId ||
+        currentBuyerCode != initialBuyerCode ||
+        currentName != initialName ||
+        currentAddress != initialAddress ||
+        currentPhone != initialPhone ||
+        currentIdCard != initialIdCard ||
+        currentEmail != initialEmail ||
+        currentTaxId != initialTaxId ||
+        _selectedLat != initialLat ||
+        _selectedLng != initialLng;
+  }
+
   Future<void> _finishInvoice() async {
+    setState(() => _isLoading = true);
     try {
+      if (_hasUnsavedBuyerEdits()) {
+        await _apiService.updateInvoice(_invoiceId!, {
+          'buyerId': _selectedBuyerId,
+          'buyerNameSnapshot': _buyerNameController.text.trim(),
+          'latSnapshot': _selectedLat,
+          'lngSnapshot': _selectedLng,
+          'addressSnapshot': _addressController.text.trim(),
+          'phoneNumberSnapshot': _phoneController.text.trim(),
+          'idCardNumberSnapshot': _idCardController.text.trim(),
+          'emailSnapshot': _emailController.text.trim(),
+          'taxIdSnapshot': _taxIdController.text.trim(),
+        });
+      }
+
       await _apiService.post('/invoice/finish/invoiceId/$_invoiceId', {});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã lưu hóa đơn thành công!')));
@@ -192,9 +253,12 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isShowingAlert = false); // Re-enable ping if failed
+        setState(() {
+          _isShowingAlert = false; // Re-enable ping if failed
+          _isLoading = false;
+        });
         _startPingTimer();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi khi lưu: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi khi lưu hóa đơn: $e')));
       }
     }
   }
@@ -284,6 +348,8 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
         _buyerNameController.text = data['buyer_name_snapshot']?.toString() ?? '';
         _addressController.text = data['address_snapshot']?.toString() ?? '';
         _phoneController.text = data['phone_number_snapshot']?.toString() ?? '';
+        _idCardController.text = data['id_card_number_snapshot']?.toString() ?? '';
+        _emailController.text = data['email_snapshot']?.toString() ?? '';
         _taxIdController.text = data['tax_id_snapshot']?.toString() ?? '';
         _selectedLat = data['lat_snapshot'] != null ? (data['lat_snapshot'] as num).toDouble() : null;
         _selectedLng = data['lng_snapshot'] != null ? (data['lng_snapshot'] as num).toDouble() : null;
@@ -312,6 +378,8 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
         _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
         _addressController.text = buyer['address'] ?? '';
         _phoneController.text = buyer['phone_number'] ?? '';
+        _idCardController.text = buyer['id_card_number'] ?? '';
+        _emailController.text = buyer['email'] ?? '';
         _taxIdController.text = buyer['tax_id'] ?? '';
       });
     } catch (e) {
@@ -336,6 +404,8 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
         _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
         _addressController.text = buyer['address'] ?? '';
         _phoneController.text = buyer['phone_number'] ?? '';
+        _idCardController.text = buyer['id_card_number'] ?? '';
+        _emailController.text = buyer['email'] ?? '';
         _taxIdController.text = buyer['tax_id'] ?? '';
       });
     }
@@ -395,6 +465,13 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   }
 
   Future<void> _updateBuyerInfo() async {
+    if (_formKey.currentState != null && !_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng kiểm tra lại thông tin khách hàng')),
+      );
+      return;
+    }
+
     try {
       await _apiService.updateInvoice(_invoiceId!, {
         'buyerId': _selectedBuyerId,
@@ -403,9 +480,25 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
         'lngSnapshot': _selectedLng,
         'addressSnapshot': _addressController.text.trim(),
         'phoneNumberSnapshot': _phoneController.text.trim(),
+        'idCardNumberSnapshot': _idCardController.text.trim(),
+        'emailSnapshot': _emailController.text.trim(),
         'taxIdSnapshot': _taxIdController.text.trim(),
       });
       if (mounted) {
+        setState(() {
+          if (_invoiceData != null) {
+            _invoiceData!['buyer_id'] = _selectedBuyerId;
+            _invoiceData!['buyer_code'] = _buyerCodeController.text.trim();
+            _invoiceData!['buyer_name_snapshot'] = _buyerNameController.text.trim();
+            _invoiceData!['address_snapshot'] = _addressController.text.trim();
+            _invoiceData!['phone_number_snapshot'] = _phoneController.text.trim();
+            _invoiceData!['id_card_number_snapshot'] = _idCardController.text.trim();
+            _invoiceData!['email_snapshot'] = _emailController.text.trim();
+            _invoiceData!['tax_id_snapshot'] = _taxIdController.text.trim();
+            _invoiceData!['lat_snapshot'] = _selectedLat;
+            _invoiceData!['lng_snapshot'] = _selectedLng;
+          }
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Cập nhật thông tin thành công')),
         );
@@ -500,99 +593,123 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Thông tin khách hàng',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
-                        TextButton.icon(
-                          onPressed: _updateBuyerInfo,
-                          icon: const Icon(Icons.save),
-                          label: const Text('Lưu'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _buyerCodeController,
-                            decoration: const InputDecoration(
-                              labelText: 'Mã khách hàng (Tùy chọn)',
-                              border: OutlineInputBorder(),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Thông tin khách hàng',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
+                          TextButton.icon(
+                            onPressed: _updateBuyerInfo,
+                            icon: const Icon(Icons.save),
+                            label: const Text('Lưu'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _buyerCodeController,
+                              decoration: const InputDecoration(
+                                labelText: 'Mã khách hàng (Tùy chọn)',
+                                border: OutlineInputBorder(),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        _isFetchingBuyer
+                          const SizedBox(width: 8),
+                          _isFetchingBuyer
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12.0),
+                                  child: SizedBox(
+                                      width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+                                )
+                              : Row(
+                                  children: [
+                                    IconButton.filled(
+                                      onPressed: _lookupBuyer,
+                                      icon: const Icon(Icons.person_search),
+                                      tooltip: 'Truy vấn nhanh theo mã',
+                                    ),
+                                    const SizedBox(width: 4),
+                                    IconButton.filledTonal(
+                                      onPressed: _searchBuyerAdvanced,
+                                      icon: const Icon(Icons.search),
+                                      tooltip: 'Tìm kiếm nâng cao',
+                                    ),
+                                  ],
+                                ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _taxIdController,
+                        decoration: InputDecoration(
+                          labelText: 'Mã số thuế (Tùy chọn)',
+                          suffixIcon: _isFetchingBusiness
                             ? const Padding(
                                 padding: EdgeInsets.all(12.0),
-                                child: SizedBox(
-                                    width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+                                child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
                               )
-                            : Row(
-                                children: [
-                                  IconButton.filled(
-                                    onPressed: _lookupBuyer,
-                                    icon: const Icon(Icons.person_search),
-                                    tooltip: 'Truy vấn nhanh theo mã',
-                                  ),
-                                  const SizedBox(width: 4),
-                                  IconButton.filledTonal(
-                                    onPressed: _searchBuyerAdvanced,
-                                    icon: const Icon(Icons.search),
-                                    tooltip: 'Tìm kiếm nâng cao',
-                                  ),
-                                ],
+                            : IconButton(
+                                icon: const Icon(Icons.search),
+                                onPressed: _lookupVietQR,
+                                tooltip: 'Lấy thông tin từ MST',
                               ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _taxIdController,
-                      decoration: InputDecoration(
-                        labelText: 'Mã số thuế (Tùy chọn)',
-                        suffixIcon: _isFetchingBusiness
-                          ? const Padding(
-                              padding: EdgeInsets.all(12.0),
-                              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                            )
-                          : IconButton(
-                              icon: const Icon(Icons.search),
-                              onPressed: _lookupVietQR,
-                              tooltip: 'Lấy thông tin từ MST',
-                            ),
-                        border: const OutlineInputBorder(),
+                          border: const OutlineInputBorder(),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _buyerNameController,
-                      decoration: const InputDecoration(labelText: 'Tên khách hàng', border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 12),
-                    AddressSearchField(
-                      controller: _addressController,
-                      initialLat: _selectedLat,
-                      initialLng: _selectedLng,
-                      initialAddress: _addressController.text,
-                      onLocationSelected: (lat, lng) {
-                        setState(() {
-                          _selectedLat = lat;
-                          _selectedLng = lng;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _phoneController,
-                      decoration: const InputDecoration(labelText: 'Số điện thoại', border: OutlineInputBorder()),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _buyerNameController,
+                        decoration: const InputDecoration(labelText: 'Tên khách hàng *', border: OutlineInputBorder()),
+                        validator: (value) => value == null || value.trim().isEmpty ? 'Vui lòng nhập tên khách hàng' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      AddressSearchField(
+                        controller: _addressController,
+                        initialLat: _selectedLat,
+                        initialLng: _selectedLng,
+                        initialAddress: _addressController.text,
+                        onLocationSelected: (lat, lng) {
+                          setState(() {
+                            _selectedLat = lat;
+                            _selectedLng = lng;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _phoneController,
+                        decoration: const InputDecoration(labelText: 'Số điện thoại', border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _idCardController,
+                        decoration: const InputDecoration(labelText: 'Số CMND/CCCD (Tùy chọn)', border: OutlineInputBorder()),
+                        keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _emailController,
+                        decoration: const InputDecoration(labelText: 'Email (Tùy chọn)', border: OutlineInputBorder()),
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) return null;
+                          final emailRegex = RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
+                          if (!emailRegex.hasMatch(value.trim())) {
+                            return 'Định dạng email không hợp lệ';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -840,6 +957,12 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () {
+                  if (_formKey.currentState != null && !_formKey.currentState!.validate()) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Vui lòng kiểm tra lại thông tin khách hàng')),
+                    );
+                    return;
+                  }
                   showDialog(
                     context: context,
                     builder: (dialogContext) => AlertDialog(
@@ -1060,8 +1183,9 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     _buyerNameController.dispose();
     _addressController.dispose();
     _phoneController.dispose();
+    _idCardController.dispose();
+    _emailController.dispose();
     _taxIdController.dispose();
     super.dispose();
   }
 }
-

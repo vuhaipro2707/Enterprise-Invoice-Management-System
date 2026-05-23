@@ -341,6 +341,8 @@ class ApiService {
     String? taxIdSnapshot,
     double? latSnapshot,
     double? lngSnapshot,
+    String? idCardNumberSnapshot,
+    String? emailSnapshot,
   }) async {
     final response = await post('/invoice', {
       'buyerId': buyerId,
@@ -352,6 +354,8 @@ class ApiService {
       'taxIdSnapshot': taxIdSnapshot,
       'latSnapshot': latSnapshot,
       'lngSnapshot': lngSnapshot,
+      'idCardNumberSnapshot': idCardNumberSnapshot,
+      'emailSnapshot': emailSnapshot,
     });
     
     final data = jsonDecode(response.body);

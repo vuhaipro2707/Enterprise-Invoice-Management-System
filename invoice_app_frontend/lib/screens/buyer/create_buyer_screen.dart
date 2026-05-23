@@ -18,6 +18,7 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
   final _idCardController = TextEditingController();
+  final _emailController = TextEditingController();
   final _taxIdController = TextEditingController();
 
   double? _selectedLat;
@@ -58,6 +59,7 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
         'address': _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
         'phoneNumber': _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
         'idCardNumber': _idCardController.text.trim().isEmpty ? null : _idCardController.text.trim(),
+        'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         'taxId': _taxIdController.text.trim().isEmpty ? null : _taxIdController.text.trim(),
         'lat': _selectedLat,
         'lng': _selectedLng,
@@ -266,6 +268,24 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
                       border: OutlineInputBorder(),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: Icon(Icons.email),
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) return null;
+                      final emailRegex = RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
+                      if (!emailRegex.hasMatch(value.trim())) {
+                        return 'Định dạng email không hợp lệ';
+                      }
+                      return null;
+                    },
+                  ),
                   const SizedBox(height: 32),
                   SizedBox(
                     width: double.infinity,
@@ -297,6 +317,7 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
     _addressController.dispose();
     _phoneController.dispose();
     _idCardController.dispose();
+    _emailController.dispose();
     _taxIdController.dispose();
     super.dispose();
   }

@@ -45,13 +45,14 @@ func (s *InvoiceService) GetInvoiceWithLines(ctx context.Context, id uuid.UUID) 
 	return s.Repo.GetInvoiceWithLines(ctx, id)
 }
 
-func (s *InvoiceService) CreateBuyer(ctx context.Context, code, name string, address, phone, idCard, taxID *string, lat, lng *float64) (sqlc.Buyer, error) {
+func (s *InvoiceService) CreateBuyer(ctx context.Context, code, name string, address, phone, idCard, email, taxID *string, lat, lng *float64) (sqlc.Buyer, error) {
 	arg := sqlc.CreateBuyerParams{
 		BuyerCode:    code,
 		BuyerName:    name,
 		Address:      sql.NullString{String: getString(address), Valid: address != nil},
 		PhoneNumber:  sql.NullString{String: getString(phone), Valid: phone != nil},
 		IDCardNumber: sql.NullString{String: getString(idCard), Valid: idCard != nil},
+		Email:        sql.NullString{String: getString(email), Valid: email != nil},
 		TaxID:        sql.NullString{String: getString(taxID), Valid: taxID != nil},
 		Lat:          sql.NullFloat64{Float64: getFloat64(lat), Valid: lat != nil},
 		Lng:          sql.NullFloat64{Float64: getFloat64(lng), Valid: lng != nil},
@@ -66,20 +67,22 @@ func getFloat64(f *float64) float64 {
 	return *f
 }
 
-func (s *InvoiceService) CreateInvoice(ctx context.Context, accountID uuid.UUID, buyerID uuid.NullUUID, code string, total int64, deviceID string, editStatus bool, buyerSnap, addrSnap, phoneSnap, taxIDSnap *string, latSnap, lngSnap *float64) (sqlc.Invoice, error) {
+func (s *InvoiceService) CreateInvoice(ctx context.Context, accountID uuid.UUID, buyerID uuid.NullUUID, code string, total int64, deviceID string, editStatus bool, buyerSnap, addrSnap, phoneSnap, idCardSnap, emailSnap, taxIDSnap *string, latSnap, lngSnap *float64) (sqlc.Invoice, error) {
 	arg := sqlc.CreateInvoiceParams{
-		AccountID:           uuid.NullUUID{UUID: accountID, Valid: true},
-		BuyerID:             buyerID,
-		InvoiceCode:         code,
-		TotalAmount:         total,
-		DeviceHoldingID:     sql.NullString{String: deviceID, Valid: deviceID != ""},
-		EditStatus:          sql.NullBool{Bool: editStatus, Valid: true},
-		BuyerNameSnapshot:   sql.NullString{String: getString(buyerSnap), Valid: buyerSnap != nil},
-		AddressSnapshot:     sql.NullString{String: getString(addrSnap), Valid: addrSnap != nil},
-		PhoneNumberSnapshot: sql.NullString{String: getString(phoneSnap), Valid: phoneSnap != nil},
-		TaxIDSnapshot:       sql.NullString{String: getString(taxIDSnap), Valid: taxIDSnap != nil},
-		LatSnapshot:         sql.NullFloat64{Float64: getFloat64(latSnap), Valid: latSnap != nil},
-		LngSnapshot:         sql.NullFloat64{Float64: getFloat64(lngSnap), Valid: lngSnap != nil},
+		AccountID:            uuid.NullUUID{UUID: accountID, Valid: true},
+		BuyerID:              buyerID,
+		InvoiceCode:          code,
+		TotalAmount:          total,
+		DeviceHoldingID:      sql.NullString{String: deviceID, Valid: deviceID != ""},
+		EditStatus:           sql.NullBool{Bool: editStatus, Valid: true},
+		BuyerNameSnapshot:    sql.NullString{String: getString(buyerSnap), Valid: buyerSnap != nil},
+		AddressSnapshot:      sql.NullString{String: getString(addrSnap), Valid: addrSnap != nil},
+		PhoneNumberSnapshot:  sql.NullString{String: getString(phoneSnap), Valid: phoneSnap != nil},
+		IDCardNumberSnapshot: sql.NullString{String: getString(idCardSnap), Valid: idCardSnap != nil},
+		EmailSnapshot:        sql.NullString{String: getString(emailSnap), Valid: emailSnap != nil},
+		TaxIDSnapshot:        sql.NullString{String: getString(taxIDSnap), Valid: taxIDSnap != nil},
+		LatSnapshot:          sql.NullFloat64{Float64: getFloat64(latSnap), Valid: latSnap != nil},
+		LngSnapshot:          sql.NullFloat64{Float64: getFloat64(lngSnap), Valid: lngSnap != nil},
 	}
 	return s.Repo.CreateInvoice(ctx, arg)
 }
@@ -195,6 +198,8 @@ type PatchBuyerInput struct {
 	SetPhoneNumber  bool
 	IDCardNumber    sql.NullString
 	SetIDCardNumber bool
+	Email           sql.NullString
+	SetEmail        bool
 	TaxID           sql.NullString
 	SetTaxID        bool
 	Lat             sql.NullFloat64
@@ -224,6 +229,9 @@ func (s *InvoiceService) PatchBuyer(ctx context.Context, id uuid.UUID, input Pat
 	if input.SetIDCardNumber {
 		buyer.IDCardNumber = input.IDCardNumber
 	}
+	if input.SetEmail {
+		buyer.Email = input.Email
+	}
 	if input.SetTaxID {
 		buyer.TaxID = input.TaxID
 	}
@@ -241,6 +249,7 @@ func (s *InvoiceService) PatchBuyer(ctx context.Context, id uuid.UUID, input Pat
 		Address:      buyer.Address,
 		PhoneNumber:  buyer.PhoneNumber,
 		IDCardNumber: buyer.IDCardNumber,
+		Email:        buyer.Email,
 		TaxID:        buyer.TaxID,
 		Lat:          buyer.Lat,
 		Lng:          buyer.Lng,
@@ -264,6 +273,10 @@ type PatchInvoiceInput struct {
 	SetAddressSnapshot     bool
 	PhoneNumberSnapshot    sql.NullString
 	SetPhoneNumberSnapshot bool
+	IDCardNumberSnapshot   sql.NullString
+	SetIDCardNumberSnapshot bool
+	EmailSnapshot          sql.NullString
+	SetEmailSnapshot       bool
 	TaxIDSnapshot          sql.NullString
 	SetTaxIDSnapshot       bool
 	LatSnapshot            sql.NullFloat64
@@ -302,6 +315,12 @@ func (s *InvoiceService) PatchInvoice(ctx context.Context, id uuid.UUID, input P
 	if input.SetPhoneNumberSnapshot {
 		invoice.PhoneNumberSnapshot = input.PhoneNumberSnapshot
 	}
+	if input.SetIDCardNumberSnapshot {
+		invoice.IDCardNumberSnapshot = input.IDCardNumberSnapshot
+	}
+	if input.SetEmailSnapshot {
+		invoice.EmailSnapshot = input.EmailSnapshot
+	}
 	if input.SetTaxIDSnapshot {
 		invoice.TaxIDSnapshot = input.TaxIDSnapshot
 	}
@@ -313,19 +332,21 @@ func (s *InvoiceService) PatchInvoice(ctx context.Context, id uuid.UUID, input P
 	}
 
 	return s.Repo.UpdateInvoice(ctx, sqlc.UpdateInvoiceParams{
-		InvoiceID:           invoice.InvoiceID,
-		AccountID:           invoice.AccountID,
-		BuyerID:             invoice.BuyerID,
-		InvoiceCode:         invoice.InvoiceCode,
-		TotalAmount:         invoice.TotalAmount, // Keep existing, trigger will override if needed
-		DeviceHoldingID:     invoice.DeviceHoldingID,
-		EditStatus:          invoice.EditStatus,
-		BuyerNameSnapshot:   invoice.BuyerNameSnapshot,
-		AddressSnapshot:     invoice.AddressSnapshot,
-		PhoneNumberSnapshot: invoice.PhoneNumberSnapshot,
-		TaxIDSnapshot:       invoice.TaxIDSnapshot,
-		LatSnapshot:         invoice.LatSnapshot,
-		LngSnapshot:         invoice.LngSnapshot,
+		InvoiceID:            invoice.InvoiceID,
+		AccountID:            invoice.AccountID,
+		BuyerID:              invoice.BuyerID,
+		InvoiceCode:          invoice.InvoiceCode,
+		TotalAmount:          invoice.TotalAmount, // Keep existing, trigger will override if needed
+		DeviceHoldingID:      invoice.DeviceHoldingID,
+		EditStatus:           invoice.EditStatus,
+		BuyerNameSnapshot:    invoice.BuyerNameSnapshot,
+		AddressSnapshot:      invoice.AddressSnapshot,
+		PhoneNumberSnapshot:  invoice.PhoneNumberSnapshot,
+		IDCardNumberSnapshot: invoice.IDCardNumberSnapshot,
+		EmailSnapshot:        invoice.EmailSnapshot,
+		TaxIDSnapshot:        invoice.TaxIDSnapshot,
+		LatSnapshot:          invoice.LatSnapshot,
+		LngSnapshot:          invoice.LngSnapshot,
 	})
 }
 

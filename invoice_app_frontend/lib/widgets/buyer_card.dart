@@ -16,6 +16,55 @@ class BuyerCard extends StatelessWidget {
 
     final isDesktop = MediaQuery.of(context).size.width > 920;
 
+    final details = <Widget>[];
+
+    if (buyer['address'] != null && buyer['address'].toString().trim().isNotEmpty) {
+      details.add(Text(
+        'Địa chỉ: ${buyer['address']}', 
+        style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8), fontSize: 13),
+      ));
+    }
+
+    if (buyer['phone_number'] != null && buyer['phone_number'].toString().trim().isNotEmpty) {
+      if (details.isNotEmpty) details.add(const SizedBox(height: 4));
+      details.add(Text(
+        'SĐT: ${buyer['phone_number']}', 
+        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ));
+    }
+
+    if (buyer['email'] != null && buyer['email'].toString().trim().isNotEmpty) {
+      if (details.isNotEmpty) details.add(const SizedBox(height: 2));
+      details.add(Text(
+        'Email: ${buyer['email']}', 
+        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ));
+    }
+
+    if (buyer['id_card_number'] != null && buyer['id_card_number'].toString().trim().isNotEmpty) {
+      if (details.isNotEmpty) details.add(const SizedBox(height: 2));
+      details.add(Text(
+        'CCCD: ${buyer['id_card_number']}', 
+        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ));
+    }
+
+    if (buyer['tax_id'] != null && buyer['tax_id'].toString().trim().isNotEmpty) {
+      if (details.isNotEmpty) details.add(const SizedBox(height: 2));
+      details.add(Text(
+        'Mã số thuế: ${buyer['tax_id']}', 
+        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ));
+    }
+
     final topSection = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -50,32 +99,10 @@ class BuyerCard extends StatelessWidget {
             Icon(Icons.chevron_right, color: colorScheme.outline, size: 20),
           ],
         ),
-        const SizedBox(height: 12),
-        Text(
-          'Địa chỉ: ${(buyer['address'] != null && buyer['address'].toString().isNotEmpty) ? buyer['address'] : 'Không có'}', 
-          style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8), fontSize: 13),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'SĐT: ${(buyer['phone_number'] != null && buyer['phone_number'].toString().isNotEmpty) ? buyer['phone_number'] : 'Không có'}', 
-          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 2),
-        Text(
-          'CCCD: ${(buyer['id_card_number'] != null && buyer['id_card_number'].toString().isNotEmpty) ? buyer['id_card_number'] : 'Không có'}', 
-          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 2),
-        Text(
-          'MST: ${(buyer['tax_id'] != null && buyer['tax_id'].toString().isNotEmpty) ? buyer['tax_id'] : 'Không có'}', 
-          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        if (details.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          ...details,
+        ],
       ],
     );
 

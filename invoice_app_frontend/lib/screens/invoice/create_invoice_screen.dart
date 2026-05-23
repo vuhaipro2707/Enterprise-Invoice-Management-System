@@ -16,6 +16,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   final _buyerNameController = TextEditingController();
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _idCardController = TextEditingController();
+  final _emailController = TextEditingController();
   final _taxIdController = TextEditingController();
 
   String? _selectedBuyerId;
@@ -81,6 +83,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
         _addressController.text = buyer['address'] ?? '';
         _phoneController.text = buyer['phone_number'] ?? '';
+        _idCardController.text = buyer['id_card_number'] ?? '';
+        _emailController.text = buyer['email'] ?? '';
         _taxIdController.text = buyer['tax_id'] ?? '';
       });
     } catch (e) {
@@ -105,6 +109,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
         _addressController.text = buyer['address'] ?? '';
         _phoneController.text = buyer['phone_number'] ?? '';
+        _idCardController.text = buyer['id_card_number'] ?? '';
+        _emailController.text = buyer['email'] ?? '';
         _taxIdController.text = buyer['tax_id'] ?? '';
       });
     }
@@ -123,6 +129,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         lngSnapshot: _selectedLng,
         addressSnapshot: _addressController.text.trim(),
         phoneNumberSnapshot: _phoneController.text.trim(),
+        idCardNumberSnapshot: _idCardController.text.trim().isEmpty ? null : _idCardController.text.trim(),
+        emailSnapshot: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         taxIdSnapshot: _taxIdController.text.trim().isEmpty ? null : _taxIdController.text.trim(),
       );
 
@@ -497,6 +505,32 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                                 ),
                                 keyboardType: TextInputType.phone,
                               ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _idCardController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Số CMND/CCCD (Tùy chọn)',
+                                  border: OutlineInputBorder(),
+                                ),
+                                keyboardType: TextInputType.number,
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _emailController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Email (Tùy chọn)',
+                                  border: OutlineInputBorder(),
+                                ),
+                                keyboardType: TextInputType.emailAddress,
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) return null;
+                                  final emailRegex = RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
+                                  if (!emailRegex.hasMatch(value.trim())) {
+                                    return 'Định dạng email không hợp lệ';
+                                  }
+                                  return null;
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -529,6 +563,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     _buyerNameController.dispose();
     _addressController.dispose();
     _phoneController.dispose();
+    _idCardController.dispose();
+    _emailController.dispose();
     _taxIdController.dispose();
     super.dispose();
   }
