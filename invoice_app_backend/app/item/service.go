@@ -614,3 +614,23 @@ func (s *ItemService) GenerateItemAISuggestions(ctx context.Context, keyword str
 
 	return cleanJSON, nil
 }
+
+func (s *ItemService) DeleteItem(ctx context.Context, itemID string) error {
+	parsedUUID, err := uuid.Parse(itemID)
+	if err != nil {
+		return err
+	}
+	return s.Repo.DeleteItem(ctx, parsedUUID)
+}
+
+func (s *ItemService) RestoreItem(ctx context.Context, itemID string) error {
+	parsedUUID, err := uuid.Parse(itemID)
+	if err != nil {
+		return err
+	}
+	return s.Repo.RestoreItem(ctx, parsedUUID)
+}
+
+func (s *ItemService) GetDeletedItems(ctx context.Context) ([]sqlc.ListDeletedItemsRow, error) {
+	return s.Repo.ListDeletedItems(ctx)
+}

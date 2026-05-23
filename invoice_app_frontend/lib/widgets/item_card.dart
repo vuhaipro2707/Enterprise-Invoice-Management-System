@@ -48,7 +48,7 @@ class _ItemCardState extends State<ItemCard> {
       }
     }
 
-    final isDesktop = MediaQuery.of(context).size.width > 600;
+    final isDesktop = MediaQuery.of(context).size.width > 920;
 
     final topSection = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,16 +87,19 @@ class _ItemCardState extends State<ItemCard> {
                         onPressed: () async {
                           final name = widget.item['item_default_name'] ?? '';
                           if (name.isNotEmpty) {
+                            final scaffold = ScaffoldMessenger.of(context);
+                            final inverseSurf = colorScheme.inverseSurface;
+                            final onInverseSurf = colorScheme.onInverseSurface;
                             await Clipboard.setData(ClipboardData(text: name));
                             if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              scaffold.showSnackBar(
                                 SnackBar(
                                   content: Text(
                                     'Đã sao chép: $name',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(color: colorScheme.onInverseSurface),
+                                    style: TextStyle(color: onInverseSurf),
                                   ),
-                                  backgroundColor: colorScheme.inverseSurface,
+                                  backgroundColor: inverseSurf,
                                   duration: const Duration(milliseconds: 800),
                                   behavior: SnackBarBehavior.floating,
                                   width: 280,

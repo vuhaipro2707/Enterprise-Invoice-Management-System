@@ -23,6 +23,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isInitialized = false;
+  bool _isDeleted = false;
   int? _pickedIndex;
   String _localSearchQuery = '';
 
@@ -31,9 +32,22 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
     super.didChangeDependencies();
     if (!_isInitialized) {
       final args = ModalRoute.of(context)?.settings.arguments;
-      if (args != null && args is String) {
-        _pricelistId = args;
-        _fetchPriceListDetails();
+      if (args != null) {
+        if (args is String) {
+          _pricelistId = args;
+        } else if (args is Map<String, dynamic>) {
+          _pricelistId = args['pricelistId']?.toString();
+          _isDeleted = args['isDeleted'] == true;
+        }
+        
+        if (_pricelistId != null) {
+          _fetchPriceListDetails();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không tìm thấy thông tin ID bảng báo giá')),
+          );
+          Navigator.pop(context);
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Không tìm thấy thông tin ID bảng báo giá')),
@@ -550,7 +564,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
           ],
         ),
         content: const Text(
-          'Bạn có chắc chắn muốn xóa bảng báo giá này? Hành động này sẽ không thể hoàn tác.',
+          'Bạn có chắc chắn muốn xóa bảng báo giá này không? Bạn có thể khôi phục lại từ Thùng rác.',
         ),
         actions: [
           TextButton(
@@ -597,18 +611,52 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
     }
   }
 
+  Future<void> _restorePriceList() async {
+    if (_pricelistId == null) return;
+    setState(() => _isLoading = true);
+    try {
+      await _apiService.restoreCustomerPriceList(_pricelistId!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Khôi phục bảng báo giá thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi khôi phục bảng báo giá: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sửa bảng báo giá'),
+        title: Text(_isDeleted ? 'Chi tiết bảng báo giá (Đã xóa)' : 'Sửa bảng báo giá'),
         actions: [
-          if (!_isLoading && !_isSaving) ...[
+          if (_isDeleted) ...[
+            IconButton(
+              icon: const Icon(Icons.restore_rounded),
+              onPressed: _isLoading || _isSaving ? null : _restorePriceList,
+              tooltip: 'Khôi phục',
+            ),
+          ] else if (!_isLoading && !_isSaving) ...[
             IconButton(
               icon: const Icon(Icons.copy_rounded),
               onPressed: () async {
+                final navigator = Navigator.of(context);
                 final bool? confirm = await showDialog<bool>(
                   context: context,
                   builder: (dialogContext) => AlertDialog(
@@ -636,8 +684,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                 );
 
                 if (confirm == true && mounted) {
-                  Navigator.pushReplacementNamed(
-                    context,
+                  navigator.pushReplacementNamed(
                     '/create_pricelist',
                     arguments: _priceItems,
                   );
@@ -686,6 +733,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                             const SizedBox(height: 16),
                             TextFormField(
                               controller: _descriptionController,
+                              enabled: !_isDeleted,
                               maxLines: 2,
                               decoration: const InputDecoration(
                                 labelText: 'Mô tả / Tên bảng báo giá *',
@@ -730,7 +778,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                                     color: colorScheme.primary,
                                   ),
                                 ),
-                                if (_selectedBuyer != null)
+                                if (_selectedBuyer != null && !_isDeleted)
                                   IconButton(
                                     icon: const Icon(Icons.clear_rounded),
                                     onPressed: _clearBuyer,
@@ -741,7 +789,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                             const SizedBox(height: 12),
                             if (_selectedBuyer == null)
                               InkWell(
-                                onTap: _selectBuyer,
+                                onTap: _isDeleted ? null : _selectBuyer,
                                 borderRadius: BorderRadius.circular(12),
                                 child: Container(
                                   width: double.infinity,
@@ -767,7 +815,9 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        'Bấm vào để chọn người mua cụ thể',
+                                        _isDeleted
+                                            ? 'Áp dụng cho mọi người mua'
+                                            : 'Bấm vào để chọn người mua cụ thể',
                                         style: TextStyle(fontSize: 12, color: colorScheme.outline),
                                       ),
                                     ],
@@ -816,14 +866,15 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                                             ],
                                           ),
                                         ),
-                                        ElevatedButton.icon(
-                                          onPressed: _selectBuyer,
-                                          style: ElevatedButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                        if (!_isDeleted)
+                                          ElevatedButton.icon(
+                                            onPressed: _selectBuyer,
+                                            style: ElevatedButton.styleFrom(
+                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                            ),
+                                            icon: const Icon(Icons.swap_horiz, size: 16),
+                                            label: const Text('Thay đổi', style: TextStyle(fontSize: 12)),
                                           ),
-                                          icon: const Icon(Icons.swap_horiz, size: 16),
-                                          label: const Text('Thay đổi', style: TextStyle(fontSize: 12)),
-                                        ),
                                       ],
                                     ),
                                     const Divider(height: 20),
@@ -877,11 +928,12 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                             color: colorScheme.onSurface,
                           ),
                         ),
-                        TextButton.icon(
-                          onPressed: _addItem,
-                          icon: const Icon(Icons.add),
-                          label: const Text('THÊM MẶT HÀNG'),
-                        ),
+                        if (!_isDeleted)
+                          TextButton.icon(
+                            onPressed: _addItem,
+                            icon: const Icon(Icons.add),
+                            label: const Text('THÊM MẶT HÀNG'),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -902,11 +954,12 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 16),
-                              OutlinedButton.icon(
-                                onPressed: _addItem,
-                                icon: const Icon(Icons.add),
-                                label: const Text('Thêm mặt hàng đầu tiên'),
-                              ),
+                              if (!_isDeleted)
+                                OutlinedButton.icon(
+                                  onPressed: _addItem,
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Thêm mặt hàng đầu tiên'),
+                                ),
                             ],
                           ),
                         ),
@@ -980,6 +1033,26 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
 
                             if (filteredItems.isEmpty) {
                               return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('Không tìm thấy sản phẩm phù hợp')));
+                            }
+
+                            if (_isDeleted) {
+                              return ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: filteredItems.length,
+                                itemBuilder: (context, idx) {
+                                  final item = filteredItems[idx];
+                                  final origIndex = item['orig_index'];
+                                  return PriceItemCard(
+                                    item: item,
+                                    index: origIndex,
+                                    isPicked: false,
+                                    onTap: null,
+                                    onEdit: null,
+                                    onDelete: null,
+                                  );
+                                },
+                              );
                             }
 
                             if (_pickedIndex == null) {
@@ -1070,18 +1143,19 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                 child: SizedBox(
                   width: double.infinity,
                   height: 50,
-                  child: ElevatedButton(
-                    onPressed: _savePriceList,
+                  child: ElevatedButton.icon(
+                    onPressed: _isDeleted ? _restorePriceList : _savePriceList,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: colorScheme.primary,
-                      foregroundColor: colorScheme.onPrimary,
+                      backgroundColor: _isDeleted ? colorScheme.primaryContainer : colorScheme.primary,
+                      foregroundColor: _isDeleted ? colorScheme.onPrimaryContainer : colorScheme.onPrimary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text(
-                      'LƯU THAY ĐỔI',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5),
+                    icon: Icon(_isDeleted ? Icons.restore_rounded : Icons.save_rounded),
+                    label: Text(
+                      _isDeleted ? 'KHÔI PHỤC BẢNG BÁO GIÁ' : 'LƯU THAY ĐỔI',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5),
                     ),
                   ),
                 ),

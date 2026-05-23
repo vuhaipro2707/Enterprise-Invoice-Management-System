@@ -15,6 +15,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   String? _invoiceId;
   Map<String, dynamic>? _invoiceData;
   bool _isLoading = true;
+  bool _isDeleted = false;
 
   @override
   void didChangeDependencies() {
@@ -24,7 +25,8 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       if (args is String) {
         _invoiceId = args;
       } else if (args is Map<String, dynamic>) {
-        _invoiceId = args['invoiceId'];
+        _invoiceId = args['invoiceId']?.toString();
+        _isDeleted = args['isDeleted'] == true;
       }
       if (_invoiceId != null) {
         _fetchInvoiceDetails();
@@ -47,6 +49,75 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Lỗi khi tải thông tin: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _restoreInvoice() async {
+    setState(() => _isLoading = true);
+    try {
+      await _apiService.restoreInvoice(_invoiceId!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Khôi phục hóa đơn thành công')),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi khôi phục hóa đơn: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteInvoice() async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          title: const Text('Xác nhận xóa'),
+          content: const Text(
+            'Bạn có chắc chắn muốn xóa hóa đơn này không? Bạn có thể khôi phục lại từ Thùng rác.'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('HỦY'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+              ),
+              child: const Text('XÓA'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _apiService.deleteInvoice(_invoiceId!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Xóa hóa đơn thành công')),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi xóa hóa đơn: $e')),
         );
       }
     }
@@ -214,65 +285,78 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Hóa đơn $invoiceCode'),
+        title: Text(_isDeleted ? 'Hóa đơn $invoiceCode (Đã xóa)' : 'Hóa đơn $invoiceCode'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.copy_rounded),
-            onPressed: () async {
-              final bool? confirm = await showDialog<bool>(
-                context: context,
-                builder: (dialogContext) => AlertDialog(
-                  title: const Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.blue),
-                      SizedBox(width: 8),
-                      Text('Tạo bản sao hóa đơn'),
+          if (_isDeleted) ...[
+            IconButton(
+              icon: const Icon(Icons.restore_rounded),
+              onPressed: _restoreInvoice,
+              tooltip: 'Khôi phục',
+            ),
+          ] else ...[
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded),
+              onPressed: _deleteInvoice,
+              tooltip: 'Xóa hóa đơn',
+            ),
+            IconButton(
+              icon: const Icon(Icons.copy_rounded),
+              onPressed: () async {
+                final navigator = Navigator.of(context);
+                final bool? confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (dialogContext) => AlertDialog(
+                    title: const Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.blue),
+                        SizedBox(width: 8),
+                        Text('Tạo bản sao hóa đơn'),
+                      ],
+                    ),
+                    content: const Text(
+                      'Tất cả các mặt hàng, đơn vị tính, đơn giá và số lượng sẽ được chép nguyên vẹn sang hóa đơn mới. Bạn có muốn tiếp tục?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: const Text('HỦY'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        child: const Text('TIẾP TỤC'),
+                      ),
                     ],
                   ),
-                  content: const Text(
-                    'Tất cả các mặt hàng, đơn vị tính, đơn giá và số lượng sẽ được chép nguyên vẹn sang hóa đơn mới. Bạn có muốn tiếp tục?',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogContext, false),
-                      child: const Text('HỦY'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(dialogContext, true),
-                      child: const Text('TIẾP TỤC'),
-                    ),
-                  ],
-                ),
-              );
-
-              if (confirm == true && mounted) {
-                final clonedItems = lineItems.map((itm) {
-                  return {
-                    'item_id': itm['item_id'],
-                    'unit_id': itm['unit_id'],
-                    'item_name': itm['item_name_snapshot'],
-                    'unit_name': itm['unit_name_snapshot'],
-                    'quantity': itm['quantity'],
-                    'price': itm['unit_price_custom'],
-                  };
-                }).toList();
-
-                Navigator.pushReplacementNamed(
-                  context,
-                  '/create_invoice',
-                  arguments: {
-                    'cloned_items': clonedItems,
-                  },
                 );
-              }
-            },
-            tooltip: 'Tạo bản sao',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _fetchInvoiceDetails,
-            tooltip: 'Làm mới',
-          ),
+
+                if (confirm == true && mounted) {
+                  final clonedItems = lineItems.map((itm) {
+                    return {
+                      'item_id': itm['item_id'],
+                      'unit_id': itm['unit_id'],
+                      'item_name': itm['item_name_snapshot'],
+                      'unit_name': itm['unit_name_snapshot'],
+                      'quantity': itm['quantity'],
+                      'price': itm['unit_price_custom'],
+                    };
+                  }).toList();
+
+                  navigator.pushReplacementNamed(
+                    '/create_invoice',
+                    arguments: {
+                      'cloned_items': clonedItems,
+                    },
+                  );
+                }
+              },
+              tooltip: 'Tạo bản sao',
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _fetchInvoiceDetails,
+              tooltip: 'Làm mới',
+            ),
+          ],
         ],
       ),
       body: SingleChildScrollView(
@@ -554,17 +638,17 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               height: 50,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
+                  backgroundColor: _isDeleted ? colorScheme.primaryContainer : Colors.green,
+                  foregroundColor: _isDeleted ? colorScheme.onPrimaryContainer : Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: _handleEditPress,
-                icon: const Icon(Icons.edit),
-                label: const Text(
-                  'CHỈNH SỬA HÓA ĐƠN',
-                  style: TextStyle(
+                onPressed: _isDeleted ? _restoreInvoice : _handleEditPress,
+                icon: Icon(_isDeleted ? Icons.restore_rounded : Icons.edit),
+                label: Text(
+                  _isDeleted ? 'KHÔI PHỤC HÓA ĐƠN' : 'CHỈNH SỬA HÓA ĐƠN',
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),

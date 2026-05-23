@@ -37,7 +37,7 @@ LEFT JOIN buyers b ON cpl.buyer_id = b.buyer_id
 LEFT JOIN customer_item_prices cip ON cpl.customer_price_list_id = cip.customer_price_list_id
 LEFT JOIN items it ON cip.item_id = it.item_id
 LEFT JOIN units u ON cip.unit_id = u.unit_id
-WHERE cpl.customer_price_list_id = $1 AND cpl.deleted_at IS NULL
+WHERE cpl.customer_price_list_id = $1
 GROUP BY cpl.customer_price_list_id, b.buyer_id, b.buyer_code, b.buyer_name, b.phone_number, b.address;
 
 -- name: ListCustomerPriceListsFiltered :many
@@ -86,4 +86,21 @@ WHERE customer_price_list_id = $1;
 UPDATE customer_item_prices
 SET position_key = $2
 WHERE customer_item_price_id = $1;
+
+-- name: RestoreCustomerPriceList :exec
+UPDATE customer_price_lists
+SET deleted_at = NULL,
+    updated_at = NOW()
+WHERE customer_price_list_id = $1;
+
+-- name: ListDeletedCustomerPriceLists :many
+SELECT cpl.*,
+       b.buyer_code,
+       b.buyer_name,
+       b.phone_number,
+       b.address
+FROM customer_price_lists cpl
+LEFT JOIN buyers b ON cpl.buyer_id = b.buyer_id
+WHERE cpl.deleted_at IS NOT NULL
+ORDER BY cpl.deleted_at DESC;
 

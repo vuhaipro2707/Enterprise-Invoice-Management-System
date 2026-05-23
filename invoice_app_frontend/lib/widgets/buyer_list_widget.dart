@@ -130,7 +130,7 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width > 600;
+    final isDesktop = MediaQuery.of(context).size.width > 920;
 
     return Column(
       children: [
@@ -140,7 +140,7 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
             controller: _searchController,
             onChanged: _onSearchChanged,
             decoration: InputDecoration(
-              hintText: 'Tìm theo tên hoặc mã người mua...',
+              hintText: 'Tìm theo tên hoặc mọi thông tin khác...',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(

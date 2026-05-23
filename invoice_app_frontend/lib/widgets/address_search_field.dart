@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:uuid/uuid.dart';
@@ -14,6 +12,7 @@ class AddressSearchField extends StatefulWidget {
   final String? initialAddress;
   final double? initialLat;
   final double? initialLng;
+  final bool readOnly;
 
   const AddressSearchField({
     super.key,
@@ -22,6 +21,7 @@ class AddressSearchField extends StatefulWidget {
     this.initialAddress,
     this.initialLat,
     this.initialLng,
+    this.readOnly = false,
   });
 
   @override
@@ -334,11 +334,55 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
                   onPressed: () async {
                     final lat = selectedPoint.latitude;
                     final lng = selectedPoint.longitude;
-                    Navigator.pop(dialogContext);
+
+                    final bool isChanged = lat != initialPoint.latitude ||
+                        lng != initialPoint.longitude;
+
+                    if (isChanged) {
+                      final bool? confirm = await showDialog<bool>(
+                        context: dialogContext,
+                        builder: (confirmDialogContext) => AlertDialog(
+                          title: Row(
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: Theme.of(confirmDialogContext).colorScheme.error,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('Xác nhận thay đổi'),
+                            ],
+                          ),
+                          content: const Text(
+                            'Bạn đang ghim thay đổi vị trí so với trước. Bạn có chắc chắn muốn lưu vị trí mới này không?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(confirmDialogContext, false),
+                              child: const Text('Hủy'),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(confirmDialogContext).colorScheme.primary,
+                                foregroundColor: Theme.of(confirmDialogContext).colorScheme.onPrimary,
+                              ),
+                              onPressed: () => Navigator.pop(confirmDialogContext, true),
+                              child: const Text('Đồng ý'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirm != true) {
+                        return;
+                      }
+                    }
+
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                    }
 
                     // Nếu tọa độ không đổi so với lúc mở map, không làm gì cả
-                    if (lat == initialPoint.latitude &&
-                        lng == initialPoint.longitude &&
+                    if (!isChanged &&
                         widget.controller.text.isNotEmpty) {
                       return;
                     }
@@ -425,7 +469,7 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
                   return TextFormField(
                     controller: controller,
                     focusNode: focusNode,
-                    enabled: !_isGeocoding,
+                    enabled: !widget.readOnly && !_isGeocoding,
                     decoration: const InputDecoration(
                       labelText: 'Địa chỉ',
                       prefixIcon: Icon(Icons.location_on),
@@ -576,7 +620,7 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
                           child: Tooltip(
                             message: 'Chọn từ bản đồ',
                             child: InkWell(
-                              onTap: _showMapPicker,
+                              onTap: widget.readOnly ? null : _showMapPicker,
                               borderRadius: BorderRadius.circular(14),
                               child: SizedBox(
                                 width: 48,

@@ -1490,3 +1490,148 @@ func (h *InvoiceHandler) GetInvoices(c *fiber.Ctx) error {
 
 	return c.Status(200).JSON(fiber.Map{"data": resp})
 }
+
+func (h *InvoiceHandler) DeleteBuyer(c *fiber.Ctx) error {
+	buyerID := c.Params("buyerId")
+	if buyerID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: buyerId"})
+	}
+
+	err := h.service.DeleteBuyer(context.Background(), buyerID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to soft delete buyer: %v", err)})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Buyer soft deleted successfully"})
+}
+
+func (h *InvoiceHandler) RestoreBuyer(c *fiber.Ctx) error {
+	buyerID := c.Params("buyerId")
+	if buyerID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: buyerId"})
+	}
+
+	err := h.service.RestoreBuyer(context.Background(), buyerID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to restore buyer: %v", err)})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Buyer restored successfully"})
+}
+
+func (h *InvoiceHandler) GetDeletedBuyers(c *fiber.Ctx) error {
+	buyers, err := h.service.GetDeletedBuyers(context.Background())
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to get deleted buyers: %v", err)})
+	}
+
+	resp := []fiber.Map{}
+	for _, buyer := range buyers {
+		var addr, phone, idCard, taxID *string
+		var lat, lng *float64
+		if buyer.Address.Valid {
+			addr = &buyer.Address.String
+		}
+		if buyer.PhoneNumber.Valid {
+			phone = &buyer.PhoneNumber.String
+		}
+		if buyer.IDCardNumber.Valid {
+			idCard = &buyer.IDCardNumber.String
+		}
+		if buyer.TaxID.Valid {
+			taxID = &buyer.TaxID.String
+		}
+		if buyer.Lat.Valid {
+			lat = &buyer.Lat.Float64
+		}
+		if buyer.Lng.Valid {
+			lng = &buyer.Lng.Float64
+		}
+
+		resp = append(resp, fiber.Map{
+			"buyer_id":       buyer.BuyerID,
+			"buyer_code":     buyer.BuyerCode,
+			"buyer_name":     buyer.BuyerName,
+			"address":        addr,
+			"phone_number":   phone,
+			"id_card_number": idCard,
+			"tax_id":         taxID,
+			"lat":            lat,
+			"lng":            lng,
+			"is_active":      buyer.IsActive,
+			"created_at":     buyer.CreatedAt,
+			"updated_at":     buyer.UpdatedAt,
+			"deleted_at":     buyer.DeletedAt.Time,
+		})
+	}
+
+	return c.Status(200).JSON(resp)
+}
+
+func (h *InvoiceHandler) DeleteInvoice(c *fiber.Ctx) error {
+	invoiceID := c.Params("invoiceId")
+	if invoiceID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: invoiceId"})
+	}
+
+	err := h.service.DeleteInvoice(context.Background(), invoiceID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to soft delete invoice: %v", err)})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Invoice soft deleted successfully"})
+}
+
+func (h *InvoiceHandler) RestoreInvoice(c *fiber.Ctx) error {
+	invoiceID := c.Params("invoiceId")
+	if invoiceID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: invoiceId"})
+	}
+
+	err := h.service.RestoreInvoice(context.Background(), invoiceID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to restore invoice: %v", err)})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Invoice restored successfully"})
+}
+
+func (h *InvoiceHandler) GetDeletedInvoices(c *fiber.Ctx) error {
+	invoices, err := h.service.GetDeletedInvoices(context.Background())
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to get deleted invoices: %v", err)})
+	}
+
+	resp := []fiber.Map{}
+	for _, inv := range invoices {
+		var buyerIDVal *uuid.UUID
+		if inv.BuyerID.Valid {
+			buyerIDVal = &inv.BuyerID.UUID
+		}
+		var deviceIDVal *string
+		if inv.DeviceHoldingID.Valid {
+			deviceIDVal = &inv.DeviceHoldingID.String
+		}
+
+		resp = append(resp, fiber.Map{
+			"invoice_id":            inv.InvoiceID,
+			"account_id":            inv.AccountID,
+			"buyer_id":              buyerIDVal,
+			"buyer_code":            inv.BuyerCode.String,
+			"invoice_code":          inv.InvoiceCode,
+			"total_amount":          inv.TotalAmount,
+			"device_holding_id":     deviceIDVal,
+			"device_name":           inv.DeviceName.String,
+			"edit_status":           inv.EditStatus.Bool,
+			"buyer_name_snapshot":   inv.BuyerNameSnapshot.String,
+			"address_snapshot":      inv.AddressSnapshot.String,
+			"phone_number_snapshot": inv.PhoneNumberSnapshot.String,
+			"tax_id_snapshot":       inv.TaxIDSnapshot.String,
+			"created_at":            inv.CreatedAt.Time,
+			"updated_at":            inv.UpdatedAt.Time,
+			"deleted_at":            inv.DeletedAt.Time,
+		})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"data": resp})
+}

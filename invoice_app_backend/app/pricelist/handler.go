@@ -434,3 +434,93 @@ func (h *PriceListHandler) ChangePriceItemOrder(c *fiber.Ctx) error {
 
 	return c.Status(200).JSON(fiber.Map{"message": "Order updated", "new_position_key": newPosKey})
 }
+
+func (h *PriceListHandler) RestorePriceList(c *fiber.Ctx) error {
+	id := c.Params("pricelistId")
+	if id == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Missing path parameter: pricelistId",
+		})
+	}
+
+	err := h.service.RestorePriceList(c.UserContext(), id)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to restore customer price list: %s", err.Error()),
+		})
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"message": "Customer price list restored successfully",
+	})
+}
+
+func (h *PriceListHandler) GetDeletedPriceLists(c *fiber.Ctx) error {
+	lists, err := h.service.GetDeletedPriceLists(c.UserContext())
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to list deleted customer price lists: %s", err.Error()),
+		})
+	}
+
+	resp := []fiber.Map{}
+	for _, l := range lists {
+		var buyerID *uuid.UUID
+		if l.BuyerID.Valid {
+			buyerID = &l.BuyerID.UUID
+		}
+		var isActive *bool
+		if l.IsActive.Valid {
+			isActive = &l.IsActive.Bool
+		}
+		var createdAt *string
+		if l.CreatedAt.Valid {
+			s := l.CreatedAt.Time.Format(time.RFC3339)
+			createdAt = &s
+		}
+		var updatedAt *string
+		if l.UpdatedAt.Valid {
+			s := l.UpdatedAt.Time.Format(time.RFC3339)
+			updatedAt = &s
+		}
+		var deletedAt *string
+		if l.DeletedAt.Valid {
+			s := l.DeletedAt.Time.Format(time.RFC3339)
+			deletedAt = &s
+		}
+		var buyerCode *string
+		if l.BuyerCode.Valid {
+			buyerCode = &l.BuyerCode.String
+		}
+		var buyerName *string
+		if l.BuyerName.Valid {
+			buyerName = &l.BuyerName.String
+		}
+		var phoneNumber *string
+		if l.PhoneNumber.Valid {
+			phoneNumber = &l.PhoneNumber.String
+		}
+		var address *string
+		if l.Address.Valid {
+			address = &l.Address.String
+		}
+
+		resp = append(resp, fiber.Map{
+			"customer_price_list_id": l.CustomerPriceListID,
+			"description":            l.Description,
+			"buyer_id":               buyerID,
+			"is_active":              isActive,
+			"created_at":             createdAt,
+			"updated_at":             updatedAt,
+			"deleted_at":             deletedAt,
+			"buyer_code":             buyerCode,
+			"buyer_name":             buyerName,
+			"phone_number":           phoneNumber,
+			"address":                address,
+		})
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"data": resp,
+	})
+}

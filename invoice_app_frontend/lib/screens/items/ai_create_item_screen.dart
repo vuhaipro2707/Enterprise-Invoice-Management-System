@@ -479,6 +479,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
       }
     }
 
+    if (!mounted) return;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {

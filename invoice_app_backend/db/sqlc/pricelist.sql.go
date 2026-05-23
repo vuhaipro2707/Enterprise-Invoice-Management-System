@@ -124,7 +124,7 @@ LEFT JOIN buyers b ON cpl.buyer_id = b.buyer_id
 LEFT JOIN customer_item_prices cip ON cpl.customer_price_list_id = cip.customer_price_list_id
 LEFT JOIN items it ON cip.item_id = it.item_id
 LEFT JOIN units u ON cip.unit_id = u.unit_id
-WHERE cpl.customer_price_list_id = $1 AND cpl.deleted_at IS NULL
+WHERE cpl.customer_price_list_id = $1
 GROUP BY cpl.customer_price_list_id, b.buyer_id, b.buyer_code, b.buyer_name, b.phone_number, b.address
 `
 
@@ -256,6 +256,79 @@ func (q *Queries) ListCustomerPriceListsFiltered(ctx context.Context, arg ListCu
 		return nil, err
 	}
 	return items, nil
+}
+
+const listDeletedCustomerPriceLists = `-- name: ListDeletedCustomerPriceLists :many
+SELECT cpl.customer_price_list_id, cpl.description, cpl.buyer_id, cpl.is_active, cpl.created_at, cpl.updated_at, cpl.deleted_at,
+       b.buyer_code,
+       b.buyer_name,
+       b.phone_number,
+       b.address
+FROM customer_price_lists cpl
+LEFT JOIN buyers b ON cpl.buyer_id = b.buyer_id
+WHERE cpl.deleted_at IS NOT NULL
+ORDER BY cpl.deleted_at DESC
+`
+
+type ListDeletedCustomerPriceListsRow struct {
+	CustomerPriceListID uuid.UUID      `json:"customer_price_list_id"`
+	Description         string         `json:"description"`
+	BuyerID             uuid.NullUUID  `json:"buyer_id"`
+	IsActive            sql.NullBool   `json:"is_active"`
+	CreatedAt           sql.NullTime   `json:"created_at"`
+	UpdatedAt           sql.NullTime   `json:"updated_at"`
+	DeletedAt           sql.NullTime   `json:"deleted_at"`
+	BuyerCode           sql.NullString `json:"buyer_code"`
+	BuyerName           sql.NullString `json:"buyer_name"`
+	PhoneNumber         sql.NullString `json:"phone_number"`
+	Address             sql.NullString `json:"address"`
+}
+
+func (q *Queries) ListDeletedCustomerPriceLists(ctx context.Context) ([]ListDeletedCustomerPriceListsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listDeletedCustomerPriceLists)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDeletedCustomerPriceListsRow
+	for rows.Next() {
+		var i ListDeletedCustomerPriceListsRow
+		if err := rows.Scan(
+			&i.CustomerPriceListID,
+			&i.Description,
+			&i.BuyerID,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.BuyerCode,
+			&i.BuyerName,
+			&i.PhoneNumber,
+			&i.Address,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const restoreCustomerPriceList = `-- name: RestoreCustomerPriceList :exec
+UPDATE customer_price_lists
+SET deleted_at = NULL,
+    updated_at = NOW()
+WHERE customer_price_list_id = $1
+`
+
+func (q *Queries) RestoreCustomerPriceList(ctx context.Context, customerPriceListID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, restoreCustomerPriceList, customerPriceListID)
+	return err
 }
 
 const updateCustomerItemPricePos = `-- name: UpdateCustomerItemPricePos :exec

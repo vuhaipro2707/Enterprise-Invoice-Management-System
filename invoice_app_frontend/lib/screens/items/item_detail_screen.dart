@@ -7,8 +7,14 @@ import '../../widgets/units_section.dart';
 class ItemDetailScreen extends StatefulWidget {
   final Map<String, dynamic> item;
   final List<dynamic> types;
+  final bool isDeleted;
 
-  const ItemDetailScreen({super.key, required this.item, required this.types});
+  const ItemDetailScreen({
+    super.key,
+    required this.item,
+    required this.types,
+    this.isDeleted = false,
+  });
 
   @override
   State<ItemDetailScreen> createState() => _ItemDetailScreenState();
@@ -271,6 +277,79 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     }
   }
 
+  Future<void> _restoreItem() async {
+    setState(() => _isSaving = true);
+    try {
+      final itemId = widget.item['item_id'];
+      await ApiService().restoreItem(itemId);
+      if (mounted) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Khôi phục mặt hàng thành công')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _deleteItem() async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          title: const Text('Xác nhận xóa'),
+          content: const Text(
+            'Bạn có chắc chắn muốn xóa mặt hàng này không? Bạn có thể khôi phục lại từ Thùng rác.'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('HỦY'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+              ),
+              child: const Text('XÓA'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final itemId = widget.item['item_id'];
+      await ApiService().deleteItem(itemId);
+      if (mounted) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Xóa mặt hàng thành công')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -281,14 +360,29 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chi tiết mặt hàng'),
+        title: Text(widget.isDeleted ? 'Chi tiết mặt hàng (Đã xóa)' : 'Chi tiết mặt hàng'),
         actions: [
-          IconButton(
-            onPressed: _isSaving ? null : _saveChanges,
-            icon: const Icon(Icons.check),
-          ),
+          if (widget.isDeleted)
+            IconButton(
+              onPressed: _isSaving ? null : _restoreItem,
+              icon: const Icon(Icons.restore_rounded),
+              tooltip: 'Khôi phục',
+            )
+          else ...[
+            IconButton(
+              onPressed: _isSaving ? null : _deleteItem,
+              icon: const Icon(Icons.delete_outline_rounded),
+              tooltip: 'Xóa mặt hàng',
+            ),
+            IconButton(
+              onPressed: _isSaving ? null : _saveChanges,
+              icon: const Icon(Icons.check),
+              tooltip: 'Lưu thay đổi',
+            ),
+          ]
         ],
       ),
       body: Form(
@@ -303,6 +397,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _nameController,
+              enabled: !widget.isDeleted,
               decoration: const InputDecoration(
                 labelText: 'Tên mặt hàng *',
                 border: OutlineInputBorder(),
@@ -315,30 +410,32 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8.0,
+              runSpacing: 8.0,
               children: [
                 ..._otherNames.map((on) => Chip(
                       label: Text(on['name_string']),
-                      onDeleted: () => _removeOtherName(on),
+                      onDeleted: widget.isDeleted ? null : () => _removeOtherName(on),
                     )),
-                SizedBox(
-                  width: 150,
-                  child: TextField(
-                    controller: _otherNameInputController,
-                    focusNode: _otherNameFocusNode,
-                    decoration: const InputDecoration(
-                      hintText: 'Thêm tên...',
-                      isDense: true,
-                      border: InputBorder.none,
+                if (!widget.isDeleted)
+                  SizedBox(
+                    width: 150,
+                    child: TextField(
+                      controller: _otherNameInputController,
+                      focusNode: _otherNameFocusNode,
+                      decoration: const InputDecoration(
+                        hintText: 'Thêm tên...',
+                        isDense: true,
+                        border: InputBorder.none,
+                      ),
+                      onSubmitted: (value) => _addOtherName(value),
                     ),
-                    onSubmitted: (value) => _addOtherName(value),
                   ),
-                ),
               ],
             ),
-            const Divider(),
+            const Divider(height: 32),
             const SizedBox(height: 8),
             InkWell(
-              onTap: _isLoadingTypes ? null : _showTypeSelectionSheet,
+              onTap: widget.isDeleted ? null : (_isLoadingTypes ? null : _showTypeSelectionSheet),
               child: InputDecorator(
                 decoration: const InputDecoration(
                   labelText: 'Loại hàng',
@@ -355,25 +452,45 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                         _selectedTypeName ?? 'Chọn loại hàng',
                         style: TextStyle(
                           color: _selectedTypeName == null
-                              ? Theme.of(context).colorScheme.onSurfaceVariant
-                              : Theme.of(context).colorScheme.onSurface,
+                              ? colorScheme.onSurfaceVariant
+                              : colorScheme.onSurface,
                         ),
                       ),
               ),
             ),
             const SizedBox(height: 32),
-            UnitsSection(units: _units, removedUnitIds: _removedUnitIds),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: _isSaving ? null : _saveChanges,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-              ),
-              icon: _isSaving 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.save),
-              label: const Text('Cập nhật thay đổi'),
+            UnitsSection(
+              units: _units,
+              removedUnitIds: _removedUnitIds,
+              readOnly: widget.isDeleted,
             ),
+            const SizedBox(height: 32),
+            if (widget.isDeleted)
+              ElevatedButton.icon(
+                onPressed: _isSaving ? null : _restoreItem,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  backgroundColor: colorScheme.primaryContainer,
+                  foregroundColor: colorScheme.onPrimaryContainer,
+                ),
+                icon: _isSaving 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.restore_rounded),
+                label: const Text('Khôi phục mặt hàng'),
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: _isSaving ? null : _saveChanges,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                ),
+                icon: _isSaving 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.save),
+                label: const Text('Cập nhật thay đổi'),
+              ),
           ],
         ),
       ),

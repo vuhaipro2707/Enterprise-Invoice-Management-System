@@ -224,3 +224,15 @@ func (s *PriceListService) DeletePriceList(ctx context.Context, id string) error
 	}
 	return s.Repo.DeleteCustomerPriceList(ctx, parsedID)
 }
+
+func (s *PriceListService) RestorePriceList(ctx context.Context, id string) error {
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	return s.Repo.RestoreCustomerPriceList(ctx, parsedID)
+}
+
+func (s *PriceListService) GetDeletedPriceLists(ctx context.Context) ([]sqlc.ListDeletedCustomerPriceListsRow, error) {
+	return s.Repo.ListDeletedCustomerPriceLists(ctx)
+}

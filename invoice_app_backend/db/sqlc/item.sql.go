@@ -168,6 +168,18 @@ func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, e
 	return i, err
 }
 
+const deleteItem = `-- name: DeleteItem :exec
+UPDATE items
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE item_id = $1
+`
+
+func (q *Queries) DeleteItem(ctx context.Context, itemID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteItem, itemID)
+	return err
+}
+
 const deleteItemOtherName = `-- name: DeleteItemOtherName :exec
 DELETE FROM item_other_names
 WHERE item_other_name_id = $1
@@ -260,6 +272,72 @@ func (q *Queries) GetUnitByID(ctx context.Context, unitID uuid.UUID) (Unit, erro
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const listDeletedItems = `-- name: ListDeletedItems :many
+SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at, 
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'item_other_name_id', ion.item_other_name_id,
+         'name_string', ion.name_string
+       )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
+       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+         'unit_id', u.unit_id,
+         'unit_name', u.unit_name,
+         'unit_price_default', u.unit_price_default,
+         'ratio', u.ratio,
+         'is_base_unit', u.is_base_unit
+       )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
+FROM items i
+LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
+LEFT JOIN units u ON i.item_id = u.item_id AND u.deleted_at IS NULL
+WHERE i.deleted_at IS NOT NULL
+GROUP BY i.item_id
+ORDER BY i.deleted_at DESC
+`
+
+type ListDeletedItemsRow struct {
+	ItemID          uuid.UUID       `json:"item_id"`
+	ItemDefaultName string          `json:"item_default_name"`
+	TypeID          uuid.NullUUID   `json:"type_id"`
+	IsActive        sql.NullBool    `json:"is_active"`
+	CreatedAt       sql.NullTime    `json:"created_at"`
+	UpdatedAt       sql.NullTime    `json:"updated_at"`
+	DeletedAt       sql.NullTime    `json:"deleted_at"`
+	ItemOtherNames  json.RawMessage `json:"item_other_names"`
+	Units           json.RawMessage `json:"units"`
+}
+
+func (q *Queries) ListDeletedItems(ctx context.Context) ([]ListDeletedItemsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listDeletedItems)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDeletedItemsRow
+	for rows.Next() {
+		var i ListDeletedItemsRow
+		if err := rows.Scan(
+			&i.ItemID,
+			&i.ItemDefaultName,
+			&i.TypeID,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ItemOtherNames,
+			&i.Units,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listItemOtherNames = `-- name: ListItemOtherNames :many
@@ -668,6 +746,18 @@ func (q *Queries) PatchUnit(ctx context.Context, arg PatchUnitParams) (Unit, err
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const restoreItem = `-- name: RestoreItem :exec
+UPDATE items
+SET deleted_at = NULL,
+    updated_at = NOW()
+WHERE item_id = $1
+`
+
+func (q *Queries) RestoreItem(ctx context.Context, itemID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, restoreItem, itemID)
+	return err
 }
 
 const searchItems = `-- name: SearchItems :many

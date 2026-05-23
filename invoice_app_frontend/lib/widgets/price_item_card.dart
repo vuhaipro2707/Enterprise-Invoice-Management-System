@@ -3,18 +3,18 @@ import '../services/currency_formatter.dart';
 
 class PriceItemCard extends StatelessWidget {
   final Map<String, dynamic> item;
-  final VoidCallback onTap;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback? onTap;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
   final int index;
   final bool isPicked;
 
   const PriceItemCard({
     super.key,
     required this.item,
-    required this.onTap,
-    required this.onEdit,
-    required this.onDelete,
+    this.onTap,
+    this.onEdit,
+    this.onDelete,
     required this.index,
     this.isPicked = false,
   });
@@ -118,20 +118,23 @@ class PriceItemCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            IconButton(
-              icon: Icon(Icons.delete_outline_rounded, size: 20, color: colorScheme.error),
-              onPressed: onDelete,
-              tooltip: 'Xóa giá',
-            ),
-            const SizedBox(width: 4),
-            ReorderableDragStartListener(
-              index: index,
-              child: IconButton(
-                icon: Icon(Icons.drag_handle, color: colorScheme.onSurfaceVariant),
-                onPressed: onTap,
-                tooltip: 'Kéo hoặc bấm để di chuyển',
+            if (onDelete != null) ...[
+              IconButton(
+                icon: Icon(Icons.delete_outline_rounded, size: 20, color: colorScheme.error),
+                onPressed: onDelete,
+                tooltip: 'Xóa giá',
               ),
-            ),
+              const SizedBox(width: 4),
+            ],
+            if (onTap != null)
+              ReorderableDragStartListener(
+                index: index,
+                child: IconButton(
+                  icon: Icon(Icons.drag_handle, color: colorScheme.onSurfaceVariant),
+                  onPressed: onTap,
+                  tooltip: 'Kéo hoặc bấm để di chuyển',
+                ),
+              ),
           ],
         ),
       ),

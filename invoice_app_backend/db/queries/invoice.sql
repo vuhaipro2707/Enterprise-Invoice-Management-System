@@ -61,7 +61,7 @@ SELECT i.*,
 FROM invoices i
 LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
 LEFT JOIN line_items li ON i.invoice_id = li.invoice_id
-WHERE i.invoice_id = $1 AND i.deleted_at IS NULL
+WHERE i.invoice_id = $1
 GROUP BY i.invoice_id, b.buyer_code;
 
 -- name: UpdateInvoiceStatus :one
@@ -234,4 +234,41 @@ ORDER BY
   i.updated_at DESC
 LIMIT sqlc.arg('limit_val')
 OFFSET sqlc.arg('offset_val');
+
+-- name: DeleteBuyer :exec
+UPDATE buyers
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE buyer_id = $1;
+
+-- name: RestoreBuyer :exec
+UPDATE buyers
+SET deleted_at = NULL,
+    updated_at = NOW()
+WHERE buyer_id = $1;
+
+-- name: ListDeletedBuyers :many
+SELECT * FROM buyers
+WHERE deleted_at IS NOT NULL
+ORDER BY deleted_at DESC;
+
+-- name: DeleteInvoice :exec
+UPDATE invoices
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE invoice_id = $1;
+
+-- name: RestoreInvoice :exec
+UPDATE invoices
+SET deleted_at = NULL,
+    updated_at = NOW()
+WHERE invoice_id = $1;
+
+-- name: ListDeletedInvoices :many
+SELECT i.*, d.device_name, b.buyer_code
+FROM invoices i
+LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
+LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
+WHERE i.deleted_at IS NOT NULL
+ORDER BY i.deleted_at DESC;
 

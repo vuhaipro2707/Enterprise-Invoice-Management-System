@@ -168,7 +168,7 @@ class _PriceListPickerScreenState extends State<PriceListPickerScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDesktop = MediaQuery.of(context).size.width > 600;
+    final isDesktop = MediaQuery.of(context).size.width > 920;
 
     return Scaffold(
       appBar: AppBar(
@@ -181,7 +181,7 @@ class _PriceListPickerScreenState extends State<PriceListPickerScreen> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Tìm theo tên hoặc mã người mua...',
+                hintText: 'Tìm theo tên hoặc mọi thông tin khác...',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(

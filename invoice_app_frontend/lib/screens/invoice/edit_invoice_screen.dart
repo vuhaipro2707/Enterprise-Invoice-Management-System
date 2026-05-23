@@ -199,6 +199,64 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     }
   }
 
+  Future<void> _deleteInvoice() async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          title: const Text('Xác nhận xóa'),
+          content: const Text(
+            'Bạn có chắc chắn muốn xóa hóa đơn này không? Bạn có thể khôi phục lại từ Thùng rác.'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('HỦY'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+              ),
+              child: const Text('XÓA'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    _pingTimer?.cancel();
+    setState(() {
+      _isShowingAlert = true;
+      _isLoading = true;
+    });
+
+    try {
+      await _apiService.deleteInvoice(_invoiceId!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Xóa hóa đơn thành công')),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isShowingAlert = false;
+          _isLoading = false;
+        });
+        _startPingTimer();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi xóa hóa đơn: $e')),
+        );
+      }
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -403,6 +461,12 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
             IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: _fetchInvoiceDetails,
+              tooltip: 'Làm mới',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded),
+              onPressed: _deleteInvoice,
+              tooltip: 'Xóa hóa đơn',
             ),
           ],
         ),

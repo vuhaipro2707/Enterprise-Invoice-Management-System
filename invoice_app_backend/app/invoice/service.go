@@ -436,3 +436,43 @@ func (s *InvoiceService) ListInvoicesFiltered(ctx context.Context, showEditing b
 	}
 	return s.Repo.ListInvoicesFiltered(ctx, params)
 }
+
+func (s *InvoiceService) DeleteBuyer(ctx context.Context, buyerID string) error {
+	parsedUUID, err := uuid.Parse(buyerID)
+	if err != nil {
+		return err
+	}
+	return s.Repo.DeleteBuyer(ctx, parsedUUID)
+}
+
+func (s *InvoiceService) RestoreBuyer(ctx context.Context, buyerID string) error {
+	parsedUUID, err := uuid.Parse(buyerID)
+	if err != nil {
+		return err
+	}
+	return s.Repo.RestoreBuyer(ctx, parsedUUID)
+}
+
+func (s *InvoiceService) GetDeletedBuyers(ctx context.Context) ([]sqlc.Buyer, error) {
+	return s.Repo.ListDeletedBuyers(ctx)
+}
+
+func (s *InvoiceService) DeleteInvoice(ctx context.Context, invoiceID string) error {
+	parsedUUID, err := uuid.Parse(invoiceID)
+	if err != nil {
+		return err
+	}
+	return s.Repo.DeleteInvoice(ctx, parsedUUID)
+}
+
+func (s *InvoiceService) RestoreInvoice(ctx context.Context, invoiceID string) error {
+	parsedUUID, err := uuid.Parse(invoiceID)
+	if err != nil {
+		return err
+	}
+	return s.Repo.RestoreInvoice(ctx, parsedUUID)
+}
+
+func (s *InvoiceService) GetDeletedInvoices(ctx context.Context) ([]sqlc.ListDeletedInvoicesRow, error) {
+	return s.Repo.ListDeletedInvoices(ctx)
+}

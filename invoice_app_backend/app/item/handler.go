@@ -797,3 +797,70 @@ func (h *ItemHandler) AIBatchCreateItems(c *fiber.Ctx) error {
 		"message": fmt.Sprintf("Successfully saved %d items in batch", len(req.Items)),
 	})
 }
+
+func (h *ItemHandler) DeleteItem(c *fiber.Ctx) error {
+	itemID := c.Params("itemId")
+	if itemID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: itemId"})
+	}
+
+	err := h.service.DeleteItem(context.Background(), itemID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to soft delete item: %v", err)})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Item soft deleted successfully"})
+}
+
+func (h *ItemHandler) RestoreItem(c *fiber.Ctx) error {
+	itemID := c.Params("itemId")
+	if itemID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: itemId"})
+	}
+
+	err := h.service.RestoreItem(context.Background(), itemID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to restore item: %v", err)})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Item restored successfully"})
+}
+
+func (h *ItemHandler) GetDeletedItems(c *fiber.Ctx) error {
+	items, err := h.service.GetDeletedItems(context.Background())
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to get deleted items: %v", err)})
+	}
+
+	resp := []fiber.Map{}
+	for _, item := range items {
+		var tID *uuid.UUID
+		if item.TypeID.Valid {
+			tID = &item.TypeID.UUID
+		}
+
+		var units []interface{}
+		if item.Units != nil {
+			json.Unmarshal(item.Units, &units)
+		}
+
+		var otherNames []interface{}
+		if item.ItemOtherNames != nil {
+			json.Unmarshal(item.ItemOtherNames, &otherNames)
+		}
+
+		resp = append(resp, fiber.Map{
+			"item_id":           item.ItemID,
+			"item_default_name": item.ItemDefaultName,
+			"item_other_names":  otherNames,
+			"type_id":           tID,
+			"units":             units,
+			"is_active":         item.IsActive,
+			"created_at":        item.CreatedAt,
+			"updated_at":        item.UpdatedAt,
+			"deleted_at":        item.DeletedAt.Time,
+		})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"data": resp})
+}

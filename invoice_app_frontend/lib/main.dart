@@ -20,6 +20,10 @@ import 'screens/pricelist/create_pricelist_screen.dart';
 import 'screens/pricelist/edit_pricelist_screen.dart';
 import 'screens/pricelist/pricelist_picker_screen.dart';
 import 'screens/pricelist/pricelist_item_picker_screen.dart';
+import 'screens/items/item_trash_screen.dart';
+import 'screens/buyer/buyer_trash_screen.dart';
+import 'screens/invoice/invoice_trash_screen.dart';
+import 'screens/pricelist/pricelist_trash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -83,6 +87,10 @@ class MyApp extends StatelessWidget {
         '/edit_pricelist': (context) => const EditPriceListScreen(),
         '/pricelist_picker': (context) => const PriceListPickerScreen(),
         '/pricelist_item_picker': (context) => const PriceListItemPickerScreen(),
+        '/item_trash': (context) => const ItemTrashScreen(),
+        '/buyer_trash': (context) => const BuyerTrashScreen(),
+        '/invoice_trash': (context) => const InvoiceTrashScreen(),
+        '/pricelist_trash': (context) => const PricelistTrashScreen(),
       },
     );
   }

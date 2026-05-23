@@ -269,7 +269,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width > 600;
+    final isDesktop = MediaQuery.of(context).size.width > 920;
     String sortIconLabel = 'Sắp xếp';
     IconData sortIcon = Icons.sort;
     if (_sortState == SortState.az) {
@@ -284,6 +284,15 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       appBar: AppBar(
         title: const Text('Quản lý mặt hàng'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_rounded),
+            onPressed: () {
+              Navigator.pushNamed(context, '/item_trash').then((_) {
+                _loadInitialData();
+              });
+            },
+            tooltip: 'Thùng rác',
+          ),
           IconButton(
             onPressed: _isLoading ? null : _loadInitialData,
             icon: const Icon(Icons.refresh),

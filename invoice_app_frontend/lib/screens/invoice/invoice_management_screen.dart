@@ -333,7 +333,7 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDesktop = MediaQuery.of(context).size.width > 600;
+    final isDesktop = MediaQuery.of(context).size.width > 920;
 
     String sortIconLabel = 'Mới cập nhật';
     IconData sortIcon = Icons.update;
@@ -351,6 +351,15 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
       appBar: AppBar(
         title: const Text('Quản lý Hóa đơn'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_rounded),
+            onPressed: () {
+              Navigator.pushNamed(context, '/invoice_trash').then((_) {
+                _fetchInitialInvoices();
+              });
+            },
+            tooltip: 'Thùng rác',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _isLoading ? null : _fetchInitialInvoices,

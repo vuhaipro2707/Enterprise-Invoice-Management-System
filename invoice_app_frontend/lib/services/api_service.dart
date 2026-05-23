@@ -640,6 +640,108 @@ class ApiService {
     throw Exception(data['error'] ?? 'Failed to delete customer price list');
   }
 
+  // Soft delete & restore for Item
+  Future<Map<String, dynamic>> deleteItem(String id) async {
+    final response = await delete('/item/id/$id');
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to delete item');
+  }
+
+  Future<Map<String, dynamic>> restoreItem(String id) async {
+    final response = await post('/item/id/$id/restore', {});
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to restore item');
+  }
+
+  Future<List<dynamic>> getDeletedItems() async {
+    final response = await get('/item/deleted');
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      return decoded['data'] ?? [];
+    }
+    throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to load deleted items');
+  }
+
+  // Soft delete & restore for Buyer
+  Future<Map<String, dynamic>> deleteBuyer(String id) async {
+    final response = await delete('/invoice/buyer/id/$id');
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to delete buyer');
+  }
+
+  Future<Map<String, dynamic>> restoreBuyer(String id) async {
+    final response = await post('/invoice/buyer/id/$id/restore', {});
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to restore buyer');
+  }
+
+  Future<List<dynamic>> getDeletedBuyers() async {
+    final response = await get('/invoice/buyer/deleted');
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    }
+    throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to load deleted buyers');
+  }
+
+  // Soft delete & restore for Invoice
+  Future<Map<String, dynamic>> deleteInvoice(String id) async {
+    final response = await delete('/invoice/id/$id');
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to delete invoice');
+  }
+
+  Future<Map<String, dynamic>> restoreInvoice(String id) async {
+    final response = await post('/invoice/id/$id/restore', {});
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to restore invoice');
+  }
+
+  Future<List<dynamic>> getDeletedInvoices() async {
+    final response = await get('/invoice/deleted');
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      return decoded['data'] ?? [];
+    }
+    throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to load deleted invoices');
+  }
+
+  // Soft delete & restore for PriceList
+  Future<Map<String, dynamic>> restoreCustomerPriceList(String id) async {
+    final response = await post('/pricelist/id/$id/restore', {});
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to restore customer price list');
+  }
+
+  Future<List<dynamic>> getDeletedCustomerPriceLists() async {
+    final response = await get('/pricelist/deleted');
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      return decoded['data'] ?? [];
+    }
+    throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to load deleted customer price lists');
+  }
+
   Future<Map<String, dynamic>> changePriceItemOrder(String pricelistId, String customerItemPriceId, String? prevId, String? nextId) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/pricelist/changeOrder/$pricelistId'),

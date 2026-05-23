@@ -4,8 +4,9 @@ import '../../widgets/address_search_field.dart';
 
 class BuyerDetailScreen extends StatefulWidget {
   final Map<String, dynamic> buyer;
+  final bool isDeleted;
 
-  const BuyerDetailScreen({super.key, required this.buyer});
+  const BuyerDetailScreen({super.key, required this.buyer, this.isDeleted = false});
 
   @override
   State<BuyerDetailScreen> createState() => _BuyerDetailScreenState();
@@ -113,6 +114,77 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
     }
   }
 
+  Future<void> _restoreBuyer() async {
+    setState(() => _isLoading = true);
+    try {
+      await _apiService.restoreBuyer(widget.buyer['buyer_id']);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Khôi phục người mua thành công')),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _deleteBuyer() async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          title: const Text('Xác nhận xóa'),
+          content: const Text(
+            'Bạn có chắc chắn muốn xóa người mua này không? Bạn có thể khôi phục lại từ Thùng rác.'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('HỦY'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+              ),
+              child: const Text('XÓA'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _apiService.deleteBuyer(widget.buyer['buyer_id']);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Xóa người mua thành công')),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _lookupVietQR() async {
     final taxId = _taxIdController.text.trim();
     if (taxId.isEmpty) {
@@ -168,24 +240,39 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chi tiết người mua'),
+        title: Text(widget.isDeleted ? 'Chi tiết người mua (Đã xóa)' : 'Chi tiết người mua'),
         actions: [
-          if (!_isLoading)
+          if (widget.isDeleted)
             IconButton(
-              icon: const Icon(Icons.check),
-              onPressed: _updateBuyer,
+              icon: const Icon(Icons.restore_rounded),
+              onPressed: _isLoading ? null : _restoreBuyer,
+              tooltip: 'Khôi phục',
             )
-          else
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              ),
+          else ...[
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded),
+              onPressed: _isLoading ? null : _deleteBuyer,
+              tooltip: 'Xóa người mua',
             ),
+            if (!_isLoading)
+              IconButton(
+                icon: const Icon(Icons.check),
+                onPressed: _updateBuyer,
+                tooltip: 'Lưu thay đổi',
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                ),
+              ),
+          ]
         ],
       ),
       body: SingleChildScrollView(
@@ -197,7 +284,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
             children: [
               Card(
                 elevation: 0,
-                color: Theme.of(context).colorScheme.primaryContainer,
+                color: colorScheme.primaryContainer,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -205,45 +292,50 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
                     children: [
                       TextFormField(
                         controller: _codeController,
+                        enabled: !widget.isDeleted,
                         decoration: InputDecoration(
                           labelText: 'Mã người mua',
                           prefixIcon: const Icon(Icons.qr_code),
                           border: const OutlineInputBorder(),
                           filled: true,
-                          fillColor: Theme.of(context).colorScheme.surface,
+                          fillColor: colorScheme.surface,
                         ),
                         validator: (v) => v!.isEmpty ? 'Không được để trống' : null,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _taxIdController,
+                        enabled: !widget.isDeleted,
                         decoration: InputDecoration(
                           labelText: 'Mã số thuế (MST)',
                           prefixIcon: const Icon(Icons.description),
-                          suffixIcon: _isFetchingBusiness
-                            ? const Padding(
-                                padding: EdgeInsets.all(12.0),
-                                child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                              )
-                            : IconButton(
-                                icon: const Icon(Icons.search),
-                                onPressed: _lookupVietQR,
-                                tooltip: 'Lấy thông tin từ MST',
-                              ),
+                          suffixIcon: widget.isDeleted
+                            ? null
+                            : (_isFetchingBusiness
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12.0),
+                                  child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                                )
+                              : IconButton(
+                                  icon: const Icon(Icons.search),
+                                  onPressed: _lookupVietQR,
+                                  tooltip: 'Lấy thông tin từ MST',
+                                )),
                           border: const OutlineInputBorder(),
                           filled: true,
-                          fillColor: Theme.of(context).colorScheme.surface,
+                          fillColor: colorScheme.surface,
                         ),
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _nameController,
+                        enabled: !widget.isDeleted,
                         decoration: InputDecoration(
                           labelText: 'Tên người mua',
                           prefixIcon: const Icon(Icons.person),
                           border: const OutlineInputBorder(),
                           filled: true,
-                          fillColor: Theme.of(context).colorScheme.surface,
+                          fillColor: colorScheme.surface,
                         ),
                         validator: (v) => v!.isEmpty ? 'Không được để trống' : null,
                       ),
@@ -259,6 +351,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
                 initialAddress: widget.buyer['address'],
                 initialLat: _selectedLat,
                 initialLng: _selectedLng,
+                readOnly: widget.isDeleted,
                 onLocationSelected: (lat, lng) {
                   setState(() {
                     _selectedLat = lat;
@@ -269,6 +362,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _phoneController,
+                enabled: !widget.isDeleted,
                 decoration: const InputDecoration(
                   labelText: 'Số điện thoại',
                   prefixIcon: Icon(Icons.phone),
@@ -279,6 +373,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _idCardController,
+                enabled: !widget.isDeleted,
                 decoration: const InputDecoration(
                   labelText: 'Số CCCD / CMND',
                   prefixIcon: Icon(Icons.badge),
@@ -290,14 +385,20 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
               SizedBox(
                 width: double.infinity,
                 height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _updateBuyer,
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : (widget.isDeleted ? _restoreBuyer : _updateBuyer),
                   style: ElevatedButton.styleFrom(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor: widget.isDeleted ? colorScheme.primaryContainer : colorScheme.primary,
+                    foregroundColor: widget.isDeleted ? colorScheme.onPrimaryContainer : colorScheme.onPrimary,
                   ),
-                  child: _isLoading 
-                    ? const CircularProgressIndicator()
-                    : const Text('LƯU THAY ĐỔI', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  icon: _isLoading 
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Icon(widget.isDeleted ? Icons.restore_rounded : Icons.save_rounded),
+                  label: Text(
+                    widget.isDeleted ? 'KHÔI PHỤC NGƯỜI MUA' : 'LƯU THAY ĐỔI',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],

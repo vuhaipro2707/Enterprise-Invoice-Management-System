@@ -20,6 +20,15 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
         title: const Text('Quản lý người mua'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.delete_sweep_rounded),
+            onPressed: () {
+              Navigator.pushNamed(context, '/buyer_trash').then((_) {
+                _listKey.currentState?.refresh();
+              });
+            },
+            tooltip: 'Thùng rác',
+          ),
+          IconButton(
             onPressed: () => _listKey.currentState?.refresh(),
             icon: const Icon(Icons.refresh),
             tooltip: 'Làm mới dữ liệu',

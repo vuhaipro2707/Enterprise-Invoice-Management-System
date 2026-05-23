@@ -5,11 +5,13 @@ import '../services/currency_formatter.dart';
 class UnitsSection extends StatefulWidget {
   final List<Map<String, dynamic>> units;
   final List<String>? removedUnitIds;
+  final bool readOnly;
 
   const UnitsSection({
     super.key,
     required this.units,
     this.removedUnitIds,
+    this.readOnly = false,
   });
 
   @override
@@ -205,11 +207,12 @@ class _UnitsSectionState extends State<UnitsSection> {
               'Đơn vị tính & Giá',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            TextButton.icon(
-              onPressed: _addUnit,
-              icon: const Icon(Icons.add),
-              label: const Text('Thêm đơn vị'),
-            ),
+            if (!widget.readOnly)
+              TextButton.icon(
+                onPressed: _addUnit,
+                icon: const Icon(Icons.add),
+                label: const Text('Thêm đơn vị'),
+              ),
           ],
         ),
         const SizedBox(height: 8),
@@ -298,7 +301,7 @@ class _UnitsSectionState extends State<UnitsSection> {
                             ],
                           ),
                         ),
-                      if (!isBase || widget.units.length == 1) ...[
+                      if (!widget.readOnly && (!isBase || widget.units.length == 1)) ...[
                         if (widget.units.length > 1 || !isBase)
                           IconButton(
                             onPressed: () => _removeUnit(index),
@@ -308,7 +311,7 @@ class _UnitsSectionState extends State<UnitsSection> {
                             ),
                             tooltip: 'Xóa đơn vị',
                           ),
-                      ] else ...[
+                      ] else if (!widget.readOnly) ...[
                         Tooltip(
                           message: 'Không thể xóa đơn vị gốc khi còn đơn vị khác',
                           child: IconButton(
@@ -331,6 +334,7 @@ class _UnitsSectionState extends State<UnitsSection> {
                         flex: 3,
                         child: TextFormField(
                           controller: _getNameController(unit),
+                          enabled: !widget.readOnly,
                           decoration: const InputDecoration(
                             labelText: 'Tên đơn vị *',
                             hintText: 'VD: Hộp, Thùng',
@@ -351,6 +355,7 @@ class _UnitsSectionState extends State<UnitsSection> {
                           flex: 2,
                           child: TextFormField(
                             controller: _getRatioController(unit),
+                            enabled: !widget.readOnly,
                             decoration: const InputDecoration(
                               labelText: 'Tỷ lệ *',
                               hintText: 'VD: 24',
@@ -375,6 +380,7 @@ class _UnitsSectionState extends State<UnitsSection> {
                         flex: 4,
                         child: TextFormField(
                           controller: _getPriceController(unit),
+                          enabled: !widget.readOnly,
                           decoration: const InputDecoration(
                             labelText: 'Giá mặc định (đ)',
                             hintText: 'Tự động tính',

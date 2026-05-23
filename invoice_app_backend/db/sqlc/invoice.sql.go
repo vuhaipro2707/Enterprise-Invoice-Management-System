@@ -221,6 +221,30 @@ func (q *Queries) CreateLineItem(ctx context.Context, arg CreateLineItemParams) 
 	return i, err
 }
 
+const deleteBuyer = `-- name: DeleteBuyer :exec
+UPDATE buyers
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE buyer_id = $1
+`
+
+func (q *Queries) DeleteBuyer(ctx context.Context, buyerID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteBuyer, buyerID)
+	return err
+}
+
+const deleteInvoice = `-- name: DeleteInvoice :exec
+UPDATE invoices
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE invoice_id = $1
+`
+
+func (q *Queries) DeleteInvoice(ctx context.Context, invoiceID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteInvoice, invoiceID)
+	return err
+}
+
 const deleteLineItem = `-- name: DeleteLineItem :exec
 DELETE FROM line_items
 WHERE line_item_id = $1
@@ -420,7 +444,7 @@ SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i
 FROM invoices i
 LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
 LEFT JOIN line_items li ON i.invoice_id = li.invoice_id
-WHERE i.invoice_id = $1 AND i.deleted_at IS NULL
+WHERE i.invoice_id = $1
 GROUP BY i.invoice_id, b.buyer_code
 `
 
@@ -560,6 +584,123 @@ func (q *Queries) ListBuyers(ctx context.Context, arg ListBuyersParams) ([]Buyer
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDeletedBuyers = `-- name: ListDeletedBuyers :many
+SELECT buyer_id, buyer_code, buyer_name, address, phone_number, id_card_number, tax_id, lat, lng, is_active, created_at, updated_at, deleted_at FROM buyers
+WHERE deleted_at IS NOT NULL
+ORDER BY deleted_at DESC
+`
+
+func (q *Queries) ListDeletedBuyers(ctx context.Context) ([]Buyer, error) {
+	rows, err := q.db.QueryContext(ctx, listDeletedBuyers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Buyer
+	for rows.Next() {
+		var i Buyer
+		if err := rows.Scan(
+			&i.BuyerID,
+			&i.BuyerCode,
+			&i.BuyerName,
+			&i.Address,
+			&i.PhoneNumber,
+			&i.IDCardNumber,
+			&i.TaxID,
+			&i.Lat,
+			&i.Lng,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDeletedInvoices = `-- name: ListDeletedInvoices :many
+SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.buyer_name_snapshot, i.address_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at, d.device_name, b.buyer_code
+FROM invoices i
+LEFT JOIN devices d ON i.device_holding_id = d.device_holding_id
+LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
+WHERE i.deleted_at IS NOT NULL
+ORDER BY i.deleted_at DESC
+`
+
+type ListDeletedInvoicesRow struct {
+	InvoiceID           uuid.UUID       `json:"invoice_id"`
+	AccountID           uuid.NullUUID   `json:"account_id"`
+	BuyerID             uuid.NullUUID   `json:"buyer_id"`
+	InvoiceCode         string          `json:"invoice_code"`
+	TotalAmount         int64           `json:"total_amount"`
+	DeviceHoldingID     sql.NullString  `json:"device_holding_id"`
+	EditStatus          sql.NullBool    `json:"edit_status"`
+	BuyerNameSnapshot   sql.NullString  `json:"buyer_name_snapshot"`
+	AddressSnapshot     sql.NullString  `json:"address_snapshot"`
+	LatSnapshot         sql.NullFloat64 `json:"lat_snapshot"`
+	LngSnapshot         sql.NullFloat64 `json:"lng_snapshot"`
+	PhoneNumberSnapshot sql.NullString  `json:"phone_number_snapshot"`
+	TaxIDSnapshot       sql.NullString  `json:"tax_id_snapshot"`
+	IsActive            sql.NullBool    `json:"is_active"`
+	CreatedAt           sql.NullTime    `json:"created_at"`
+	UpdatedAt           sql.NullTime    `json:"updated_at"`
+	DeletedAt           sql.NullTime    `json:"deleted_at"`
+	DeviceName          sql.NullString  `json:"device_name"`
+	BuyerCode           sql.NullString  `json:"buyer_code"`
+}
+
+func (q *Queries) ListDeletedInvoices(ctx context.Context) ([]ListDeletedInvoicesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listDeletedInvoices)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDeletedInvoicesRow
+	for rows.Next() {
+		var i ListDeletedInvoicesRow
+		if err := rows.Scan(
+			&i.InvoiceID,
+			&i.AccountID,
+			&i.BuyerID,
+			&i.InvoiceCode,
+			&i.TotalAmount,
+			&i.DeviceHoldingID,
+			&i.EditStatus,
+			&i.BuyerNameSnapshot,
+			&i.AddressSnapshot,
+			&i.LatSnapshot,
+			&i.LngSnapshot,
+			&i.PhoneNumberSnapshot,
+			&i.TaxIDSnapshot,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.DeviceName,
+			&i.BuyerCode,
 		); err != nil {
 			return nil, err
 		}
@@ -760,6 +901,30 @@ func (q *Queries) ListInvoicesFiltered(ctx context.Context, arg ListInvoicesFilt
 		return nil, err
 	}
 	return items, nil
+}
+
+const restoreBuyer = `-- name: RestoreBuyer :exec
+UPDATE buyers
+SET deleted_at = NULL,
+    updated_at = NOW()
+WHERE buyer_id = $1
+`
+
+func (q *Queries) RestoreBuyer(ctx context.Context, buyerID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, restoreBuyer, buyerID)
+	return err
+}
+
+const restoreInvoice = `-- name: RestoreInvoice :exec
+UPDATE invoices
+SET deleted_at = NULL,
+    updated_at = NOW()
+WHERE invoice_id = $1
+`
+
+func (q *Queries) RestoreInvoice(ctx context.Context, invoiceID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, restoreInvoice, invoiceID)
+	return err
 }
 
 const searchBuyers = `-- name: SearchBuyers :many

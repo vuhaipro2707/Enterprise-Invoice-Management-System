@@ -14,7 +14,7 @@ class BuyerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    final isDesktop = MediaQuery.of(context).size.width > 600;
+    final isDesktop = MediaQuery.of(context).size.width > 920;
 
     final topSection = Column(
       crossAxisAlignment: CrossAxisAlignment.start,

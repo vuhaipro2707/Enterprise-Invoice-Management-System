@@ -181,7 +181,7 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width > 600;
+    final isDesktop = MediaQuery.of(context).size.width > 920;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chọn mặt hàng'),

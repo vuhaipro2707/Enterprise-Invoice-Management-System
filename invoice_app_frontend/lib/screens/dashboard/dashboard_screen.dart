@@ -277,7 +277,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.all(16.0),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  int crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
+                  int crossAxisCount = constraints.maxWidth > 920 ? 3 : 2;
                   return GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
