@@ -723,6 +723,20 @@ func (h *ItemHandler) PatchType(c *fiber.Ctx) error {
 	})
 }
 
+func (h *ItemHandler) DeleteType(c *fiber.Ctx) error {
+	typeID := c.Params("typeId")
+	if typeID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: typeId"})
+	}
+
+	err := h.service.DeleteType(context.Background(), typeID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to delete type: %v", err)})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Type deleted successfully"})
+}
+
 func (h *ItemHandler) DeleteUnit(c *fiber.Ctx) error {
 	unitID := c.Params("unitId")
 	if unitID == "" {

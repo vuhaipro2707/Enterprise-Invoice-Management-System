@@ -154,6 +154,18 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  Future<Map<String, dynamic>> updateType(String typeId, String typeName) async {
+    final response = await patch('/item/type/id/$typeId', {
+      'typeName': typeName,
+    });
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> deleteType(String typeId) async {
+    final response = await delete('/item/type/id/$typeId');
+    return jsonDecode(response.body);
+  }
+
   Future<Map<String, dynamic>> createItem(String name, List<String> otherNames, String? typeId) async {
     final response = await post('/item', {
       'itemDefaultName': name,

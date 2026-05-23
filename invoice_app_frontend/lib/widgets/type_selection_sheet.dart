@@ -20,12 +20,24 @@ class TypeSelectionSheet extends StatefulWidget {
 class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
   late List<dynamic> _filteredTypes;
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _editNameController = TextEditingController();
+  
   bool _isCreating = false;
+  String? _editingTypeId;
+  bool _isSavingEdit = false;
+  String? _deletingTypeId;
 
   @override
   void initState() {
     super.initState();
     _filteredTypes = widget.initialTypes;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _editNameController.dispose();
+    super.dispose();
   }
 
   void _filterTypes(String query) {
@@ -37,6 +49,121 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
               .contains(query.toLowerCase()))
           .toList();
     });
+  }
+
+  void _startEditing(dynamic type) {
+    setState(() {
+      _editingTypeId = type['type_id'];
+      _editNameController.text = type['type_name'] ?? '';
+    });
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _editingTypeId = null;
+      _editNameController.clear();
+    });
+  }
+
+  Future<void> _saveEditType(dynamic type) async {
+    final newName = _editNameController.text.trim();
+    if (newName.isEmpty) return;
+    if (newName == type['type_name']) {
+      _cancelEditing();
+      return;
+    }
+
+    setState(() => _isSavingEdit = true);
+    try {
+      await ApiService().updateType(type['type_id'], newName);
+      
+      setState(() {
+        type['type_name'] = newName;
+        final index = widget.initialTypes.indexWhere((t) => t['type_id'] == type['type_id']);
+        if (index != -1) {
+          widget.initialTypes[index]['type_name'] = newName;
+        }
+        _editingTypeId = null;
+        _editNameController.clear();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi chỉnh sửa: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSavingEdit = false);
+      }
+    }
+  }
+
+  Future<void> _deleteType(dynamic type) async {
+    setState(() => _deletingTypeId = type['type_id']);
+    
+    try {
+      // 1. Kiểm tra sản phẩm phụ thuộc
+      final dependentItems = await ApiService().getItems(typeId: type['type_id']);
+      
+      if (!mounted) return;
+      setState(() => _deletingTypeId = null);
+
+      final hasDependencies = dependentItems.isNotEmpty;
+      final confirmMessage = hasDependencies
+          ? 'Loại hàng "${type['type_name']}" đang có ${dependentItems.length} sản phẩm phụ thuộc. Nếu xóa, các sản phẩm này sẽ bị bỏ phân loại. Bạn vẫn muốn tiếp tục xóa chứ?'
+          : 'Bạn có chắc chắn muốn xóa loại hàng "${type['type_name']}"? Hành động này không thể hoàn tác.';
+
+      // 2. Xác nhận xóa
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Xác nhận xóa'),
+          content: Text(confirmMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Xóa'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+
+      // 3. Thực hiện xóa cứng
+      setState(() => _deletingTypeId = type['type_id']);
+      await ApiService().deleteType(type['type_id']);
+
+      setState(() {
+        widget.initialTypes.removeWhere((t) => t['type_id'] == type['type_id']);
+        _filteredTypes.removeWhere((t) => t['type_id'] == type['type_id']);
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã xóa loại hàng thành công')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi xóa loại hàng: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _deletingTypeId = null);
+      }
+    }
   }
 
   Future<void> _createNewType() async {
@@ -143,14 +270,84 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
                 child: ListView.builder(
                   controller: scrollController,
                   itemCount: _filteredTypes.length,
-                  itemBuilder: (context, index) {
+                  itemBuilder: (itemBuilderContext, index) {
                     final type = _filteredTypes[index];
+                    final isEditing = type['type_id'] == _editingTypeId;
+
+                    if (isEditing) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _editNameController,
+                                autofocus: true,
+                                decoration: const InputDecoration(
+                                  hintText: 'Nhập tên loại hàng mới...',
+                                  isDense: true,
+                                  border: UnderlineInputBorder(),
+                                ),
+                                onSubmitted: (_) => _isSavingEdit ? null : _saveEditType(type),
+                              ),
+                            ),
+                            if (_isSavingEdit)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              )
+                            else ...[
+                              IconButton(
+                                icon: Icon(Icons.check, color: colorScheme.primary),
+                                onPressed: () => _saveEditType(type),
+                                tooltip: 'Lưu',
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.close, color: colorScheme.onSurfaceVariant),
+                                onPressed: _cancelEditing,
+                                tooltip: 'Hủy',
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }
+
                     return ListTile(
-                      title: Text(type['type_name']),
+                      title: Text(type['type_name'] ?? ''),
                       onTap: () {
                         widget.onTypeSelected(type);
-                        Navigator.pop(context);
+                        Navigator.pop(itemBuilderContext);
                       },
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.edit, size: 20, color: colorScheme.onSurfaceVariant),
+                            onPressed: _deletingTypeId != null ? null : () => _startEditing(type),
+                            tooltip: 'Sửa',
+                          ),
+                          if (_deletingTypeId == type['type_id'])
+                            const Padding(
+                              padding: EdgeInsets.all(12.0),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          else
+                            IconButton(
+                              icon: Icon(Icons.delete, size: 20, color: colorScheme.error),
+                              onPressed: _deletingTypeId != null ? null : () => _deleteType(type),
+                              tooltip: 'Xóa',
+                            ),
+                        ],
+                      ),
                     );
                   },
                 ),

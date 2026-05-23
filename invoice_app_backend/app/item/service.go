@@ -365,6 +365,18 @@ func (s *ItemService) PatchType(ctx context.Context, typeID string, input PatchT
 	return s.Repo.PatchType(ctx, params)
 }
 
+func (s *ItemService) DeleteType(ctx context.Context, typeID string) error {
+	parsedUUID, err := uuid.Parse(typeID)
+	if err != nil {
+		return err
+	}
+	if dbconn.DB == nil {
+		return errors.New("database connection pool is uninitialized")
+	}
+	_, err = dbconn.DB.ExecContext(ctx, "DELETE FROM types WHERE type_id = $1", parsedUUID)
+	return err
+}
+
 func (s *ItemService) DeleteUnit(ctx context.Context, unitID string) error {
 	parsedUUID, err := uuid.Parse(unitID)
 	if err != nil {
