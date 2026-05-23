@@ -18,10 +18,11 @@ INSERT INTO customer_item_prices (
     customer_price_list_id,
     item_id,
     unit_id,
-    unit_price_custom
+    unit_price_custom,
+    position_key
 ) VALUES (
-    $1, $2, $3, $4
-) RETURNING customer_item_price_id, customer_price_list_id, item_id, unit_id, unit_price_custom, created_at
+    $1, $2, $3, $4, $5
+) RETURNING customer_item_price_id, customer_price_list_id, item_id, unit_id, unit_price_custom, position_key, created_at
 `
 
 type CreateCustomerItemPriceParams struct {
@@ -29,6 +30,7 @@ type CreateCustomerItemPriceParams struct {
 	ItemID              uuid.NullUUID `json:"item_id"`
 	UnitID              uuid.NullUUID `json:"unit_id"`
 	UnitPriceCustom     int64         `json:"unit_price_custom"`
+	PositionKey         string        `json:"position_key"`
 }
 
 func (q *Queries) CreateCustomerItemPrice(ctx context.Context, arg CreateCustomerItemPriceParams) (CustomerItemPrice, error) {
@@ -37,6 +39,7 @@ func (q *Queries) CreateCustomerItemPrice(ctx context.Context, arg CreateCustome
 		arg.ItemID,
 		arg.UnitID,
 		arg.UnitPriceCustom,
+		arg.PositionKey,
 	)
 	var i CustomerItemPrice
 	err := row.Scan(
@@ -45,6 +48,7 @@ func (q *Queries) CreateCustomerItemPrice(ctx context.Context, arg CreateCustome
 		&i.ItemID,
 		&i.UnitID,
 		&i.UnitPriceCustom,
+		&i.PositionKey,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -112,8 +116,9 @@ SELECT cpl.customer_price_list_id, cpl.description, cpl.buyer_id, cpl.is_active,
          'item_default_name', it.item_default_name,
          'unit_id', cip.unit_id,
          'unit_name', u.unit_name,
-         'unit_price_custom', cip.unit_price_custom
-       )) FILTER (WHERE cip.customer_item_price_id IS NOT NULL), '[]')::JSONB AS item_prices
+         'unit_price_custom', cip.unit_price_custom,
+         'position_key', cip.position_key
+       ) ORDER BY cip.position_key ASC) FILTER (WHERE cip.customer_item_price_id IS NOT NULL), '[]')::JSONB AS item_prices
 FROM customer_price_lists cpl
 LEFT JOIN buyers b ON cpl.buyer_id = b.buyer_id
 LEFT JOIN customer_item_prices cip ON cpl.customer_price_list_id = cip.customer_price_list_id
@@ -251,6 +256,22 @@ func (q *Queries) ListCustomerPriceListsFiltered(ctx context.Context, arg ListCu
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateCustomerItemPricePos = `-- name: UpdateCustomerItemPricePos :exec
+UPDATE customer_item_prices
+SET position_key = $2
+WHERE customer_item_price_id = $1
+`
+
+type UpdateCustomerItemPricePosParams struct {
+	CustomerItemPriceID uuid.UUID `json:"customer_item_price_id"`
+	PositionKey         string    `json:"position_key"`
+}
+
+func (q *Queries) UpdateCustomerItemPricePos(ctx context.Context, arg UpdateCustomerItemPricePosParams) error {
+	_, err := q.db.ExecContext(ctx, updateCustomerItemPricePos, arg.CustomerItemPriceID, arg.PositionKey)
+	return err
 }
 
 const updateCustomerPriceList = `-- name: UpdateCustomerPriceList :one

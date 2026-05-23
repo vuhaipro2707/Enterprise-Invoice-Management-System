@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
+import '../../services/string_utils.dart';
 import '../../widgets/line_item_card.dart';
 import '../../widgets/address_search_field.dart';
 
@@ -18,6 +19,8 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   String? _invoiceId;
   Map<String, dynamic>? _invoiceData;
   bool _isLoading = true;
+  int? _pickedIndex;
+  String _localSearchQuery = '';
 
   final _buyerCodeController = TextEditingController();
   final _buyerNameController = TextEditingController();
@@ -595,27 +598,149 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
             const SizedBox(height: 12),
             if (lineItems.isEmpty)
               const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('Chưa có sản phẩm nào')))
-            else
-              ReorderableListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: lineItems.length,
-                onReorder: (oldIndex, newIndex) {
-                  _onReorderLineItems(lineItems, oldIndex, newIndex);
-                },
-                itemBuilder: (context, index) {
-                  final item = lineItems[index];
-                  return ReorderableDelayedDragStartListener(
-                    key: ValueKey(item['line_item_id']),
-                    index: index,
-                    child: LineItemCard(
-                      item: item,
-                      onTap: () => _openEditLineItem(item),
-                      onLongPress: () => _confirmDeleteLineItem(item),
+            else ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: TextFormField(
+                  decoration: InputDecoration(
+                    hintText: 'Tìm kiếm sản phẩm trong danh sách...',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  onChanged: (val) {
+                    setState(() {
+                      _localSearchQuery = val;
+                    });
+                  },
+                ),
+              ),
+              if (_pickedIndex != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  );
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: colorScheme.onPrimaryContainer, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Đang chọn sản phẩm để di chuyển. Hãy bấm vào nút "Chèn vào đây" để thay đổi vị trí.',
+                            style: TextStyle(color: colorScheme.onPrimaryContainer, fontSize: 13),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _pickedIndex = null;
+                            });
+                          },
+                          child: Text('HỦY', style: TextStyle(color: colorScheme.primary, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                child: Builder(
+                  builder: (builderContext) {
+                  final List<Map<String, dynamic>> itemsWithOrigIndex = [];
+                  for (int i = 0; i < lineItems.length; i++) {
+                    final itm = Map<String, dynamic>.from(lineItems[i]);
+                    itm['orig_index'] = i;
+                    itemsWithOrigIndex.add(itm);
+                  }
+
+                  final filteredItems = itemsWithOrigIndex.where((itm) {
+                    final name = (itm['item_name_snapshot'] ?? '').toString();
+                    return StringUtils.containsUnaccented(name, _localSearchQuery);
+                  }).toList();
+
+                  if (filteredItems.isEmpty) {
+                    return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('Không tìm thấy sản phẩm phù hợp')));
+                  }
+
+                  if (_pickedIndex == null) {
+                    return ReorderableListView.builder(
+                      buildDefaultDragHandles: false,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filteredItems.length,
+                      onReorder: (oldIndex, newIndex) {
+                        final oldOrigIndex = filteredItems[oldIndex]['orig_index'];
+                        var newOrigIndex = newIndex < filteredItems.length
+                            ? filteredItems[newIndex]['orig_index']
+                            : filteredItems[newIndex - 1]['orig_index'] + 1;
+                        
+                        _onReorderLineItems(lineItems, oldOrigIndex, newOrigIndex);
+                      },
+                      itemBuilder: (context, idx) {
+                        final item = filteredItems[idx];
+                        final origIndex = item['orig_index'];
+                        return ReorderableDelayedDragStartListener(
+                          key: ValueKey(item['line_item_id']),
+                          index: idx,
+                          child: LineItemCard(
+                            item: item,
+                            index: origIndex,
+                            isPicked: false,
+                            onTap: () {
+                              setState(() {
+                                _pickedIndex = origIndex;
+                              });
+                            },
+                            onEdit: () => _openEditLineItem(item),
+                            onDelete: () => _confirmDeleteLineItem(item),
+                          ),
+                        );
+                      },
+                    );
+                  } else {
+                    return Column(
+                      children: [
+                        _buildInsertSlot(builderContext, filteredItems[0]['orig_index'], _pickedIndex!, lineItems),
+                        for (int j = 0; j < filteredItems.length; j++) ...[
+                          LineItemCard(
+                            item: filteredItems[j],
+                            index: filteredItems[j]['orig_index'],
+                            isPicked: _pickedIndex == filteredItems[j]['orig_index'],
+                            onTap: () {
+                              setState(() {
+                                if (_pickedIndex == filteredItems[j]['orig_index']) {
+                                  _pickedIndex = null;
+                                } else {
+                                  _pickedIndex = filteredItems[j]['orig_index'];
+                                }
+                              });
+                            },
+                            onEdit: () => _openEditLineItem(filteredItems[j]),
+                            onDelete: () => _confirmDeleteLineItem(filteredItems[j]),
+                          ),
+                          _buildInsertSlot(
+                            builderContext,
+                            j < filteredItems.length - 1 
+                                ? filteredItems[j + 1]['orig_index'] 
+                                : filteredItems[j]['orig_index'] + 1,
+                            _pickedIndex!,
+                            lineItems,
+                          ),
+                        ],
+                      ],
+                    );
+                  }
                 },
               ),
+            ),
+          ],
             const SizedBox(height: 100),
           ],
         ),
@@ -714,6 +839,73 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
         _fetchInvoiceDetails(); // Revert on failure
       }
     }
+  }
+
+  Widget _buildInsertSlot(BuildContext context, int targetIndex, int? pickedIndex, List<dynamic> lineItems) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final bool isVisible = pickedIndex != null && 
+        targetIndex != pickedIndex && 
+        targetIndex != pickedIndex + 1;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      height: isVisible ? 44 : 0,
+      margin: EdgeInsets.symmetric(vertical: isVisible ? 4 : 0),
+      decoration: BoxDecoration(
+        color: isVisible 
+            ? colorScheme.primaryContainer.withValues(alpha: 0.12) 
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isVisible 
+              ? colorScheme.primary.withValues(alpha: 0.4) 
+              : Colors.transparent,
+          width: isVisible ? 1.0 : 0.0,
+        ),
+      ),
+      child: ClipRect(
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: isVisible ? 1.0 : 0.0,
+          child: AnimatedSlide(
+            offset: isVisible ? Offset.zero : const Offset(0, 1.0),
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            child: Center(
+              child: InkWell(
+                onTap: isVisible ? () {
+                  _onReorderLineItems(lineItems, pickedIndex, targetIndex);
+                  setState(() {
+                    _pickedIndex = null;
+                  });
+                } : null,
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: double.infinity,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_circle_outline, size: 16, color: colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Chèn vào đây',
+                        style: TextStyle(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _openCreateLineItem() async {

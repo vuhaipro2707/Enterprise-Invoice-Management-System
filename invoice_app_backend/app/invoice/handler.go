@@ -688,13 +688,29 @@ func (h *InvoiceHandler) GooglePlaceAutocomplete(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Google Maps API Key not configured on server"})
 	}
 
-	// Priority: Custom location (10.7449508, 106.6506517) with radius (around 30km)
-	googleUrl := fmt.Sprintf("https://maps.googleapis.com/maps/api/place/autocomplete/json?input=%s&key=%s&language=vi&components=country:vn&location=10.7449508,106.6506517&radius=30000", url.QueryEscape(keyword), apiKey)
+	reqBody := map[string]interface{}{
+		"input":        keyword,
+		"languageCode": "vi",
+		"includedRegionCodes": []string{"vn"},
+		"locationBias": map[string]interface{}{
+			"circle": map[string]interface{}{
+				"center": map[string]interface{}{
+					"latitude":  10.7449508,
+					"longitude": 106.6506517,
+				},
+				"radius": 30000.0,
+			},
+		},
+	}
 	if sessionToken != "" {
-		googleUrl += "&sessiontoken=" + url.QueryEscape(sessionToken)
+		reqBody["sessionToken"] = sessionToken
 	}
 
-	agent := fiber.Get(googleUrl)
+	agent := fiber.Post("https://places.googleapis.com/v1/places:autocomplete")
+	agent.JSON(reqBody)
+	agent.Set("X-Goog-Api-Key", apiKey)
+	agent.Set("Content-Type", "application/json")
+
 	statusCode, body, errs := agent.Bytes()
 	if len(errs) > 0 {
 		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to call Google API: %v", errs[0])})
@@ -704,28 +720,61 @@ func (h *InvoiceHandler) GooglePlaceAutocomplete(c *fiber.Ctx) error {
 		return c.Status(statusCode).Send(body)
 	}
 
-	var result map[string]interface{}
-	json.Unmarshal(body, &result)
-
-	// Enrich addresses in predictions
-	if predictions, ok := result["predictions"].([]interface{}); ok {
-		for _, p := range predictions {
-			if predMap, ok := p.(map[string]interface{}); ok {
-				// Enrich main description
-				if desc, ok := predMap["description"].(string); ok {
-					predMap["description"] = EnrichAddress(desc)
-				}
-				// Enrich structured_formatting.secondary_text
-				if structForm, ok := predMap["structured_formatting"].(map[string]interface{}); ok {
-					if secText, ok := structForm["secondary_text"].(string); ok {
-						structForm["secondary_text"] = EnrichAddress(secText)
-					}
-				}
-			}
-		}
+	var newResult struct {
+		Suggestions []struct {
+			PlacePrediction struct {
+				PlaceId string `json:"placeId"`
+				Text    struct {
+					Text string `json:"text"`
+				} `json:"text"`
+				StructuredFormat struct {
+					MainText struct {
+						Text string `json:"text"`
+					} `json:"mainText"`
+					SecondaryText struct {
+						Text string `json:"text"`
+					} `json:"secondaryText"`
+				} `json:"structuredFormat"`
+			} `json:"placePrediction"`
+		} `json:"suggestions"`
 	}
 
-	return c.JSON(result)
+	if err := json.Unmarshal(body, &newResult); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to parse Google API response: %v", err)})
+	}
+
+	type StructuredFormatting struct {
+		MainText      string `json:"main_text"`
+		SecondaryText string `json:"secondary_text"`
+	}
+	type Prediction struct {
+		Description          string               `json:"description"`
+		PlaceID              string               `json:"place_id"`
+		StructuredFormatting StructuredFormatting `json:"structured_formatting"`
+	}
+
+	predictions := []Prediction{}
+	for _, sug := range newResult.Suggestions {
+		pred := sug.PlacePrediction
+		if pred.PlaceId == "" {
+			continue
+		}
+
+		desc := EnrichAddress(pred.Text.Text)
+		mainTxt := EnrichAddress(pred.StructuredFormat.MainText.Text)
+		secTxt := EnrichAddress(pred.StructuredFormat.SecondaryText.Text)
+
+		predictions = append(predictions, Prediction{
+			Description: desc,
+			PlaceID:     pred.PlaceId,
+			StructuredFormatting: StructuredFormatting{
+				MainText:      mainTxt,
+				SecondaryText: secTxt,
+			},
+		})
+	}
+
+	return c.JSON(fiber.Map{"predictions": predictions})
 }
 
 func (h *InvoiceHandler) GooglePlaceDetails(c *fiber.Ctx) error {
@@ -740,12 +789,15 @@ func (h *InvoiceHandler) GooglePlaceDetails(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Google Maps API Key not configured on server"})
 	}
 
-	googleUrl := fmt.Sprintf("https://maps.googleapis.com/maps/api/place/details/json?place_id=%s&fields=geometry&key=%s", url.QueryEscape(placeID), apiKey)
+	googleUrl := fmt.Sprintf("https://places.googleapis.com/v1/places/%s", url.PathEscape(placeID))
 	if sessionToken != "" {
-		googleUrl += "&sessiontoken=" + url.QueryEscape(sessionToken)
+		googleUrl += "?sessionToken=" + url.QueryEscape(sessionToken)
 	}
 
 	agent := fiber.Get(googleUrl)
+	agent.Set("X-Goog-Api-Key", apiKey)
+	agent.Set("X-Goog-FieldMask", "id,formattedAddress,location")
+
 	statusCode, body, errs := agent.Bytes()
 	if len(errs) > 0 {
 		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to call Google API: %v", errs[0])})
@@ -755,17 +807,45 @@ func (h *InvoiceHandler) GooglePlaceDetails(c *fiber.Ctx) error {
 		return c.Status(statusCode).Send(body)
 	}
 
-	var result map[string]interface{}
-	json.Unmarshal(body, &result)
-	// Enrich address in details result
-	if result["status"] == "OK" {
-		if resultData, ok := result["result"].(map[string]interface{}); ok {
-			if formattedAddr, ok := resultData["formatted_address"].(string); ok {
-				resultData["formatted_address"] = EnrichAddress(formattedAddr)
-			}
-		}
+	var newDetails struct {
+		ID               string `json:"id"`
+		FormattedAddress string `json:"formattedAddress"`
+		Location         struct {
+			Latitude  float64 `json:"latitude"`
+			Longitude float64 `json:"longitude"`
+		} `json:"location"`
 	}
-	return c.JSON(result)
+
+	if err := json.Unmarshal(body, &newDetails); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to parse Google API response: %v", err)})
+	}
+
+	type LatLng struct {
+		Lat float64 `json:"lat"`
+		Lng float64 `json:"lng"`
+	}
+	type Geometry struct {
+		Location LatLng `json:"location"`
+	}
+	type Result struct {
+		FormattedAddress string   `json:"formatted_address"`
+		Geometry         Geometry `json:"geometry"`
+	}
+
+	resp := fiber.Map{
+		"status": "OK",
+		"result": Result{
+			FormattedAddress: EnrichAddress(newDetails.FormattedAddress),
+			Geometry: Geometry{
+				Location: LatLng{
+					Lat: newDetails.Location.Latitude,
+					Lng: newDetails.Location.Longitude,
+				},
+			},
+		},
+	}
+
+	return c.JSON(resp)
 }
 
 func (h *InvoiceHandler) GoogleReverseGeocode(c *fiber.Ctx) error {
@@ -780,9 +860,12 @@ func (h *InvoiceHandler) GoogleReverseGeocode(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Google Maps API Key not configured on server"})
 	}
 
-	googleUrl := fmt.Sprintf("https://maps.googleapis.com/maps/api/geocode/json?latlng=%s,%s&key=%s&language=vi", lat, lng, apiKey)
+	googleUrl := fmt.Sprintf("https://geocode.googleapis.com/v4/geocode/location/%s,%s", url.PathEscape(lat), url.PathEscape(lng))
 
 	agent := fiber.Get(googleUrl)
+	agent.Set("X-Goog-Api-Key", apiKey)
+	agent.Set("X-Goog-FieldMask", "results.formattedAddress")
+
 	statusCode, body, errs := agent.Bytes()
 	if len(errs) > 0 {
 		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to call Google API: %v", errs[0])})
@@ -792,17 +875,20 @@ func (h *InvoiceHandler) GoogleReverseGeocode(c *fiber.Ctx) error {
 		return c.Status(statusCode).Send(body)
 	}
 
-	var result map[string]interface{}
-	json.Unmarshal(body, &result)
+	var newResponse struct {
+		Results []struct {
+			FormattedAddress string `json:"formattedAddress"`
+		} `json:"results"`
+	}
 
-	// Extract formatted address from results
-	if results, ok := result["results"].([]interface{}); ok && len(results) > 0 {
-		if firstResult, ok := results[0].(map[string]interface{}); ok {
-			formattedAddress := firstResult["formatted_address"].(string)
-			return c.JSON(fiber.Map{
-				"address": EnrichAddress(formattedAddress),
-			})
-		}
+	if err := json.Unmarshal(body, &newResponse); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to parse Google API response: %v", err)})
+	}
+
+	if len(newResponse.Results) > 0 {
+		return c.JSON(fiber.Map{
+			"address": EnrichAddress(newResponse.Results[0].FormattedAddress),
+		})
 	}
 
 	return c.Status(404).JSON(fiber.Map{"error": "No address found for these coordinates"})
@@ -819,9 +905,12 @@ func (h *InvoiceHandler) GoogleGeocode(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Google Maps API Key not configured on server"})
 	}
 
-	googleUrl := fmt.Sprintf("https://maps.googleapis.com/maps/api/geocode/json?address=%s&key=%s", url.QueryEscape(address), apiKey)
+	googleUrl := fmt.Sprintf("https://geocode.googleapis.com/v4/geocode/address/%s", url.PathEscape(address))
 
 	agent := fiber.Get(googleUrl)
+	agent.Set("X-Goog-Api-Key", apiKey)
+	agent.Set("X-Goog-FieldMask", "results.location")
+
 	statusCode, body, errs := agent.Bytes()
 	if len(errs) > 0 {
 		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to call Google API: %v", errs[0])})
@@ -832,24 +921,67 @@ func (h *InvoiceHandler) GoogleGeocode(c *fiber.Ctx) error {
 	}
 
 	var result map[string]interface{}
-	json.Unmarshal(body, &result)
+	if err := json.Unmarshal(body, &result); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to parse Google API response: %v", err)})
+	}
 
-	if results, ok := result["results"].([]interface{}); ok && len(results) > 0 {
-		if firstResult, ok := results[0].(map[string]interface{}); ok {
-			if geometry, ok := firstResult["geometry"].(map[string]interface{}); ok {
-				if location, ok := geometry["location"].(map[string]interface{}); ok {
-					lat := location["lat"]
-					lng := location["lng"]
-					return c.JSON(fiber.Map{
-						"lat": lat,
-						"lng": lng,
-					})
+	results, ok := result["results"].([]interface{})
+	if !ok || len(results) == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "No coordinates found for this address"})
+	}
+
+	firstResult, ok := results[0].(map[string]interface{})
+	if !ok {
+		return c.Status(404).JSON(fiber.Map{"error": "No coordinates found for this address"})
+	}
+
+	var lat, lng float64
+	var found bool
+
+	// Check direct "location" key
+	if loc, ok := firstResult["location"].(map[string]interface{}); ok {
+		if lt, ok := loc["latitude"].(float64); ok {
+			lat = lt
+			found = true
+		} else if lt, ok := loc["lat"].(float64); ok {
+			lat = lt
+			found = true
+		}
+		if ln, ok := loc["longitude"].(float64); ok {
+			lng = ln
+		} else if ln, ok := loc["lng"].(float64); ok {
+			lng = ln
+		}
+	}
+
+	// Check nested "geometry.location" key
+	if !found {
+		if geom, ok := firstResult["geometry"].(map[string]interface{}); ok {
+			if loc, ok := geom["location"].(map[string]interface{}); ok {
+				if lt, ok := loc["latitude"].(float64); ok {
+					lat = lt
+					found = true
+				} else if lt, ok := loc["lat"].(float64); ok {
+					lat = lt
+					found = true
+				}
+				if ln, ok := loc["longitude"].(float64); ok {
+					lng = ln
+				} else if ln, ok := loc["lng"].(float64); ok {
+					lng = ln
 				}
 			}
 		}
 	}
 
-	return c.Status(404).JSON(fiber.Map{"error": "No coordinates found for this address"})
+	if !found {
+		return c.Status(404).JSON(fiber.Map{"error": "Coordinates not found in response"})
+	}
+
+	return c.JSON(fiber.Map{
+		"lat": lat,
+		"lng": lng,
+	})
 }
 
 func (h *InvoiceHandler) GetBuyers(c *fiber.Ctx) error {

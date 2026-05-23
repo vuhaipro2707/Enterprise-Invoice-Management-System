@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"invoice_backend/app/invoice"
 	sqlc "invoice_backend/db/sqlc"
 
 	"github.com/gofiber/fiber/v2"
@@ -374,4 +375,62 @@ func flattenGetPriceListByIDRow(row sqlc.GetCustomerPriceListByIDRow) fiber.Map 
 		"address":                address,
 		"item_prices":            itemPrices,
 	}
+}
+
+func (h *PriceListHandler) ChangePriceItemOrder(c *fiber.Ctx) error {
+	type changeOrderRequest struct {
+		PrevCustomerItemPriceID *string `json:"prev_customer_item_price_id"`
+		NextCustomerItemPriceID *string `json:"next_customer_item_price_id"`
+		CustomerItemPriceID     string  `json:"customer_item_price_id"`
+	}
+
+	var req changeOrderRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
+	}
+
+	pricelistIDStr := c.Params("pricelistId")
+	plID, err := uuid.Parse(pricelistIDStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid pricelistId"})
+	}
+
+	targetUUID, err := uuid.Parse(req.CustomerItemPriceID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid customer_item_price_id"})
+	}
+
+	row, err := h.service.Repo.GetCustomerPriceListByID(c.UserContext(), plID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Pricelist not found"})
+	}
+
+	var itemPrices []map[string]interface{}
+	if row.ItemPrices != nil {
+		json.Unmarshal(row.ItemPrices, &itemPrices)
+	}
+
+	var prevKey, nextKey string
+	for _, item := range itemPrices {
+		id, _ := item["customer_item_price_id"].(string)
+		pk, _ := item["position_key"].(string)
+		if req.PrevCustomerItemPriceID != nil && *req.PrevCustomerItemPriceID == id {
+			prevKey = pk
+		}
+		if req.NextCustomerItemPriceID != nil && *req.NextCustomerItemPriceID == id {
+			nextKey = pk
+		}
+	}
+
+	newPosKey := invoice.GenerateMidString(prevKey, nextKey)
+
+	err = h.service.Repo.UpdateCustomerItemPricePos(c.UserContext(), sqlc.UpdateCustomerItemPricePosParams{
+		CustomerItemPriceID: targetUUID,
+		PositionKey:         newPosKey,
+	})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Order updated", "new_position_key": newPosKey})
 }

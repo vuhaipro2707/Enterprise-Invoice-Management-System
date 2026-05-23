@@ -34,6 +34,49 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
   final FocusNode _focusNode = FocusNode();
   bool _isMapLoading = false;
   bool _isGeocoding = false;
+  bool _isProgrammaticUpdate = false;
+  String? _lastBaseAddress;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastBaseAddress = widget.initialAddress ?? widget.controller.text;
+  }
+
+  @override
+  void didUpdateWidget(covariant AddressSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialAddress != oldWidget.initialAddress) {
+      setState(() {
+        _lastBaseAddress = widget.initialAddress;
+      });
+    }
+  }
+
+  int _getEditDistance(String s1, String s2) {
+    s1 = s1.toLowerCase().trim();
+    s2 = s2.toLowerCase().trim();
+    if (s1 == s2) return 0;
+    if (s1.isEmpty) return s2.length;
+    if (s2.isEmpty) return s1.length;
+
+    List<int> prev = List<int>.generate(s2.length + 1, (i) => i);
+    List<int> curr = List<int>.filled(s2.length + 1, 0);
+
+    for (int i = 0; i < s1.length; i++) {
+      curr[0] = i + 1;
+      for (int j = 0; j < s2.length; j++) {
+        int cost = (s1[i] == s2[j]) ? 0 : 1;
+        curr[j + 1] = [
+          curr[j] + 1,
+          prev[j + 1] + 1,
+          prev[j] + cost
+        ].reduce((a, b) => a < b ? a : b);
+      }
+      prev = List<int>.from(curr);
+    }
+    return prev[s2.length];
+  }
 
   @override
   void dispose() {
@@ -303,6 +346,7 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
                     // Hiển thị loading trong TextField
                     setState(() {
                       _isGeocoding = true;
+                      _isProgrammaticUpdate = true;
                       widget.controller.text = 'Đang xác định địa chỉ...';
                     });
 
@@ -316,6 +360,7 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
                         _isGeocoding = false;
                         if (address != null) {
                           widget.controller.text = address;
+                          _lastBaseAddress = address; // Reset base address baseline
                           widget.onLocationSelected(lat, lng);
                           // Bỏ focus để không hiện suggestion của TypeAhead
                           _focusNode.unfocus();
@@ -328,6 +373,15 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
                               ),
                             ),
                           );
+                        }
+                      });
+
+                      // Đặt lại flag sau khi các listener text controller hoàn thành xử lý
+                      Future.microtask(() {
+                        if (mounted) {
+                          setState(() {
+                            _isProgrammaticUpdate = false;
+                          });
                         }
                       });
                     }
@@ -355,89 +409,217 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final hasCoords = widget.initialLat != null && widget.initialLng != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TypeAheadField<dynamic>(
-          controller: widget.controller,
-          focusNode: _focusNode,
-          builder: (context, controller, focusNode) {
-            return TextFormField(
-              controller: controller,
-              focusNode: focusNode,
-              enabled: !_isGeocoding,
-              decoration: InputDecoration(
-                labelText: 'Địa chỉ',
-                prefixIcon: const Icon(Icons.location_on),
-                suffixIcon: _isMapLoading || _isGeocoding
-                    ? const Padding(
-                        padding: EdgeInsets.all(12.0),
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.map),
-                        onPressed: _showMapPicker,
-                        tooltip: 'Chọn từ bản đồ',
-                      ),
-                border: const OutlineInputBorder(),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: TypeAheadField<dynamic>(
+                controller: widget.controller,
+                focusNode: _focusNode,
+                builder: (context, controller, focusNode) {
+                  return TextFormField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    enabled: !_isGeocoding,
+                    decoration: const InputDecoration(
+                      labelText: 'Địa chỉ',
+                      prefixIcon: Icon(Icons.location_on),
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 2,
+                  );
+                },
+                suggestionsCallback: (search) async {
+                  // Không trigger auto-complete khi:
+                  // 1. Đang cập nhật text lập trình (chọn từ bản đồ)
+                  // 2. Đang thực hiện reverse geocoding
+                  // 3. TextField không có focus từ người dùng (chạm từ map)
+                  // 4. Từ khóa quá ngắn hoặc trùng với địa chỉ ban đầu
+                  if (_isProgrammaticUpdate ||
+                      _isGeocoding ||
+                      !_focusNode.hasFocus ||
+                      search.trim().length < 3 ||
+                      search.trim() == 'Đang xác định địa chỉ...' ||
+                      (widget.initialAddress != null &&
+                          search.trim() == widget.initialAddress)) {
+                    return [];
+                  }
+
+                  // 5. Không đổi quá 3 ký tự so với địa chỉ gốc (được tự điền/chọn từ map/details/init)
+                  if (_lastBaseAddress != null) {
+                    final dist = _getEditDistance(search, _lastBaseAddress!);
+                    if (dist <= 3) {
+                      return [];
+                    }
+                  }
+
+                  _sessionToken ??= const Uuid().v4();
+                  return await _apiService.googleAutocomplete(
+                    search,
+                    sessionToken: _sessionToken,
+                  );
+                },
+                itemBuilder: (context, prediction) {
+                  return ListTile(
+                    leading: const Icon(Icons.location_on),
+                    title: Text(
+                      prediction['structured_formatting']?['main_text'] ??
+                          prediction['description'] ??
+                          '',
+                    ),
+                    subtitle: Text(
+                      prediction['structured_formatting']?['secondary_text'] ?? '',
+                    ),
+                  );
+                },
+                emptyBuilder: (builderContext) => const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text(
+                    'Hãy nhập địa chỉ cần tìm kiếm',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                onSelected: (prediction) async {
+                  final selectedAddress = prediction['description'];
+                  widget.controller.text = selectedAddress;
+                  setState(() {
+                    _lastBaseAddress = selectedAddress; // Reset base address baseline
+                  });
+                  final placeId = prediction['place_id'];
+                  final details = await _apiService.googlePlaceDetails(
+                    placeId,
+                    sessionToken: _sessionToken,
+                  );
+
+                  _sessionToken = null;
+
+                  if (details != null && details['geometry']?['location'] != null) {
+                    final lat = (details['geometry']['location']['lat'] as num)
+                        .toDouble();
+                    final lng = (details['geometry']['location']['lng'] as num)
+                        .toDouble();
+                    widget.onLocationSelected(lat, lng);
+                  }
+                },
               ),
-              maxLines: 2,
-            );
-          },
-          suggestionsCallback: (search) async {
-            if (search.trim().length < 3 ||
-                (widget.initialAddress != null &&
-                    search.trim() == widget.initialAddress)) {
-              return [];
-            }
-            _sessionToken ??= const Uuid().v4();
-            return await _apiService.googleAutocomplete(
-              search,
-              sessionToken: _sessionToken,
-            );
-          },
-          itemBuilder: (context, prediction) {
-            return ListTile(
-              leading: const Icon(Icons.location_on),
-              title: Text(
-                prediction['structured_formatting']?['main_text'] ??
-                    prediction['description'] ??
-                    '',
-              ),
-              subtitle: Text(
-                prediction['structured_formatting']?['secondary_text'] ?? '',
-              ),
-            );
-          },
-          emptyBuilder: (builderContext) => const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              'Hãy nhập địa chỉ cần tìm kiếm',
-              style: TextStyle(color: Colors.grey),
             ),
-          ),
-          onSelected: (prediction) async {
-            widget.controller.text = prediction['description'];
-            final placeId = prediction['place_id'];
-            final details = await _apiService.googlePlaceDetails(
-              placeId,
-              sessionToken: _sessionToken,
-            );
-
-            _sessionToken = null;
-
-            if (details != null && details['geometry']?['location'] != null) {
-              final lat = (details['geometry']['location']['lat'] as num)
-                  .toDouble();
-              final lng = (details['geometry']['location']['lng'] as num)
-                  .toDouble();
-              widget.onLocationSelected(lat, lng);
-            }
-          },
+            const SizedBox(width: 12),
+            _isMapLoading || _isGeocoding
+                ? SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  )
+                : Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: hasCoords
+                                ? [
+                                    colorScheme.primary,
+                                    colorScheme.tertiary,
+                                  ]
+                                : [
+                                    colorScheme.surfaceContainerHigh,
+                                    colorScheme.surfaceContainerHighest,
+                                  ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: hasCoords
+                                ? colorScheme.primary.withValues(alpha: 0.3)
+                                : colorScheme.outlineVariant,
+                            width: 1.5,
+                          ),
+                          boxShadow: hasCoords
+                              ? [
+                                  BoxShadow(
+                                    color: colorScheme.primary.withValues(alpha: 0.3),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                  BoxShadow(
+                                    color: colorScheme.tertiary.withValues(alpha: 0.15),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ]
+                              : [
+                                  BoxShadow(
+                                    color: colorScheme.shadow.withValues(alpha: 0.05),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                          child: Tooltip(
+                            message: 'Chọn từ bản đồ',
+                            child: InkWell(
+                              onTap: _showMapPicker,
+                              borderRadius: BorderRadius.circular(14),
+                              child: SizedBox(
+                                width: 48,
+                                height: 48,
+                                child: Icon(
+                                  Icons.explore_rounded,
+                                  color: hasCoords
+                                      ? colorScheme.onPrimary
+                                      : colorScheme.primary,
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (hasCoords)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: colorScheme.surface,
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.green.withValues(alpha: 0.5),
+                                  blurRadius: 4,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+          ],
         ),
         const SizedBox(height: 16),
         getCoordinateWidget(),
@@ -483,7 +665,7 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
               ),
             ),
           ),
-          if (hasCoords && !kIsWeb && Platform.isAndroid)
+          if (hasCoords)
             IconButton(
               icon: Icon(Icons.directions, color: colorScheme.primary),
               constraints: const BoxConstraints(),

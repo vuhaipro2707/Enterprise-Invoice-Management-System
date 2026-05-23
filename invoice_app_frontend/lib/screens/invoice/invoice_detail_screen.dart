@@ -217,8 +217,61 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         title: Text('Hóa đơn $invoiceCode'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.copy_rounded),
+            onPressed: () async {
+              final bool? confirm = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.blue),
+                      SizedBox(width: 8),
+                      Text('Tạo bản sao hóa đơn'),
+                    ],
+                  ),
+                  content: const Text(
+                    'Tất cả các mặt hàng, đơn vị tính, đơn giá và số lượng sẽ được chép nguyên vẹn sang hóa đơn mới. Bạn có muốn tiếp tục?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: const Text('HỦY'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      child: const Text('TIẾP TỤC'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm == true && mounted) {
+                final clonedItems = lineItems.map((itm) {
+                  return {
+                    'item_id': itm['item_id'],
+                    'unit_id': itm['unit_id'],
+                    'item_name': itm['item_name_snapshot'],
+                    'unit_name': itm['unit_name_snapshot'],
+                    'quantity': itm['quantity'],
+                    'price': itm['unit_price_custom'],
+                  };
+                }).toList();
+
+                Navigator.pushReplacementNamed(
+                  context,
+                  '/create_invoice',
+                  arguments: {
+                    'cloned_items': clonedItems,
+                  },
+                );
+              }
+            },
+            tooltip: 'Tạo bản sao',
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _fetchInvoiceDetails,
+            tooltip: 'Làm mới',
           ),
         ],
       ),

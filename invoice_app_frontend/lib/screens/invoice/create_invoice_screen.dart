@@ -27,6 +27,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   bool _isFetchingBusiness = false;
 
   String? _autoApplyPriceListId;
+  List<dynamic>? _clonedItems;
   bool _isArgumentsParsed = false;
 
   @override
@@ -35,8 +36,13 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     if (!_isArgumentsParsed) {
       _isArgumentsParsed = true;
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      if (args != null && args.containsKey('auto_apply_pricelist_id')) {
-        _autoApplyPriceListId = args['auto_apply_pricelist_id'] as String?;
+      if (args != null) {
+        if (args.containsKey('auto_apply_pricelist_id')) {
+          _autoApplyPriceListId = args['auto_apply_pricelist_id'] as String?;
+        }
+        if (args.containsKey('cloned_items')) {
+          _clonedItems = args['cloned_items'] as List?;
+        }
       }
     }
   }
@@ -122,8 +128,23 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
       if (mounted) {
         final invoiceId = response['data']['invoice_id'];
-
-        if (_autoApplyPriceListId != null) {
+        if (_clonedItems != null && _clonedItems!.isNotEmpty) {
+          try {
+            for (final item in _clonedItems!) {
+              final Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
+              await ApiService().createLineItem(invoiceId, {
+                "itemID": itemMap['item_id'],
+                "unitID": itemMap['unit_id'],
+                "itemNameSnapshot": itemMap['item_name'],
+                "unitNameSnapshot": itemMap['unit_name'],
+                "quantity": (itemMap['quantity'] as num?)?.toInt() ?? 1,
+                "unitPriceCustom": itemMap['price'],
+              });
+            }
+          } catch (e) {
+            debugPrint('Error applying cloned items: $e');
+          }
+        } else if (_autoApplyPriceListId != null) {
           final pickedItems = await Navigator.pushNamed(
             context,
             '/pricelist_item_picker',

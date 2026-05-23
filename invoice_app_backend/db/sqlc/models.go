@@ -43,6 +43,7 @@ type CustomerItemPrice struct {
 	ItemID              uuid.NullUUID `json:"item_id"`
 	UnitID              uuid.NullUUID `json:"unit_id"`
 	UnitPriceCustom     int64         `json:"unit_price_custom"`
+	PositionKey         string        `json:"position_key"`
 	CreatedAt           sql.NullTime  `json:"created_at"`
 }
 

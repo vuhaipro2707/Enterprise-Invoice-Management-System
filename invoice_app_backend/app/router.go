@@ -76,5 +76,6 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	pricelistGroup.Get("", pricelistHandler.GetPriceLists)
 	pricelistGroup.Get("/id/:pricelistId", pricelistHandler.GetPriceListByID)
 	pricelistGroup.Patch("/id/:pricelistId", pricelistHandler.UpdatePriceList)
+	pricelistGroup.Patch("/changeOrder/:pricelistId", pricelistHandler.ChangePriceItemOrder)
 	pricelistGroup.Delete("/id/:pricelistId", pricelistHandler.DeletePriceList)
 }

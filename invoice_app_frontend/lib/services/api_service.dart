@@ -639,6 +639,23 @@ class ApiService {
     }
     throw Exception(data['error'] ?? 'Failed to delete customer price list');
   }
+
+  Future<Map<String, dynamic>> changePriceItemOrder(String pricelistId, String customerItemPriceId, String? prevId, String? nextId) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/pricelist/changeOrder/$pricelistId'),
+      headers: _headers,
+      body: jsonEncode({
+        'customer_item_price_id': customerItemPriceId,
+        'prev_customer_item_price_id': prevId,
+        'next_customer_item_price_id': nextId,
+      }),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to change order');
+  }
 }
 
 // TODO: Add pin top items.

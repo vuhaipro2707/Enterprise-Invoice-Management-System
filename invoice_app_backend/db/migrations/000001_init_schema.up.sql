@@ -159,6 +159,7 @@ CREATE TABLE IF NOT EXISTS customer_item_prices (
     item_id UUID REFERENCES items(item_id) ON DELETE CASCADE,
     unit_id UUID REFERENCES units(unit_id) ON DELETE SET NULL,
     unit_price_custom BIGINT NOT NULL,
+    position_key TEXT NOT NULL DEFAULT 'i0000',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

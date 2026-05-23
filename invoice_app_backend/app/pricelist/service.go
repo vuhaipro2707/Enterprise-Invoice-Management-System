@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"invoice_backend/app/dbconn"
+	"invoice_backend/app/invoice"
 	sqlc "invoice_backend/db/sqlc"
 	"time"
 
@@ -61,7 +62,11 @@ func (s *PriceListService) CreatePriceList(ctx context.Context, input CreatePric
 		return sqlc.CustomerPriceList{}, err
 	}
 
-	for _, item := range input.Items {
+	posKey := "i0000"
+	for idx, item := range input.Items {
+		if idx > 0 {
+			posKey = invoice.GenerateMidString(posKey, "zzzzz")
+		}
 		itemUUID, err := uuid.Parse(item.ItemID)
 		if err != nil {
 			return sqlc.CustomerPriceList{}, errors.New("invalid itemId UUID: " + item.ItemID)
@@ -81,6 +86,7 @@ func (s *PriceListService) CreatePriceList(ctx context.Context, input CreatePric
 			ItemID:              uuid.NullUUID{UUID: itemUUID, Valid: true},
 			UnitID:              unitUUID,
 			UnitPriceCustom:     item.UnitPriceCustom,
+			PositionKey:         posKey,
 		})
 		if err != nil {
 			return sqlc.CustomerPriceList{}, err
@@ -173,7 +179,11 @@ func (s *PriceListService) UpdatePriceList(ctx context.Context, id string, input
 		return sqlc.CustomerPriceList{}, err
 	}
 
-	for _, item := range input.Items {
+	posKey := "i0000"
+	for idx, item := range input.Items {
+		if idx > 0 {
+			posKey = invoice.GenerateMidString(posKey, "zzzzz")
+		}
 		itemUUID, err := uuid.Parse(item.ItemID)
 		if err != nil {
 			return sqlc.CustomerPriceList{}, errors.New("invalid itemId UUID: " + item.ItemID)
@@ -193,6 +203,7 @@ func (s *PriceListService) UpdatePriceList(ctx context.Context, id string, input
 			ItemID:              uuid.NullUUID{UUID: itemUUID, Valid: true},
 			UnitID:              unitUUID,
 			UnitPriceCustom:     item.UnitPriceCustom,
+			PositionKey:         posKey,
 		})
 		if err != nil {
 			return sqlc.CustomerPriceList{}, err

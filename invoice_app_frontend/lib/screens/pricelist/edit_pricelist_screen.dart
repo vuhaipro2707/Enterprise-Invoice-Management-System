@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../services/currency_formatter.dart';
+import '../../services/string_utils.dart';
+import '../../widgets/price_item_card.dart';
 
 class EditPriceListScreen extends StatefulWidget {
   const EditPriceListScreen({super.key});
@@ -21,6 +23,8 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isInitialized = false;
+  int? _pickedIndex;
+  String _localSearchQuery = '';
 
   @override
   void didChangeDependencies() {
@@ -72,6 +76,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
         final List<dynamic> rawItems = data['item_prices'] as List? ?? [];
         _priceItems = rawItems.map((itm) {
           return {
+            'customer_item_price_id': itm['customer_item_price_id'],
             'item_id': itm['item_id'],
             'item_default_name': itm['item_default_name'] ?? 'Mặt hàng không tên',
             'unit_id': itm['unit_id'],
@@ -133,6 +138,109 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
       const SnackBar(
         content: Text('Đã xóa mặt hàng khỏi bảng báo giá'),
         duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _onReorderPriceItems(int oldIndex, int newIndex) async {
+    if (newIndex > oldIndex) newIndex -= 1;
+    if (oldIndex == newIndex) return;
+
+    final movedItem = _priceItems[oldIndex];
+    final String? customerItemPriceId = movedItem['customer_item_price_id'];
+
+    setState(() {
+      final item = _priceItems.removeAt(oldIndex);
+      _priceItems.insert(newIndex, item);
+    });
+
+    if (customerItemPriceId == null || _pricelistId == null) {
+      return;
+    }
+
+    String? prevId;
+    String? nextId;
+
+    if (newIndex > 0) {
+      prevId = _priceItems[newIndex - 1]['customer_item_price_id'];
+    }
+    if (newIndex < _priceItems.length - 1) {
+      nextId = _priceItems[newIndex + 1]['customer_item_price_id'];
+    }
+
+    try {
+      await _apiService.changePriceItemOrder(_pricelistId!, customerItemPriceId, prevId, nextId);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi khi đổi vị trí: $e')));
+        _fetchPriceListDetails(); // Revert on failure
+      }
+    }
+  }
+
+  Widget _buildInsertSlot(BuildContext context, int targetIndex, int? pickedIndex) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final bool isVisible = pickedIndex != null && 
+        targetIndex != pickedIndex && 
+        targetIndex != pickedIndex + 1;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      height: isVisible ? 44 : 0,
+      margin: EdgeInsets.symmetric(vertical: isVisible ? 4 : 0),
+      decoration: BoxDecoration(
+        color: isVisible 
+            ? colorScheme.primaryContainer.withValues(alpha: 0.12) 
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isVisible 
+              ? colorScheme.primary.withValues(alpha: 0.4) 
+              : Colors.transparent,
+          width: isVisible ? 1.0 : 0.0,
+        ),
+      ),
+      child: ClipRect(
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: isVisible ? 1.0 : 0.0,
+          child: AnimatedSlide(
+            offset: isVisible ? Offset.zero : const Offset(0, 1.0),
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            child: Center(
+              child: InkWell(
+                onTap: isVisible ? () {
+                  _onReorderPriceItems(pickedIndex, targetIndex);
+                  setState(() {
+                    _pickedIndex = null;
+                  });
+                } : null,
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: double.infinity,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_circle_outline, size: 16, color: colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Chèn vào đây',
+                        style: TextStyle(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -497,12 +605,52 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
       appBar: AppBar(
         title: const Text('Sửa bảng báo giá'),
         actions: [
-          if (!_isLoading && !_isSaving)
+          if (!_isLoading && !_isSaving) ...[
+            IconButton(
+              icon: const Icon(Icons.copy_rounded),
+              onPressed: () async {
+                final bool? confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (dialogContext) => AlertDialog(
+                    title: const Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.blue),
+                        SizedBox(width: 8),
+                        Text('Tạo bản sao'),
+                      ],
+                    ),
+                    content: const Text(
+                      'Tất cả các mặt hàng và giá tùy chỉnh sẽ được chép nguyên vẹn sang bản sao mới. Bạn có muốn tiếp tục?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: const Text('HỦY'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        child: const Text('TIẾP TỤC'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true && mounted) {
+                  Navigator.pushReplacementNamed(
+                    context,
+                    '/create_pricelist',
+                    arguments: _priceItems,
+                  );
+                }
+              },
+              tooltip: 'Tạo bản sao',
+            ),
             IconButton(
               icon: Icon(Icons.delete_outline_rounded, color: colorScheme.error),
               onPressed: _deletePriceList,
               tooltip: 'Xóa báo giá',
             ),
+          ],
         ],
       ),
       body: _isLoading || _isSaving
@@ -763,78 +911,148 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                           ),
                         ),
                       )
-                    else
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _priceItems.length,
-                        itemBuilder: (context, index) {
-                          final itm = _priceItems[index];
-                          final customPrice = itm['unit_price_custom'] as int;
-
-                          return Card(
-                            elevation: 1,
-                            margin: const EdgeInsets.only(bottom: 8),
-                            color: colorScheme.surfaceContainerLow,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                    else ...[
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: TextFormField(
+                          decoration: InputDecoration(
+                            hintText: 'Tìm kiếm sản phẩm trong danh sách...',
+                            prefixIcon: const Icon(Icons.search),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            filled: true,
+                            fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                          onChanged: (val) {
+                            setState(() {
+                              _localSearchQuery = val;
+                            });
+                          },
+                        ),
+                      ),
+                      if (_pickedIndex != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              title: Text(
-                                itm['item_default_name'] ?? 'Mặt hàng không tên',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                              ),
-                              subtitle: Padding(
-                                padding: const EdgeInsets.only(top: 6.0),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: colorScheme.secondaryContainer,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        itm['unit_name'] ?? 'Cái',
-                                        style: TextStyle(
-                                          color: colorScheme.onSecondaryContainer,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline, color: colorScheme.onPrimaryContainer, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Đang chọn sản phẩm để di chuyển. Hãy bấm vào nút "Chèn vào đây" để thay đổi vị trí.',
+                                    style: TextStyle(color: colorScheme.onPrimaryContainer, fontSize: 13),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _pickedIndex = null;
+                                    });
+                                  },
+                                  child: Text('HỦY', style: TextStyle(color: colorScheme.primary, fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                        child: Builder(
+                          builder: (builderContext) {
+                            final List<Map<String, dynamic>> itemsWithOrigIndex = [];
+                            for (int i = 0; i < _priceItems.length; i++) {
+                              final itm = Map<String, dynamic>.from(_priceItems[i]);
+                              itm['orig_index'] = i;
+                              itemsWithOrigIndex.add(itm);
+                            }
+
+                            final filteredItems = itemsWithOrigIndex.where((itm) {
+                              final name = (itm['item_default_name'] ?? '').toString();
+                              return StringUtils.containsUnaccented(name, _localSearchQuery);
+                            }).toList();
+
+                            if (filteredItems.isEmpty) {
+                              return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('Không tìm thấy sản phẩm phù hợp')));
+                            }
+
+                            if (_pickedIndex == null) {
+                              return ReorderableListView.builder(
+                                buildDefaultDragHandles: false,
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: filteredItems.length,
+                                onReorder: (oldIndex, newIndex) {
+                                  final oldOrigIndex = filteredItems[oldIndex]['orig_index'];
+                                  var newOrigIndex = newIndex < filteredItems.length
+                                      ? filteredItems[newIndex]['orig_index']
+                                      : filteredItems[newIndex - 1]['orig_index'] + 1;
+                                  
+                                  _onReorderPriceItems(oldOrigIndex, newOrigIndex);
+                                },
+                                itemBuilder: (context, idx) {
+                                  final item = filteredItems[idx];
+                                  final origIndex = item['orig_index'];
+                                  return ReorderableDelayedDragStartListener(
+                                    key: ValueKey(item['customer_item_price_id'] ?? '${item['item_id']}_${item['unit_id']}'),
+                                    index: idx,
+                                    child: PriceItemCard(
+                                      item: item,
+                                      index: origIndex,
+                                      isPicked: false,
+                                      onTap: () {
+                                        setState(() {
+                                          _pickedIndex = origIndex;
+                                        });
+                                      },
+                                      onEdit: () => _editItem(origIndex),
+                                      onDelete: () => _removeItem(origIndex),
+                                    ),
+                                  );
+                                },
+                              );
+                            } else {
+                              return Column(
+                                children: [
+                                  _buildInsertSlot(builderContext, filteredItems[0]['orig_index'], _pickedIndex!),
+                                  for (int j = 0; j < filteredItems.length; j++) ...[
+                                    PriceItemCard(
+                                      item: filteredItems[j],
+                                      index: filteredItems[j]['orig_index'],
+                                      isPicked: _pickedIndex == filteredItems[j]['orig_index'],
+                                      onTap: () {
+                                        setState(() {
+                                          if (_pickedIndex == filteredItems[j]['orig_index']) {
+                                            _pickedIndex = null;
+                                          } else {
+                                            _pickedIndex = filteredItems[j]['orig_index'];
+                                          }
+                                        });
+                                      },
+                                      onEdit: () => _editItem(filteredItems[j]['orig_index']),
+                                      onDelete: () => _removeItem(filteredItems[j]['orig_index']),
+                                    ),
+                                    _buildInsertSlot(
+                                      builderContext,
+                                      j < filteredItems.length - 1 
+                                          ? filteredItems[j + 1]['orig_index'] 
+                                          : filteredItems[j]['orig_index'] + 1,
+                                      _pickedIndex!,
                                     ),
                                   ],
-                                ),
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    CurrencyFormatter.formatVND(customPrice),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: colorScheme.primary,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    icon: const Icon(Icons.edit_outlined, size: 20),
-                                    onPressed: () => _editItem(index),
-                                    tooltip: 'Sửa giá',
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.delete_outline_rounded, size: 20, color: colorScheme.error),
-                                    onPressed: () => _removeItem(index),
-                                    tooltip: 'Xóa giá',
-                                  ),
                                 ],
-                              ),
-                            ),
-                          );
-                        },
+                              );
+                            }
+                          },
+                        ),
                       ),
+                    ],
                     const SizedBox(height: 80),
                   ],
                 ),
