@@ -24,6 +24,7 @@ import 'screens/items/item_trash_screen.dart';
 import 'screens/buyer/buyer_trash_screen.dart';
 import 'screens/invoice/invoice_trash_screen.dart';
 import 'screens/pricelist/pricelist_trash_screen.dart';
+import 'screens/pricelist/export_pricelist_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -91,6 +92,7 @@ class MyApp extends StatelessWidget {
         '/buyer_trash': (context) => const BuyerTrashScreen(),
         '/invoice_trash': (context) => const InvoiceTrashScreen(),
         '/pricelist_trash': (context) => const PricelistTrashScreen(),
+        '/export_pricelist': (context) => const ExportPriceListScreen(),
       },
     );
   }

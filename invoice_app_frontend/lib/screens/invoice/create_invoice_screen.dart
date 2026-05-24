@@ -77,15 +77,15 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     try {
       final buyer = await ApiService().getBuyerByCode(code);
       setState(() {
-        _selectedBuyerId = buyer['buyer_id'];
-        _buyerNameController.text = buyer['buyer_name'] ?? '';
+        _selectedBuyerId = buyer['buyerId'];
+        _buyerNameController.text = buyer['buyerName'] ?? '';
         _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
         _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
         _addressController.text = buyer['address'] ?? '';
-        _phoneController.text = buyer['phone_number'] ?? '';
-        _idCardController.text = buyer['id_card_number'] ?? '';
+        _phoneController.text = buyer['phoneNumber'] ?? '';
+        _idCardController.text = buyer['idCardNumber'] ?? '';
         _emailController.text = buyer['email'] ?? '';
-        _taxIdController.text = buyer['tax_id'] ?? '';
+        _taxIdController.text = buyer['taxId'] ?? '';
       });
     } catch (e) {
       if (mounted) {
@@ -102,16 +102,16 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     final buyer = await Navigator.pushNamed(context, '/buyer_search');
     if (buyer != null && buyer is Map<String, dynamic>) {
       setState(() {
-        _selectedBuyerId = buyer['buyer_id'];
-        _buyerCodeController.text = buyer['buyer_code'] ?? '';
-        _buyerNameController.text = buyer['buyer_name'] ?? '';
+        _selectedBuyerId = buyer['buyerId'];
+        _buyerCodeController.text = buyer['buyerCode'] ?? '';
+        _buyerNameController.text = buyer['buyerName'] ?? '';
         _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
         _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
         _addressController.text = buyer['address'] ?? '';
-        _phoneController.text = buyer['phone_number'] ?? '';
-        _idCardController.text = buyer['id_card_number'] ?? '';
+        _phoneController.text = buyer['phoneNumber'] ?? '';
+        _idCardController.text = buyer['idCardNumber'] ?? '';
         _emailController.text = buyer['email'] ?? '';
-        _taxIdController.text = buyer['tax_id'] ?? '';
+        _taxIdController.text = buyer['taxId'] ?? '';
       });
     }
   }
@@ -135,18 +135,18 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       );
 
       if (mounted) {
-        final invoiceId = response['data']['invoice_id'];
+        final invoiceId = response['data']['invoiceId'];
         if (_clonedItems != null && _clonedItems!.isNotEmpty) {
           try {
             for (final item in _clonedItems!) {
               final Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
               await ApiService().createLineItem(invoiceId, {
-                "itemID": itemMap['item_id'],
-                "unitID": itemMap['unit_id'],
-                "itemNameSnapshot": itemMap['item_name'],
-                "unitNameSnapshot": itemMap['unit_name'],
+                "itemId": itemMap['itemId'],
+                "unitId": itemMap['unitId'],
+                "itemNameSnapshot": itemMap['itemNameSnapshot'],
+                "unitNameSnapshot": itemMap['unitNameSnapshot'],
                 "quantity": (itemMap['quantity'] as num?)?.toInt() ?? 1,
-                "unitPriceCustom": itemMap['price'],
+                "unitPriceCustom": itemMap['unitPriceCustom'],
               });
             }
           } catch (e) {
@@ -199,10 +199,10 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                 for (final item in pickedItems) {
                   final Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
                   await ApiService().createLineItem(invoiceId, {
-                    "itemID": itemMap['item_id'],
-                    "unitID": itemMap['unit_id'],
-                    "itemNameSnapshot": itemMap['item_name'],
-                    "unitNameSnapshot": itemMap['unit_name'],
+                    "itemId": itemMap['itemId'],
+                    "unitId": itemMap['unitId'],
+                    "itemNameSnapshot": itemMap['itemName'],
+                    "unitNameSnapshot": itemMap['unitName'],
                     "quantity": (itemMap['quantity'] as num?)?.toInt() ?? 1,
                     "unitPriceCustom": itemMap['price'],
                   });

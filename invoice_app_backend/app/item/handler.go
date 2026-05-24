@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	sqlc "invoice_backend/db/sqlc"
 
@@ -95,14 +96,6 @@ func splitPatchKeys(body map[string]json.RawMessage, allowed map[string]struct{}
 	return forbidden, unknown
 }
 
-// example request body for CreateItem:
-//
-//	{
-//	    "itemDefaultName": "Example Item",
-//	    "itemOtherNames": ["ExItem", "Example"],
-//	    "typeId": "optional-type-uuid",
-//	    "unitId": "optional-unit-uuid"
-//	}
 func (h *ItemHandler) CreateItem(c *fiber.Ctx) error {
 	type createItemRequest struct {
 		ItemDefaultName string   `json:"itemDefaultName"`
@@ -126,24 +119,10 @@ func (h *ItemHandler) CreateItem(c *fiber.Ctx) error {
 
 	return c.Status(201).JSON(fiber.Map{
 		"message": "Item created successfully",
-		"data":    item,
+		"data":    flattenItem(item),
 	})
 }
 
-// example response body for GetItems:
-//
-//	{
-//	    "data": [
-//	        {
-//	            "item_id": "item-uuid",
-//	            "item_default_name": "Example Item",
-//	            "item_other_names": ["ExItem", "Example"],
-//	            "type_id": "optional-type-uuid",
-//	            "unit_id": "optional-unit-uuid"
-//	        },
-//	        ...
-//	    ]
-//	}
 func (h *ItemHandler) GetItems(c *fiber.Ctx) error {
 	typeIDStr := c.Query("typeId")
 	limitStr := c.Query("limit", "20")
@@ -179,11 +158,6 @@ func (h *ItemHandler) GetItems(c *fiber.Ctx) error {
 
 	resp := []fiber.Map{}
 	for _, item := range items {
-		var tID *uuid.UUID
-		if item.TypeID.Valid {
-			tID = &item.TypeID.UUID
-		}
-
 		var units []interface{}
 		if item.Units != nil {
 			json.Unmarshal(item.Units, &units)
@@ -194,36 +168,12 @@ func (h *ItemHandler) GetItems(c *fiber.Ctx) error {
 			json.Unmarshal(item.ItemOtherNames, &otherNames)
 		}
 
-		resp = append(resp, fiber.Map{
-			"item_id":           item.ItemID,
-			"item_default_name": item.ItemDefaultName,
-			"item_other_names":  otherNames,
-			"type_id":           tID,
-			"units":             units,
-			"is_active":         item.IsActive,
-			"created_at":        item.CreatedAt,
-			"updated_at":        item.UpdatedAt,
-		})
+		resp = append(resp, flattenListItemsRow(item, otherNames, units))
 	}
 
 	return c.Status(200).JSON(fiber.Map{"data": resp})
 }
 
-// example query: GET /items/search?keyword=example&limit=10
-// example response body for SearchItems:
-//
-//	{
-//	    "data": [
-//	        {
-//	            "item_id": "item-uuid",
-//	            "item_formal_name": "Example Item",
-//	            "item_other_names": ["ExItem", "Example"],
-//	            "type_id": "optional-type-uuid",
-//	            "unit_id": "optional-unit-uuid"
-//	        },
-//	        ...
-//	    ]
-//	}
 func (h *ItemHandler) SearchItems(c *fiber.Ctx) error {
 	keyword := c.Query("keyword")
 	if keyword == "" {
@@ -256,11 +206,6 @@ func (h *ItemHandler) SearchItems(c *fiber.Ctx) error {
 
 	resp := []fiber.Map{}
 	for _, item := range items {
-		var tID *uuid.UUID
-		if item.TypeID.Valid {
-			tID = &item.TypeID.UUID
-		}
-
 		var units []interface{}
 		if item.Units != nil {
 			json.Unmarshal(item.Units, &units)
@@ -271,27 +216,12 @@ func (h *ItemHandler) SearchItems(c *fiber.Ctx) error {
 			json.Unmarshal(item.ItemOtherNames, &otherNames)
 		}
 
-		resp = append(resp, fiber.Map{
-			"item_id":           item.ItemID,
-			"item_default_name": item.ItemDefaultName,
-			"item_other_names":  otherNames,
-			"type_id":           tID,
-			"units":             units,
-			"is_active":         item.IsActive,
-			"created_at":        item.CreatedAt,
-			"updated_at":        item.UpdatedAt,
-		})
+		resp = append(resp, flattenSearchItemsRow(item, otherNames, units))
 	}
 
 	return c.Status(200).JSON(fiber.Map{"data": resp})
 }
 
-// example request body for CreateUnitForItem:
-//
-//	{
-//	    "unitName": "Example Unit",
-//	    "unitPriceDefault": 100
-//	}
 func (h *ItemHandler) CreateUnitForItem(c *fiber.Ctx) error {
 	type createUnitRequest struct {
 		UnitName         string `json:"unitName"`
@@ -319,39 +249,12 @@ func (h *ItemHandler) CreateUnitForItem(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	var itmID *uuid.UUID
-	if unit.ItemID.Valid {
-		itmID = &unit.ItemID.UUID
-	}
-
 	return c.Status(201).JSON(fiber.Map{
 		"message": "Unit created and assigned to item successfully",
-		"data": fiber.Map{
-			"unit_id":            unit.UnitID,
-			"item_id":            itmID,
-			"unit_name":          unit.UnitName,
-			"unit_price_default": unit.UnitPriceDefault,
-			"ratio":              unit.Ratio,
-			"is_base_unit":       unit.IsBaseUnit,
-			"is_active":          unit.IsActive.Bool,
-			"created_at":         unit.CreatedAt.Time,
-			"updated_at":         unit.UpdatedAt.Time,
-		},
+		"data":    flattenUnit(unit),
 	})
 }
 
-// example response body for GetUnits:
-//
-//	{
-//	    "data": [
-//	        {
-//	            "unit_id": "unit-uuid",
-//	            "unit_name": "Example Unit",
-//	            "unit_price_default": 100
-//	        },
-//	        ...
-//	    ]
-//	}
 func (h *ItemHandler) GetUnits(c *fiber.Ctx) error {
 	units, err := h.service.GetUnits(context.Background())
 	if err != nil {
@@ -360,29 +263,12 @@ func (h *ItemHandler) GetUnits(c *fiber.Ctx) error {
 
 	resp := []fiber.Map{}
 	for _, unit := range units {
-		var itmID *uuid.UUID
-		if unit.ItemID.Valid {
-			itmID = &unit.ItemID.UUID
-		}
-		resp = append(resp, fiber.Map{
-			"unit_id":            unit.UnitID,
-			"item_id":            itmID,
-			"unit_name":          unit.UnitName,
-			"unit_price_default": unit.UnitPriceDefault,
-			"is_active":          unit.IsActive,
-			"created_at":         unit.CreatedAt,
-			"updated_at":         unit.UpdatedAt,
-		})
+		resp = append(resp, flattenUnit(unit))
 	}
 
 	return c.Status(200).JSON(fiber.Map{"data": resp})
 }
 
-// example request body for CreateType:
-//
-//	{
-//	    "typeName": "Example Type"
-//	}
 func (h *ItemHandler) CreateType(c *fiber.Ctx) error {
 	type createTypeRequest struct {
 		TypeName string `json:"typeName"`
@@ -404,28 +290,29 @@ func (h *ItemHandler) CreateType(c *fiber.Ctx) error {
 
 	return c.Status(201).JSON(fiber.Map{
 		"message": "Type created successfully",
-		"data":    typeData,
+		"data": fiber.Map{
+			"typeId":   typeData.TypeID.String(),
+			"typeName": typeData.TypeName,
+		},
 	})
 }
 
-// example response body for GetTypes:
-//
-//	{
-//	    "data": [
-//	        {
-//	            "type_id": "type-uuid",
-//	            "type_name": "Example Type"
-//	        },
-//	        ...
-//	    ]
-//	}
 func (h *ItemHandler) GetTypes(c *fiber.Ctx) error {
 	types, err := h.service.GetTypes(context.Background())
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to get types"})
 	}
 
-	return c.Status(200).JSON(fiber.Map{"data": types})
+	resp := make([]fiber.Map, len(types))
+	for i, t := range types {
+		s := t.TypeID.String()
+		resp[i] = fiber.Map{
+			"typeId":   s,
+			"typeName": t.TypeName,
+		}
+	}
+
+	return c.Status(200).JSON(fiber.Map{"data": resp})
 }
 
 func (h *ItemHandler) AddItemOtherName(c *fiber.Ctx) error {
@@ -450,7 +337,11 @@ func (h *ItemHandler) AddItemOtherName(c *fiber.Ctx) error {
 
 	return c.Status(201).JSON(fiber.Map{
 		"message": "Other name added successfully",
-		"data":    otherName,
+		"data": fiber.Map{
+			"itemOtherNameId": otherName.ItemOtherNameID,
+			"itemId":          otherName.ItemID,
+			"nameString":      otherName.NameString,
+		},
 	})
 }
 
@@ -543,7 +434,7 @@ func (h *ItemHandler) PatchItem(c *fiber.Ctx) error {
 
 	return c.Status(200).JSON(fiber.Map{
 		"message": "Item patched successfully",
-		"data":    itemData,
+		"data":    flattenItem(itemData),
 	})
 }
 
@@ -647,24 +538,9 @@ func (h *ItemHandler) PatchUnit(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	var itmID *uuid.UUID
-	if unitData.ItemID.Valid {
-		itmID = &unitData.ItemID.UUID
-	}
-
 	return c.Status(200).JSON(fiber.Map{
 		"message": "Unit patched successfully",
-		"data": fiber.Map{
-			"unit_id":            unitData.UnitID,
-			"item_id":            itmID,
-			"unit_name":          unitData.UnitName,
-			"unit_price_default": unitData.UnitPriceDefault,
-			"ratio":              unitData.Ratio,
-			"is_base_unit":       unitData.IsBaseUnit,
-			"is_active":          unitData.IsActive.Bool,
-			"created_at":         unitData.CreatedAt.Time,
-			"updated_at":         unitData.UpdatedAt.Time,
-		},
+		"data":    flattenUnit(unitData),
 	})
 }
 
@@ -719,7 +595,10 @@ func (h *ItemHandler) PatchType(c *fiber.Ctx) error {
 
 	return c.Status(200).JSON(fiber.Map{
 		"message": "Type patched successfully",
-		"data":    typeData,
+		"data": fiber.Map{
+			"typeId":   typeData.TypeID.String(),
+			"typeName": typeData.TypeName,
+		},
 	})
 }
 
@@ -848,11 +727,6 @@ func (h *ItemHandler) GetDeletedItems(c *fiber.Ctx) error {
 
 	resp := []fiber.Map{}
 	for _, item := range items {
-		var tID *uuid.UUID
-		if item.TypeID.Valid {
-			tID = &item.TypeID.UUID
-		}
-
 		var units []interface{}
 		if item.Units != nil {
 			json.Unmarshal(item.Units, &units)
@@ -863,18 +737,179 @@ func (h *ItemHandler) GetDeletedItems(c *fiber.Ctx) error {
 			json.Unmarshal(item.ItemOtherNames, &otherNames)
 		}
 
-		resp = append(resp, fiber.Map{
-			"item_id":           item.ItemID,
-			"item_default_name": item.ItemDefaultName,
-			"item_other_names":  otherNames,
-			"type_id":           tID,
-			"units":             units,
-			"is_active":         item.IsActive,
-			"created_at":        item.CreatedAt,
-			"updated_at":        item.UpdatedAt,
-			"deleted_at":        item.DeletedAt.Time,
-		})
+		resp = append(resp, flattenDeletedItemsRow(item, otherNames, units))
 	}
 
 	return c.Status(200).JSON(fiber.Map{"data": resp})
+}
+
+func flattenItem(item sqlc.Item) fiber.Map {
+	var typeIDPtr *string
+	if item.TypeID.Valid {
+		s := item.TypeID.UUID.String()
+		typeIDPtr = &s
+	}
+	var isActive *bool
+	if item.IsActive.Valid {
+		isActive = &item.IsActive.Bool
+	}
+	var createdAt *string
+	if item.CreatedAt.Valid {
+		s := item.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+	var updatedAt *string
+	if item.UpdatedAt.Valid {
+		s := item.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &s
+	}
+	return fiber.Map{
+		"itemId":          item.ItemID,
+		"itemDefaultName": item.ItemDefaultName,
+		"typeId":          typeIDPtr,
+		"isActive":        isActive,
+		"createdAt":       createdAt,
+		"updatedAt":       updatedAt,
+	}
+}
+
+func flattenUnit(unit sqlc.Unit) fiber.Map {
+	var itemIDPtr *string
+	if unit.ItemID.Valid {
+		s := unit.ItemID.UUID.String()
+		itemIDPtr = &s
+	}
+	var isActive *bool
+	if unit.IsActive.Valid {
+		isActive = &unit.IsActive.Bool
+	}
+	var createdAt *string
+	if unit.CreatedAt.Valid {
+		s := unit.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+	var updatedAt *string
+	if unit.UpdatedAt.Valid {
+		s := unit.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &s
+	}
+	var deletedAt *string
+	if unit.DeletedAt.Valid {
+		s := unit.DeletedAt.Time.Format(time.RFC3339)
+		deletedAt = &s
+	}
+	return fiber.Map{
+		"unitId":           unit.UnitID,
+		"itemId":           itemIDPtr,
+		"unitName":         unit.UnitName,
+		"unitPriceDefault": unit.UnitPriceDefault,
+		"ratio":            unit.Ratio,
+		"isBaseUnit":       unit.IsBaseUnit,
+		"isActive":         isActive,
+		"createdAt":        createdAt,
+		"updatedAt":        updatedAt,
+		"deletedAt":        deletedAt,
+	}
+}
+
+func flattenListItemsRow(item sqlc.ListItemsFilteredRow, otherNames []interface{}, units []interface{}) fiber.Map {
+	var typeIDPtr *string
+	if item.TypeID.Valid {
+		s := item.TypeID.UUID.String()
+		typeIDPtr = &s
+	}
+	var isActive *bool
+	if item.IsActive.Valid {
+		isActive = &item.IsActive.Bool
+	}
+	var createdAt *string
+	if item.CreatedAt.Valid {
+		s := item.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+	var updatedAt *string
+	if item.UpdatedAt.Valid {
+		s := item.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &s
+	}
+	return fiber.Map{
+		"itemId":          item.ItemID,
+		"itemDefaultName": item.ItemDefaultName,
+		"itemOtherNames":  otherNames,
+		"typeId":          typeIDPtr,
+		"units":           units,
+		"isActive":        isActive,
+		"createdAt":       createdAt,
+		"updatedAt":       updatedAt,
+	}
+}
+
+func flattenSearchItemsRow(item sqlc.SearchItemsRow, otherNames []interface{}, units []interface{}) fiber.Map {
+	var typeIDPtr *string
+	if item.TypeID.Valid {
+		s := item.TypeID.UUID.String()
+		typeIDPtr = &s
+	}
+	var isActive *bool
+	if item.IsActive.Valid {
+		isActive = &item.IsActive.Bool
+	}
+	var createdAt *string
+	if item.CreatedAt.Valid {
+		s := item.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+	var updatedAt *string
+	if item.UpdatedAt.Valid {
+		s := item.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &s
+	}
+	return fiber.Map{
+		"itemId":          item.ItemID,
+		"itemDefaultName": item.ItemDefaultName,
+		"itemOtherNames":  otherNames,
+		"typeId":          typeIDPtr,
+		"units":           units,
+		"isActive":        isActive,
+		"createdAt":       createdAt,
+		"updatedAt":       updatedAt,
+	}
+}
+
+func flattenDeletedItemsRow(item sqlc.ListDeletedItemsRow, otherNames []interface{}, units []interface{}) fiber.Map {
+	var typeIDPtr *string
+	if item.TypeID.Valid {
+		s := item.TypeID.UUID.String()
+		typeIDPtr = &s
+	}
+	var isActive *bool
+	if item.IsActive.Valid {
+		isActive = &item.IsActive.Bool
+	}
+	var createdAt *string
+	if item.CreatedAt.Valid {
+		s := item.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+	var updatedAt *string
+	if item.UpdatedAt.Valid {
+		s := item.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &s
+	}
+	var deletedAt *string
+	if item.DeletedAt.Valid {
+		s := item.DeletedAt.Time.Format(time.RFC3339)
+		deletedAt = &s
+	}
+	return fiber.Map{
+		"itemId":          item.ItemID,
+		"itemDefaultName": item.ItemDefaultName,
+		"itemOtherNames":  otherNames,
+		"typeId":          typeIDPtr,
+		"units":           units,
+		"isActive":        isActive,
+		"createdAt":       createdAt,
+		"updatedAt":       updatedAt,
+		"deletedAt":       deletedAt,
+	}
 }

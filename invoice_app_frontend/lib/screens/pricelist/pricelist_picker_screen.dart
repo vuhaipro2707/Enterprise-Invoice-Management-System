@@ -151,7 +151,7 @@ class _PriceListPickerScreenState extends State<PriceListPickerScreen> {
   }
 
   void _handlePriceListTap(Map<String, dynamic> pl) async {
-    final pricelistId = pl['customer_price_list_id'].toString();
+    final pricelistId = pl['customerPriceListId'].toString();
     if (!mounted) return;
 
     final selectedItems = await Navigator.pushNamed(

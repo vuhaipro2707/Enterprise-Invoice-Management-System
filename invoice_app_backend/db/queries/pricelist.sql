@@ -24,13 +24,13 @@ SELECT cpl.*,
        b.phone_number,
        b.address,
        COALESCE(JSON_AGG(JSONB_BUILD_OBJECT(
-         'customer_item_price_id', cip.customer_item_price_id,
-         'item_id', cip.item_id,
-         'item_default_name', it.item_default_name,
-         'unit_id', cip.unit_id,
-         'unit_name', u.unit_name,
-         'unit_price_custom', cip.unit_price_custom,
-         'position_key', cip.position_key
+         'customerItemPriceId', cip.customer_item_price_id,
+         'itemId', cip.item_id,
+         'itemDefaultName', it.item_default_name,
+         'unitId', cip.unit_id,
+         'unitName', u.unit_name,
+         'unitPriceCustom', cip.unit_price_custom,
+         'positionKey', cip.position_key
        ) ORDER BY cip.position_key ASC) FILTER (WHERE cip.customer_item_price_id IS NOT NULL), '[]')::JSONB AS item_prices
 FROM customer_price_lists cpl
 LEFT JOIN buyers b ON cpl.buyer_id = b.buyer_id

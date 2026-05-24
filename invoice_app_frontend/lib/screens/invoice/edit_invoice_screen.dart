@@ -67,8 +67,8 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
 
       if (!mounted) return;
 
-      final bool editStatus = data['edit_status'] ?? false;
-      final String? holdingId = data['device_holding_id'];
+      final bool editStatus = data['editStatus'] ?? false;
+      final String? holdingId = data['deviceHoldingId'];
       final String currentDeviceId = _apiService.deviceId ?? '';
 
       if (!editStatus) {
@@ -81,7 +81,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       } else if (holdingId != null && holdingId != currentDeviceId) {
         _showStatusAlert(
           title: 'Mất quyền chỉnh sửa',
-          message: 'Thiết bị khác (${data['device_name'] ?? 'Thiết bị khác'}) đã giành quyền chỉnh sửa hóa đơn này.',
+          message: 'Thiết bị khác (${data['deviceName'] ?? 'Thiết bị khác'}) đã giành quyền chỉnh sửa hóa đơn này.',
           confirmLabel: 'GIÀNH LẠI QUYỀN',
           onConfirm: _takeTurn,
         );
@@ -191,31 +191,31 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     final data = _invoiceData!;
 
     final currentBuyerId = _selectedBuyerId;
-    final initialBuyerId = data['buyer_id'];
+    final initialBuyerId = data['buyerId'];
 
     final currentBuyerCode = _buyerCodeController.text.trim();
-    final initialBuyerCode = (data['buyer_code']?.toString() ?? '').trim();
+    final initialBuyerCode = (data['buyerCode']?.toString() ?? '').trim();
 
     final currentName = _buyerNameController.text.trim();
-    final initialName = (data['buyer_name_snapshot']?.toString() ?? '').trim();
+    final initialName = (data['buyerNameSnapshot']?.toString() ?? '').trim();
 
     final currentAddress = _addressController.text.trim();
-    final initialAddress = (data['address_snapshot']?.toString() ?? '').trim();
+    final initialAddress = (data['addressSnapshot']?.toString() ?? '').trim();
 
     final currentPhone = _phoneController.text.trim();
-    final initialPhone = (data['phone_number_snapshot']?.toString() ?? '').trim();
+    final initialPhone = (data['phoneNumberSnapshot']?.toString() ?? '').trim();
 
     final currentIdCard = _idCardController.text.trim();
-    final initialIdCard = (data['id_card_number_snapshot']?.toString() ?? '').trim();
+    final initialIdCard = (data['idCardNumberSnapshot']?.toString() ?? '').trim();
 
     final currentEmail = _emailController.text.trim();
-    final initialEmail = (data['email_snapshot']?.toString() ?? '').trim();
+    final initialEmail = (data['emailSnapshot']?.toString() ?? '').trim();
 
     final currentTaxId = _taxIdController.text.trim();
-    final initialTaxId = (data['tax_id_snapshot']?.toString() ?? '').trim();
+    final initialTaxId = (data['taxIdSnapshot']?.toString() ?? '').trim();
 
-    final double? initialLat = data['lat_snapshot'] != null ? (data['lat_snapshot'] as num).toDouble() : null;
-    final double? initialLng = data['lng_snapshot'] != null ? (data['lng_snapshot'] as num).toDouble() : null;
+    final double? initialLat = data['latSnapshot'] != null ? (data['latSnapshot'] as num).toDouble() : null;
+    final double? initialLng = data['lngSnapshot'] != null ? (data['lngSnapshot'] as num).toDouble() : null;
 
     return currentBuyerId != initialBuyerId ||
         currentBuyerCode != initialBuyerCode ||
@@ -343,16 +343,16 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       final data = await _apiService.getInvoice(_invoiceId!);
       setState(() {
         _invoiceData = data;
-        _selectedBuyerId = data['buyer_id'];
-        _buyerCodeController.text = data['buyer_code']?.toString() ?? '';
-        _buyerNameController.text = data['buyer_name_snapshot']?.toString() ?? '';
-        _addressController.text = data['address_snapshot']?.toString() ?? '';
-        _phoneController.text = data['phone_number_snapshot']?.toString() ?? '';
-        _idCardController.text = data['id_card_number_snapshot']?.toString() ?? '';
-        _emailController.text = data['email_snapshot']?.toString() ?? '';
-        _taxIdController.text = data['tax_id_snapshot']?.toString() ?? '';
-        _selectedLat = data['lat_snapshot'] != null ? (data['lat_snapshot'] as num).toDouble() : null;
-        _selectedLng = data['lng_snapshot'] != null ? (data['lng_snapshot'] as num).toDouble() : null;
+        _selectedBuyerId = data['buyerId'];
+        _buyerCodeController.text = data['buyerCode']?.toString() ?? '';
+        _buyerNameController.text = data['buyerNameSnapshot']?.toString() ?? '';
+        _addressController.text = data['addressSnapshot']?.toString() ?? '';
+        _phoneController.text = data['phoneNumberSnapshot']?.toString() ?? '';
+        _idCardController.text = data['idCardNumberSnapshot']?.toString() ?? '';
+        _emailController.text = data['emailSnapshot']?.toString() ?? '';
+        _taxIdController.text = data['taxIdSnapshot']?.toString() ?? '';
+        _selectedLat = data['latSnapshot'] != null ? (data['latSnapshot'] as num).toDouble() : null;
+        _selectedLng = data['lngSnapshot'] != null ? (data['lngSnapshot'] as num).toDouble() : null;
         _isLoading = false;
       });
     } catch (e) {
@@ -372,15 +372,15 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     try {
       final buyer = await _apiService.getBuyerByCode(code);
       setState(() {
-        _selectedBuyerId = buyer['buyer_id'];
-        _buyerNameController.text = buyer['buyer_name'] ?? '';
+        _selectedBuyerId = buyer['buyerId'];
+        _buyerNameController.text = buyer['buyerName'] ?? '';
         _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
         _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
         _addressController.text = buyer['address'] ?? '';
-        _phoneController.text = buyer['phone_number'] ?? '';
-        _idCardController.text = buyer['id_card_number'] ?? '';
+        _phoneController.text = buyer['phoneNumber'] ?? '';
+        _idCardController.text = buyer['idCardNumber'] ?? '';
         _emailController.text = buyer['email'] ?? '';
-        _taxIdController.text = buyer['tax_id'] ?? '';
+        _taxIdController.text = buyer['taxId'] ?? '';
       });
     } catch (e) {
       if (mounted) {
@@ -397,16 +397,16 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     final buyer = await Navigator.pushNamed(context, '/buyer_search');
     if (buyer != null && buyer is Map<String, dynamic>) {
       setState(() {
-        _selectedBuyerId = buyer['buyer_id'];
-        _buyerCodeController.text = buyer['buyer_code'] ?? '';
-        _buyerNameController.text = buyer['buyer_name'] ?? '';
+        _selectedBuyerId = buyer['buyerId'];
+        _buyerCodeController.text = buyer['buyerCode'] ?? '';
+        _buyerNameController.text = buyer['buyerName'] ?? '';
         _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
         _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
         _addressController.text = buyer['address'] ?? '';
-        _phoneController.text = buyer['phone_number'] ?? '';
-        _idCardController.text = buyer['id_card_number'] ?? '';
+        _phoneController.text = buyer['phoneNumber'] ?? '';
+        _idCardController.text = buyer['idCardNumber'] ?? '';
         _emailController.text = buyer['email'] ?? '';
-        _taxIdController.text = buyer['tax_id'] ?? '';
+        _taxIdController.text = buyer['taxId'] ?? '';
       });
     }
   }
@@ -487,16 +487,16 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       if (mounted) {
         setState(() {
           if (_invoiceData != null) {
-            _invoiceData!['buyer_id'] = _selectedBuyerId;
-            _invoiceData!['buyer_code'] = _buyerCodeController.text.trim();
-            _invoiceData!['buyer_name_snapshot'] = _buyerNameController.text.trim();
-            _invoiceData!['address_snapshot'] = _addressController.text.trim();
-            _invoiceData!['phone_number_snapshot'] = _phoneController.text.trim();
-            _invoiceData!['id_card_number_snapshot'] = _idCardController.text.trim();
-            _invoiceData!['email_snapshot'] = _emailController.text.trim();
-            _invoiceData!['tax_id_snapshot'] = _taxIdController.text.trim();
-            _invoiceData!['lat_snapshot'] = _selectedLat;
-            _invoiceData!['lng_snapshot'] = _selectedLng;
+            _invoiceData!['buyerId'] = _selectedBuyerId;
+            _invoiceData!['buyerCode'] = _buyerCodeController.text.trim();
+            _invoiceData!['buyerNameSnapshot'] = _buyerNameController.text.trim();
+            _invoiceData!['addressSnapshot'] = _addressController.text.trim();
+            _invoiceData!['phoneNumberSnapshot'] = _phoneController.text.trim();
+            _invoiceData!['idCardNumberSnapshot'] = _idCardController.text.trim();
+            _invoiceData!['emailSnapshot'] = _emailController.text.trim();
+            _invoiceData!['taxIdSnapshot'] = _taxIdController.text.trim();
+            _invoiceData!['latSnapshot'] = _selectedLat;
+            _invoiceData!['lngSnapshot'] = _selectedLng;
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -529,7 +529,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       );
     }
 
-    final lineItems = (_invoiceData?['line_items'] as List?) ?? [];
+    final lineItems = (_invoiceData?['lineItems'] as List?) ?? [];
 
     return PopScope(
       canPop: true,
@@ -541,7 +541,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Sửa ${_invoiceData?['invoice_code'] ?? 'Hóa đơn'}'),
+          title: Text('Sửa ${_invoiceData?['invoiceCode'] ?? 'Hóa đơn'}'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
@@ -579,7 +579,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                     Text('Thông tin chung', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
                     const SizedBox(height: 12),
                     TextFormField(
-                      initialValue: _invoiceData?['invoice_code'],
+                      initialValue: _invoiceData?['invoiceCode'],
                       decoration: const InputDecoration(labelText: 'Mã hóa đơn', border: OutlineInputBorder()),
                       readOnly: true,
                       enabled: false,
@@ -842,7 +842,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                   }
 
                   final filteredItems = itemsWithOrigIndex.where((itm) {
-                    final name = (itm['item_name_snapshot'] ?? '').toString();
+                    final name = (itm['itemNameSnapshot'] ?? '').toString();
                     return StringUtils.containsUnaccented(name, _localSearchQuery);
                   }).toList();
 
@@ -868,7 +868,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                         final item = filteredItems[idx];
                         final origIndex = item['orig_index'];
                         return ReorderableDelayedDragStartListener(
-                          key: ValueKey(item['line_item_id']),
+                          key: ValueKey(item['lineItemId']),
                           index: idx,
                           child: LineItemCard(
                             item: item,
@@ -941,7 +941,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                 const Text('Tổng cộng:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 Text(
                   NumberFormat.currency(locale: 'vi_VN', symbol: 'đ')
-                      .format((_invoiceData?['total_amount'] as num?)?.toDouble() ?? 0),
+                      .format((_invoiceData?['totalAmount'] as num?)?.toDouble() ?? 0),
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.primary),
                 ),
               ],
@@ -1000,7 +1000,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     if (oldIndex == newIndex) return;
 
     final movedItem = lineItems[oldIndex];
-    final String lineItemId = movedItem['line_item_id'];
+    final String lineItemId = movedItem['lineItemId'];
 
     setState(() {
       final item = lineItems.removeAt(oldIndex);
@@ -1011,10 +1011,10 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     String? nextId;
 
     if (newIndex > 0) {
-      prevId = lineItems[newIndex - 1]['line_item_id'];
+      prevId = lineItems[newIndex - 1]['lineItemId'];
     }
     if (newIndex < lineItems.length - 1) {
-      nextId = lineItems[newIndex + 1]['line_item_id'];
+      nextId = lineItems[newIndex + 1]['lineItemId'];
     }
 
     try {
@@ -1116,10 +1116,10 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       try {
         for (final item in result) {
           await _apiService.createLineItem(_invoiceId!, {
-            "itemID": item['item_id'],
-            "unitID": item['unit_id'],
-            "itemNameSnapshot": item['item_name'],
-            "unitNameSnapshot": item['unit_name'],
+            "itemId": item['itemId'],
+            "unitId": item['unitId'],
+            "itemNameSnapshot": item['itemName'],
+            "unitNameSnapshot": item['unitName'],
             "quantity": (item['quantity'] as num?)?.toInt() ?? 1, // Quantity chosen in selection screen (must be int)
             "unitPriceCustom": item['price'],
           });
@@ -1153,14 +1153,14 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Xác nhận xóa'),
-        content: Text('Bạn có chắc muốn xóa dòng "${lineItem['item_name_snapshot']}"?'),
+        content: Text('Bạn có chắc muốn xóa dòng "${lineItem['itemNameSnapshot']}"?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('HỦY')),
           TextButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
               try {
-                await _apiService.deleteLineItem(lineItem['line_item_id'].toString());
+                await _apiService.deleteLineItem(lineItem['lineItemId'].toString());
                 if (!mounted) return;
                 _fetchInvoiceDetails();
               } catch (e) {

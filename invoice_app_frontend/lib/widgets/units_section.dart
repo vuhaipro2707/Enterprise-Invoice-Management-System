@@ -48,7 +48,7 @@ class _UnitsSectionState extends State<UnitsSection> {
     // If the units list is empty upon initialization, automatically add a base unit
     if (widget.units.isEmpty) {
       widget.units.add({
-        'unit_id': null,
+        'unitId': null,
         'nameController': TextEditingController(),
         'priceController': TextEditingController(),
         'ratioController': TextEditingController(text: '1'),
@@ -154,7 +154,7 @@ class _UnitsSectionState extends State<UnitsSection> {
     setState(() {
       final isFirst = widget.units.isEmpty;
       widget.units.add({
-        'unit_id': null,
+        'unitId': null,
         'nameController': TextEditingController(),
         'priceController': TextEditingController(),
         'ratioController': TextEditingController(text: '1'),
@@ -165,7 +165,7 @@ class _UnitsSectionState extends State<UnitsSection> {
 
   void _removeUnit(int index) {
     setState(() {
-      final unitId = widget.units[index]['unit_id'];
+      final unitId = widget.units[index]['unitId'];
       if (unitId != null && widget.removedUnitIds != null) {
         widget.removedUnitIds!.add(unitId);
       }

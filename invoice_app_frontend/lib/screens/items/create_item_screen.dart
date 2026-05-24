@@ -67,15 +67,15 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
           initialTypes: _types,
           onTypeSelected: (type) {
             setState(() {
-              _selectedTypeId = type['type_id'];
-              _selectedTypeName = type['type_name'];
+              _selectedTypeId = type['typeId'];
+              _selectedTypeName = type['typeName'];
             });
           },
           onTypeCreated: (newType) {
             setState(() {
               _types.add(newType);
-              _selectedTypeId = newType['type_id'];
-              _selectedTypeName = newType['type_name'];
+              _selectedTypeId = newType['typeId'];
+              _selectedTypeName = newType['typeName'];
             });
           },
         );
@@ -97,7 +97,7 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
         _selectedTypeId,
       );
 
-      final itemId = result['data']['item_id'];
+      final itemId = result['data']['itemId'];
 
       // Sort units so that base unit is created first
       final List<Map<String, dynamic>> sortedUnits = List.from(_units);

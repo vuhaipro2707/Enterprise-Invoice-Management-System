@@ -62,15 +62,15 @@ WHERE item_other_name_id = $1;
 -- name: ListItems :many
 SELECT i.*, 
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'item_other_name_id', ion.item_other_name_id,
-         'name_string', ion.name_string
+         'itemOtherNameId', ion.item_other_name_id,
+         'nameString', ion.name_string
        )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'unit_id', u.unit_id,
-         'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default,
+         'unitId', u.unit_id,
+         'unitName', u.unit_name,
+         'unitPriceDefault', u.unit_price_default,
          'ratio', u.ratio,
-         'is_base_unit', u.is_base_unit
+         'isBaseUnit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -82,15 +82,15 @@ ORDER BY i.created_at DESC;
 -- name: GetItemByID :one
 SELECT i.*,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'item_other_name_id', ion.item_other_name_id,
-         'name_string', ion.name_string
+         'itemOtherNameId', ion.item_other_name_id,
+         'nameString', ion.name_string
        )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'unit_id', u.unit_id,
-         'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default,
+         'unitId', u.unit_id,
+         'unitName', u.unit_name,
+         'unitPriceDefault', u.unit_price_default,
          'ratio', u.ratio,
-         'is_base_unit', u.is_base_unit
+         'isBaseUnit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -111,15 +111,15 @@ RETURNING *;
 -- name: SearchItems :many
 SELECT i.*,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'item_other_name_id', ion.item_other_name_id,
-         'name_string', ion.name_string
+         'itemOtherNameId', ion.item_other_name_id,
+         'nameString', ion.name_string
        )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'unit_id', u.unit_id,
-         'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default,
+         'unitId', u.unit_id,
+         'unitName', u.unit_name,
+         'unitPriceDefault', u.unit_price_default,
          'ratio', u.ratio,
-         'is_base_unit', u.is_base_unit
+         'isBaseUnit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -207,15 +207,15 @@ RETURNING *;
 -- name: ListItemsFiltered :many
 SELECT i.*, 
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'item_other_name_id', ion.item_other_name_id,
-         'name_string', ion.name_string
+         'itemOtherNameId', ion.item_other_name_id,
+         'nameString', ion.name_string
        )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'unit_id', u.unit_id,
-         'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default,
+         'unitId', u.unit_id,
+         'unitName', u.unit_name,
+         'unitPriceDefault', u.unit_price_default,
          'ratio', u.ratio,
-         'is_base_unit', u.is_base_unit
+         'isBaseUnit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -251,15 +251,15 @@ WHERE item_id = $1;
 -- name: ListDeletedItems :many
 SELECT i.*, 
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'item_other_name_id', ion.item_other_name_id,
-         'name_string', ion.name_string
+         'itemOtherNameId', ion.item_other_name_id,
+         'nameString', ion.name_string
        )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'unit_id', u.unit_id,
-         'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default,
+         'unitId', u.unit_id,
+         'unitName', u.unit_name,
+         'unitPriceDefault', u.unit_price_default,
          'ratio', u.ratio,
-         'is_base_unit', u.is_base_unit
+         'isBaseUnit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id

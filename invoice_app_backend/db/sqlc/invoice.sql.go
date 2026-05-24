@@ -458,15 +458,15 @@ const getInvoiceWithLines = `-- name: GetInvoiceWithLines :one
 SELECT i.invoice_id, i.account_id, i.buyer_id, i.invoice_code, i.total_amount, i.device_holding_id, i.edit_status, i.paid_locked, i.buyer_name_snapshot, i.address_snapshot, i.id_card_number_snapshot, i.email_snapshot, i.lat_snapshot, i.lng_snapshot, i.phone_number_snapshot, i.tax_id_snapshot, i.is_active, i.created_at, i.updated_at, i.deleted_at,
        b.buyer_code,
        COALESCE(JSON_AGG(JSONB_BUILD_OBJECT(
-         'line_item_id', li.line_item_id,
-         'item_id', li.item_id,
-         'unit_id', li.unit_id,
+         'lineItemId', li.line_item_id,
+         'itemId', li.item_id,
+         'unitId', li.unit_id,
          'quantity', li.quantity,
-         'unit_price_custom', li.unit_price_custom,
-         'sub_total', li.sub_total,
-         'item_name_snapshot', li.item_name_snapshot,
-         'unit_name_snapshot', li.unit_name_snapshot,
-         'position_key', li.position_key
+         'unitPriceCustom', li.unit_price_custom,
+         'subTotal', li.sub_total,
+         'itemNameSnapshot', li.item_name_snapshot,
+         'unitNameSnapshot', li.unit_name_snapshot,
+         'positionKey', li.position_key
        ) ORDER BY li.position_key) FILTER (WHERE li.line_item_id IS NOT NULL), '[]')::JSONB AS line_items
 FROM invoices i
 LEFT JOIN buyers b ON i.buyer_id = b.buyer_id

@@ -208,14 +208,14 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
           initialTypes: _types,
           onTypeSelected: (type) {
             setState(() {
-              _selectedTypeId = type['type_id'];
+              _selectedTypeId = type['typeId'];
             });
             _fetchItems();
           },
           onTypeCreated: (newType) {
             setState(() {
               _types.add(newType);
-              _selectedTypeId = newType['type_id'];
+              _selectedTypeId = newType['typeId'];
             });
             _fetchItems();
           },
@@ -503,8 +503,8 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                 ),
                 const SizedBox(width: 8),
                 ..._types.map((type) {
-                  final typeId = type['type_id'];
-                  final typeName = type['type_name'];
+                  final typeId = type['typeId'];
+                  final typeName = type['typeName'];
                   return Padding(
                     padding: const EdgeInsets.only(right: 8.0),
                     child: FilterChip(

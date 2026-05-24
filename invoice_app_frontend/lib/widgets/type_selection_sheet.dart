@@ -43,7 +43,7 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
   void _filterTypes(String query) {
     setState(() {
       _filteredTypes = widget.initialTypes
-          .where((t) => t['type_name']
+          .where((t) => t['typeName']
               .toString()
               .toLowerCase()
               .contains(query.toLowerCase()))
@@ -53,8 +53,8 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
 
   void _startEditing(dynamic type) {
     setState(() {
-      _editingTypeId = type['type_id'];
-      _editNameController.text = type['type_name'] ?? '';
+      _editingTypeId = type['typeId'];
+      _editNameController.text = type['typeName'] ?? '';
     });
   }
 
@@ -68,20 +68,20 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
   Future<void> _saveEditType(dynamic type) async {
     final newName = _editNameController.text.trim();
     if (newName.isEmpty) return;
-    if (newName == type['type_name']) {
+    if (newName == type['typeName']) {
       _cancelEditing();
       return;
     }
 
     setState(() => _isSavingEdit = true);
     try {
-      await ApiService().updateType(type['type_id'], newName);
+      await ApiService().updateType(type['typeId'], newName);
       
       setState(() {
-        type['type_name'] = newName;
-        final index = widget.initialTypes.indexWhere((t) => t['type_id'] == type['type_id']);
+        type['typeName'] = newName;
+        final index = widget.initialTypes.indexWhere((t) => t['typeId'] == type['typeId']);
         if (index != -1) {
-          widget.initialTypes[index]['type_name'] = newName;
+          widget.initialTypes[index]['typeName'] = newName;
         }
         _editingTypeId = null;
         _editNameController.clear();
@@ -100,19 +100,19 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
   }
 
   Future<void> _deleteType(dynamic type) async {
-    setState(() => _deletingTypeId = type['type_id']);
+    setState(() => _deletingTypeId = type['typeId']);
     
     try {
       // 1. Kiểm tra sản phẩm phụ thuộc
-      final dependentItems = await ApiService().getItems(typeId: type['type_id']);
+      final dependentItems = await ApiService().getItems(typeId: type['typeId']);
       
       if (!mounted) return;
       setState(() => _deletingTypeId = null);
 
       final hasDependencies = dependentItems.isNotEmpty;
       final confirmMessage = hasDependencies
-          ? 'Loại hàng "${type['type_name']}" đang có ${dependentItems.length} sản phẩm phụ thuộc. Nếu xóa, các sản phẩm này sẽ bị bỏ phân loại. Bạn vẫn muốn tiếp tục xóa chứ?'
-          : 'Bạn có chắc chắn muốn xóa loại hàng "${type['type_name']}"? Hành động này không thể hoàn tác.';
+          ? 'Loại hàng "${type['typeName']}" đang có ${dependentItems.length} sản phẩm phụ thuộc. Nếu xóa, các sản phẩm này sẽ bị bỏ phân loại. Bạn vẫn muốn tiếp tục xóa chứ?'
+          : 'Bạn có chắc chắn muốn xóa loại hàng "${type['typeName']}"? Hành động này không thể hoàn tác.';
 
       // 2. Xác nhận xóa
       final confirm = await showDialog<bool>(
@@ -140,12 +140,12 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
       if (confirm != true) return;
 
       // 3. Thực hiện xóa cứng
-      setState(() => _deletingTypeId = type['type_id']);
-      await ApiService().deleteType(type['type_id']);
+      setState(() => _deletingTypeId = type['typeId']);
+      await ApiService().deleteType(type['typeId']);
 
       setState(() {
-        widget.initialTypes.removeWhere((t) => t['type_id'] == type['type_id']);
-        _filteredTypes.removeWhere((t) => t['type_id'] == type['type_id']);
+        widget.initialTypes.removeWhere((t) => t['typeId'] == type['typeId']);
+        _filteredTypes.removeWhere((t) => t['typeId'] == type['typeId']);
       });
 
       if (mounted) {
@@ -259,7 +259,7 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
               ),
               const SizedBox(height: 16),
               if (_searchController.text.isNotEmpty && 
-                  !_filteredTypes.any((t) => t['type_name'].toString().toLowerCase() == _searchController.text.trim().toLowerCase()))
+                  !_filteredTypes.any((t) => t['typeName'].toString().toLowerCase() == _searchController.text.trim().toLowerCase()))
                 ListTile(
                   leading: Icon(Icons.add_circle_outline, color: colorScheme.primary),
                   title: Text('Tạo mới loại: "${_searchController.text}"'),
@@ -272,7 +272,7 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
                   itemCount: _filteredTypes.length,
                   itemBuilder: (itemBuilderContext, index) {
                     final type = _filteredTypes[index];
-                    final isEditing = type['type_id'] == _editingTypeId;
+                    final isEditing = type['typeId'] == _editingTypeId;
 
                     if (isEditing) {
                       return Padding(
@@ -318,7 +318,7 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
                     }
 
                     return ListTile(
-                      title: Text(type['type_name'] ?? ''),
+                      title: Text(type['typeName'] ?? ''),
                       onTap: () {
                         widget.onTypeSelected(type);
                         Navigator.pop(itemBuilderContext);
@@ -331,7 +331,7 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
                             onPressed: _deletingTypeId != null ? null : () => _startEditing(type),
                             tooltip: 'Sửa',
                           ),
-                          if (_deletingTypeId == type['type_id'])
+                          if (_deletingTypeId == type['typeId'])
                             const Padding(
                               padding: EdgeInsets.all(12.0),
                               child: SizedBox(

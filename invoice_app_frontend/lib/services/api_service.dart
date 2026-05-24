@@ -407,9 +407,9 @@ class ApiService {
       Uri.parse('$baseUrl/invoice/lineItem/changeOrder/$invoiceId'),
       headers: _headers,
       body: jsonEncode({
-        'line_item_id': lineItemId,
-        'prev_line_item_id': prevId,
-        'next_line_item_id': nextId,
+        'lineItemId': lineItemId,
+        'prevLineItemId': prevId,
+        'nextLineItemId': nextId,
       }),
     );
     final data = jsonDecode(response.body);
@@ -770,9 +770,9 @@ class ApiService {
       Uri.parse('$baseUrl/pricelist/changeOrder/$pricelistId'),
       headers: _headers,
       body: jsonEncode({
-        'customer_item_price_id': customerItemPriceId,
-        'prev_customer_item_price_id': prevId,
-        'next_customer_item_price_id': nextId,
+        'customerItemPriceId': customerItemPriceId,
+        'prevCustomerItemPriceId': prevId,
+        'nextCustomerItemPriceId': nextId,
       }),
     );
     final data = jsonDecode(response.body);
@@ -780,6 +780,26 @@ class ApiService {
       return data;
     }
     throw Exception(data['error'] ?? 'Failed to change order');
+  }
+
+  Future<dynamic> exportPriceList(String id, String format) async {
+    final response = await get('/pricelist/id/$id/export?format=$format');
+    if (response.statusCode == 200) {
+      return response.bodyBytes;
+    }
+    throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to export price list');
+  }
+
+  Future<Map<String, dynamic>> exportAndEmailPriceList(String id, String email, String format) async {
+    final response = await post('/pricelist/id/$id/export-email', {
+      'email': email,
+      'format': format,
+    });
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to send quotation email');
   }
 }
 

@@ -111,16 +111,16 @@ class _ItemTrashScreenState extends State<ItemTrashScreen> {
 
   Widget _buildItemCard(Map<String, dynamic> item) {
     final colorScheme = Theme.of(context).colorScheme;
-    final otherNames = item['item_other_names'] as List? ?? [];
+    final otherNames = item['itemOtherNames'] as List? ?? [];
     final otherNamesList = otherNames.map((e) {
       if (e is Map) {
-        return (e['name_string'] ?? e['nameString'] ?? '').toString();
+        return (e['nameString'] ?? e['nameString'] ?? '').toString();
       }
       return e.toString();
     }).where((s) => s.isNotEmpty).toList();
     final units = item['units'] as List? ?? [];
-    final baseUnit = units.firstWhere((u) => u['is_base_unit'] == true, orElse: () => null);
-    final String unitInfo = baseUnit != null ? baseUnit['unit_name'] ?? '' : '';
+    final baseUnit = units.firstWhere((u) => u['isBaseUnit'] == true, orElse: () => null);
+    final String unitInfo = baseUnit != null ? baseUnit['unitName'] ?? '' : '';
 
     return Card(
       elevation: 0,
@@ -159,7 +159,7 @@ class _ItemTrashScreenState extends State<ItemTrashScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      item['item_default_name'] ?? 'Mặt hàng không tên',
+                      item['itemDefaultName'] ?? 'Mặt hàng không tên',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,

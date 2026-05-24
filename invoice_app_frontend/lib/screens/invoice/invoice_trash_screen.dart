@@ -119,11 +119,12 @@ class _InvoiceTrashScreenState extends State<InvoiceTrashScreen> {
 
   Widget _buildInvoiceCard(Map<String, dynamic> invoice) {
     final colorScheme = Theme.of(context).colorScheme;
-    final code = invoice['invoice_code'] ?? 'N/A';
-    final buyerName = invoice['buyer_name_snapshot'] ?? 'Khách vãng lai';
-    final totalAmount = invoice['total_amount'] ?? 0;
-    final createdAt = _formatDateTime(invoice['created_at']);
-    final editStatus = invoice['edit_status'] == true;
+    final code = invoice['invoiceCode'] ?? 'N/A';
+    final buyerName = invoice['buyerNameSnapshot'] ?? 'Khách vãng lai';
+    final totalAmount = invoice['totalAmount'] ?? 0;
+    final createdAt = _formatDateTime(invoice['createdAt']);
+    final editStatus = invoice['editStatus'] == true;
+    final paidLocked = invoice['paidLocked'] == true;
 
     return Card(
       elevation: 2,
@@ -133,14 +134,21 @@ class _InvoiceTrashScreenState extends State<InvoiceTrashScreen> {
               Colors.orange.withValues(alpha: 0.1),
               colorScheme.surfaceContainerLowest,
             )
-          : colorScheme.surfaceContainer,
+          : (paidLocked
+              ? colorScheme.surfaceContainer
+              : Color.alphaBlend(
+                  Colors.blue.withValues(alpha: 0.05),
+                  colorScheme.surfaceContainer,
+                )),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
           color: editStatus
               ? Colors.orange.withValues(alpha: 0.5)
-              : colorScheme.outlineVariant.withValues(alpha: 0.3),
-          width: editStatus ? 1.5 : 1,
+              : (paidLocked
+                  ? colorScheme.outlineVariant.withValues(alpha: 0.3)
+                  : Colors.blue.withValues(alpha: 0.5)),
+          width: (editStatus || !paidLocked) ? 1.5 : 1,
         ),
       ),
       child: InkWell(
@@ -150,7 +158,7 @@ class _InvoiceTrashScreenState extends State<InvoiceTrashScreen> {
             context,
             '/invoice_detail',
             arguments: {
-              'invoiceId': invoice['invoice_id'],
+              'invoiceId': invoice['invoiceId'],
               'isDeleted': true,
             },
           );
@@ -219,17 +227,27 @@ class _InvoiceTrashScreenState extends State<InvoiceTrashScreen> {
                   Row(
                     children: [
                       Icon(
-                        editStatus ? Icons.edit_document : Icons.lock_outline,
+                        editStatus
+                            ? Icons.edit_document
+                            : (paidLocked
+                                ? Icons.lock_outline
+                                : Icons.check_circle_outline_rounded),
                         size: 14,
-                        color: editStatus ? Colors.orange : Colors.green,
+                        color: editStatus
+                            ? Colors.orange
+                            : (paidLocked ? Colors.green : Colors.blue),
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        editStatus ? 'Đang sửa' : 'Hoàn thành',
+                        editStatus
+                            ? 'Đang sửa'
+                            : (paidLocked ? 'Hoàn thành' : 'Đã lưu'),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: editStatus ? Colors.orange : Colors.green,
+                          color: editStatus
+                              ? Colors.orange
+                              : (paidLocked ? Colors.green : Colors.blue),
                         ),
                       ),
                     ],

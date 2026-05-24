@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"invoice_backend/app/shared"
 	sqlc "invoice_backend/db/sqlc"
 	"net/url"
 	"regexp"
@@ -68,44 +69,9 @@ func (h *InvoiceHandler) CreateBuyer(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	var addr, phone, idCard, email, taxID *string
-	var lat, lng *float64
-	if buyer.Address.Valid {
-		addr = &buyer.Address.String
-	}
-	if buyer.PhoneNumber.Valid {
-		phone = &buyer.PhoneNumber.String
-	}
-	if buyer.IDCardNumber.Valid {
-		idCard = &buyer.IDCardNumber.String
-	}
-	if buyer.Email.Valid {
-		email = &buyer.Email.String
-	}
-	if buyer.TaxID.Valid {
-		taxID = &buyer.TaxID.String
-	}
-	if buyer.Lat.Valid {
-		lat = &buyer.Lat.Float64
-	}
-	if buyer.Lng.Valid {
-		lng = &buyer.Lng.Float64
-	}
-
 	return c.Status(201).JSON(fiber.Map{
 		"message": "Buyer created successfully",
-		"data": fiber.Map{
-			"buyer_id":       buyer.BuyerID,
-			"buyer_code":     buyer.BuyerCode,
-			"buyer_name":     buyer.BuyerName,
-			"address":        addr,
-			"phone_number":   phone,
-			"id_card_number": idCard,
-			"email":          email,
-			"tax_id":         taxID,
-			"lat":            lat,
-			"lng":            lng,
-		},
+		"data":    flattenBuyer(buyer),
 	})
 }
 
@@ -221,18 +187,7 @@ func (h *InvoiceHandler) CreateInvoice(c *fiber.Ctx) error {
 
 	return c.Status(201).JSON(fiber.Map{
 		"message": "Invoice created successfully",
-		"data": fiber.Map{
-			"invoice_id":              invoice.InvoiceID,
-			"invoice_code":            invoice.InvoiceCode,
-			"buyer_name_snapshot":     invoice.BuyerNameSnapshot.String,
-			"address_snapshot":        invoice.AddressSnapshot.String,
-			"lat_snapshot":            invoice.LatSnapshot.Float64,
-			"lng_snapshot":            invoice.LngSnapshot.Float64,
-			"phone_number_snapshot":   invoice.PhoneNumberSnapshot.String,
-			"id_card_number_snapshot": invoice.IDCardNumberSnapshot.String,
-			"email_snapshot":          invoice.EmailSnapshot.String,
-			"tax_id_snapshot":         invoice.TaxIDSnapshot.String,
-		},
+		"data":    flattenInvoice(invoice),
 	})
 }
 
@@ -346,7 +301,7 @@ func (h *InvoiceHandler) CreateLineItem(c *fiber.Ctx) error {
 		}
 	}
 
-	// Calculate position_key (insert at end)
+	// Calculate positionKey (insert at end)
 	invoiceWithLines, _ := h.service.Repo.GetInvoiceWithLines(context.Background(), invID)
 	posKey := "i0000" // Default for the first item
 	var lines []map[string]interface{}
@@ -355,12 +310,12 @@ func (h *InvoiceHandler) CreateLineItem(c *fiber.Ctx) error {
 	}
 	if len(lines) > 0 {
 		lastLine := lines[len(lines)-1]
-		if lastPos, ok := lastLine["position_key"].(string); ok {
-			posKey = GenerateMidString(lastPos, "zzzzz")
+		if lastPos, ok := lastLine["positionKey"].(string); ok {
+			posKey = shared.GenerateMidString(lastPos, "zzzzz")
 		}
 	}
 
-	// sub_total is calculated by DB trigger, we pass 0 from app
+	// subTotal is calculated by DB trigger, we pass 0 from app
 	lineItem, err := h.service.CreateLineItem(context.Background(), invID, itmID, untID, req.Quantity, req.UnitPriceCustom, 0, getString(req.ItemNameSnapshot), getString(req.UnitNameSnapshot), posKey)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to create line item: %v", err)})
@@ -368,15 +323,15 @@ func (h *InvoiceHandler) CreateLineItem(c *fiber.Ctx) error {
 
 	return c.Status(201).JSON(fiber.Map{
 		"message": "Line item created successfully",
-		"data":    lineItem,
+		"data":    flattenLineItem(lineItem),
 	})
 }
 
 func (h *InvoiceHandler) ChangeLineItemOrder(c *fiber.Ctx) error {
 	type changeOrderRequest struct {
-		PrevLineItemID *string `json:"prev_line_item_id"`
-		NextLineItemID *string `json:"next_line_item_id"`
-		LineItemID     string  `json:"line_item_id"`
+		PrevLineItemID *string `json:"prevLineItemId"`
+		NextLineItemID *string `json:"nextLineItemId"`
+		LineItemID     string  `json:"lineItemId"`
 	}
 
 	var req changeOrderRequest
@@ -392,7 +347,7 @@ func (h *InvoiceHandler) ChangeLineItemOrder(c *fiber.Ctx) error {
 
 	targetUUID, err := uuid.Parse(req.LineItemID)
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid line_item_id"})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid lineItemId"})
 	}
 
 	invoiceWithLines, err := h.service.Repo.GetInvoiceWithLines(context.Background(), invID)
@@ -405,8 +360,8 @@ func (h *InvoiceHandler) ChangeLineItemOrder(c *fiber.Ctx) error {
 
 	var prevKey, nextKey string
 	for _, l := range lines {
-		id := l["line_item_id"].(string)
-		pk := l["position_key"].(string)
+		id := l["lineItemId"].(string)
+		pk := l["positionKey"].(string)
 		if req.PrevLineItemID != nil && *req.PrevLineItemID == id {
 			prevKey = pk
 		}
@@ -415,7 +370,7 @@ func (h *InvoiceHandler) ChangeLineItemOrder(c *fiber.Ctx) error {
 		}
 	}
 
-	newPosKey := GenerateMidString(prevKey, nextKey)
+	newPosKey := shared.GenerateMidString(prevKey, nextKey)
 
 	err = h.service.Repo.UpdateLineItemPos(context.Background(), sqlc.UpdateLineItemPosParams{
 		LineItemID:  targetUUID,
@@ -425,7 +380,7 @@ func (h *InvoiceHandler) ChangeLineItemOrder(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.Status(200).JSON(fiber.Map{"message": "Order updated", "new_position_key": newPosKey})
+	return c.Status(200).JSON(fiber.Map{"message": "Order updated", "newPositionKey": newPosKey})
 }
 
 func (h *InvoiceHandler) TakeTurn(c *fiber.Ctx) error {
@@ -449,12 +404,20 @@ func (h *InvoiceHandler) TakeTurn(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to take turn: %v", err)})
 	}
 
+	var editStatus *bool
+	if invoice.EditStatus.Valid {
+		editStatus = &invoice.EditStatus.Bool
+	}
+	var deviceHoldingIDVal *string
+	if invoice.DeviceHoldingID.Valid {
+		deviceHoldingIDVal = &invoice.DeviceHoldingID.String
+	}
 	return c.Status(200).JSON(fiber.Map{
 		"message": "Took turn successfully",
 		"data": fiber.Map{
-			"invoice_id":        invoice.InvoiceID,
-			"edit_status":       invoice.EditStatus.Bool,
-			"device_holding_id": invoice.DeviceHoldingID.String,
+			"invoiceId":       invoice.InvoiceID,
+			"editStatus":      editStatus,
+			"deviceHoldingId": deviceHoldingIDVal,
 		},
 	})
 }
@@ -490,12 +453,20 @@ func (h *InvoiceHandler) Finish(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to finish: %v", err)})
 	}
 
+	var editStatus *bool
+	if updatedInvoice.EditStatus.Valid {
+		editStatus = &updatedInvoice.EditStatus.Bool
+	}
+	var deviceHoldingIDVal *string
+	if updatedInvoice.DeviceHoldingID.Valid {
+		deviceHoldingIDVal = &updatedInvoice.DeviceHoldingID.String
+	}
 	return c.Status(200).JSON(fiber.Map{
 		"message": "Finished successfully",
 		"data": fiber.Map{
-			"invoice_id":        updatedInvoice.InvoiceID,
-			"edit_status":       updatedInvoice.EditStatus.Bool,
-			"device_holding_id": updatedInvoice.DeviceHoldingID.String,
+			"invoiceId":       updatedInvoice.InvoiceID,
+			"editStatus":      editStatus,
+			"deviceHoldingId": deviceHoldingIDVal,
 		},
 	})
 }
@@ -533,12 +504,20 @@ func (h *InvoiceHandler) LockInvoice(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to lock invoice: %v", err)})
 	}
 
+	var paidLocked *bool
+	if updatedInvoice.PaidLocked.Valid {
+		paidLocked = &updatedInvoice.PaidLocked.Bool
+	}
+	var editStatus *bool
+	if updatedInvoice.EditStatus.Valid {
+		editStatus = &updatedInvoice.EditStatus.Bool
+	}
 	return c.Status(200).JSON(fiber.Map{
 		"message": "Locked invoice successfully",
 		"data": fiber.Map{
-			"invoice_id":  updatedInvoice.InvoiceID,
-			"paid_locked": updatedInvoice.PaidLocked.Bool,
-			"edit_status": updatedInvoice.EditStatus.Bool,
+			"invoiceId":  updatedInvoice.InvoiceID,
+			"paidLocked": paidLocked,
+			"editStatus": editStatus,
 		},
 	})
 }
@@ -559,11 +538,28 @@ func (h *InvoiceHandler) PingInvoice(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "Invoice not found"})
 	}
 
+	var deviceHoldingID *string
+	if invoice.DeviceHoldingID.Valid {
+		deviceHoldingID = &invoice.DeviceHoldingID.String
+	}
+	var deviceName *string
+	if invoice.DeviceName.Valid {
+		deviceName = &invoice.DeviceName.String
+	}
+	var editStatus *bool
+	if invoice.EditStatus.Valid {
+		editStatus = &invoice.EditStatus.Bool
+	}
+	var paidLocked *bool
+	if invoice.PaidLocked.Valid {
+		paidLocked = &invoice.PaidLocked.Bool
+	}
+
 	return c.Status(200).JSON(fiber.Map{
-		"device_holding_id": invoice.DeviceHoldingID.String,
-		"device_name":       invoice.DeviceName.String,
-		"edit_status":       invoice.EditStatus.Bool,
-		"paid_locked":       invoice.PaidLocked.Bool,
+		"deviceHoldingId": deviceHoldingID,
+		"deviceName":      deviceName,
+		"editStatus":      editStatus,
+		"paidLocked":      paidLocked,
 	})
 }
 
@@ -581,42 +577,7 @@ func (h *InvoiceHandler) GetBuyerByCode(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to get buyer: %v", err)})
 	}
 
-	var addr, phone, idCard, email, taxID *string
-	var lat, lng *float64
-	if buyer.Address.Valid {
-		addr = &buyer.Address.String
-	}
-	if buyer.PhoneNumber.Valid {
-		phone = &buyer.PhoneNumber.String
-	}
-	if buyer.IDCardNumber.Valid {
-		idCard = &buyer.IDCardNumber.String
-	}
-	if buyer.Email.Valid {
-		email = &buyer.Email.String
-	}
-	if buyer.TaxID.Valid {
-		taxID = &buyer.TaxID.String
-	}
-	if buyer.Lat.Valid {
-		lat = &buyer.Lat.Float64
-	}
-	if buyer.Lng.Valid {
-		lng = &buyer.Lng.Float64
-	}
-
-	return c.Status(200).JSON(fiber.Map{
-		"buyer_id":       buyer.BuyerID,
-		"buyer_code":     buyer.BuyerCode,
-		"buyer_name":     buyer.BuyerName,
-		"address":        addr,
-		"phone_number":   phone,
-		"id_card_number": idCard,
-		"email":          email,
-		"tax_id":         taxID,
-		"lat":            lat,
-		"lng":            lng,
-	})
+	return c.Status(200).JSON(flattenBuyer(buyer))
 }
 
 func (h *InvoiceHandler) RegisterDevice(c *fiber.Ctx) error {
@@ -645,7 +606,7 @@ func (h *InvoiceHandler) RegisterDevice(c *fiber.Ctx) error {
 
 	return c.Status(200).JSON(fiber.Map{
 		"message": "Device registered successfully",
-		"data":    device,
+		"data":    flattenDevice(device),
 	})
 }
 
@@ -664,7 +625,7 @@ func (h *InvoiceHandler) CheckRegistered(c *fiber.Ctx) error {
 
 	return c.Status(200).JSON(fiber.Map{
 		"registered": true,
-		"data":       device,
+		"data":       flattenDevice(device),
 	})
 }
 
@@ -699,44 +660,108 @@ func (h *InvoiceHandler) GetInvoiceWithLines(c *fiber.Ctx) error {
 		json.Unmarshal(invoice.LineItems, &lineItems)
 	}
 
-	res := fiber.Map{
-		"invoice_id":              invoice.InvoiceID,
-		"account_id":              invoice.AccountID.UUID,
-		"buyer_id":                invoice.BuyerID.UUID,
-		"buyer_code":              invoice.BuyerCode.String,
-		"invoice_code":            invoice.InvoiceCode,
-		"total_amount":            invoice.TotalAmount,
-		"device_holding_id":       nil,
-		"device_name":             nil,
-		"edit_status":             invoice.EditStatus.Bool,
-		"paid_locked":             invoice.PaidLocked.Bool,
-		"buyer_name_snapshot":     invoice.BuyerNameSnapshot.String,
-		"address_snapshot":        invoice.AddressSnapshot.String,
-		"id_card_number_snapshot": invoice.IDCardNumberSnapshot.String,
-		"email_snapshot":          invoice.EmailSnapshot.String,
-		"lat_snapshot":            nil,
-		"lng_snapshot":            nil,
-		"phone_number_snapshot":   invoice.PhoneNumberSnapshot.String,
-		"tax_id_snapshot":         invoice.TaxIDSnapshot.String,
-		"is_active":               invoice.IsActive.Bool,
-		"created_at":              invoice.CreatedAt.Time,
-		"updated_at":              invoice.UpdatedAt.Time,
-		"line_items":              lineItems,
+	var accountID *uuid.UUID
+	if invoice.AccountID.Valid {
+		accountID = &invoice.AccountID.UUID
 	}
-
+	var buyerID *uuid.UUID
+	if invoice.BuyerID.Valid {
+		buyerID = &invoice.BuyerID.UUID
+	}
+	var buyerCode *string
+	if invoice.BuyerCode.Valid {
+		buyerCode = &invoice.BuyerCode.String
+	}
+	var deviceHoldingId *string
 	if invoice.DeviceHoldingID.Valid {
-		res["device_holding_id"] = invoice.DeviceHoldingID.String
+		deviceHoldingId = &invoice.DeviceHoldingID.String
+	}
+	var deviceName *string
+	if invoice.DeviceHoldingID.Valid {
 		if dev, err := h.Repo.GetDeviceByID(context.Background(), invoice.DeviceHoldingID.String); err == nil {
 			if dev.DeviceName.Valid {
-				res["device_name"] = dev.DeviceName.String
+				deviceName = &dev.DeviceName.String
 			}
 		}
 	}
-	if invoice.LatSnapshot.Valid {
-		res["lat_snapshot"] = invoice.LatSnapshot.Float64
+	var editStatus *bool
+	if invoice.EditStatus.Valid {
+		editStatus = &invoice.EditStatus.Bool
 	}
+	var paidLocked *bool
+	if invoice.PaidLocked.Valid {
+		paidLocked = &invoice.PaidLocked.Bool
+	}
+	var buyerNameSnapshot *string
+	if invoice.BuyerNameSnapshot.Valid {
+		buyerNameSnapshot = &invoice.BuyerNameSnapshot.String
+	}
+	var addressSnapshot *string
+	if invoice.AddressSnapshot.Valid {
+		addressSnapshot = &invoice.AddressSnapshot.String
+	}
+	var idCardNumberSnapshot *string
+	if invoice.IDCardNumberSnapshot.Valid {
+		idCardNumberSnapshot = &invoice.IDCardNumberSnapshot.String
+	}
+	var emailSnapshot *string
+	if invoice.EmailSnapshot.Valid {
+		emailSnapshot = &invoice.EmailSnapshot.String
+	}
+	var latSnapshot *float64
+	if invoice.LatSnapshot.Valid {
+		latSnapshot = &invoice.LatSnapshot.Float64
+	}
+	var lngSnapshot *float64
 	if invoice.LngSnapshot.Valid {
-		res["lng_snapshot"] = invoice.LngSnapshot.Float64
+		lngSnapshot = &invoice.LngSnapshot.Float64
+	}
+	var phoneNumberSnapshot *string
+	if invoice.PhoneNumberSnapshot.Valid {
+		phoneNumberSnapshot = &invoice.PhoneNumberSnapshot.String
+	}
+	var taxIdSnapshot *string
+	if invoice.TaxIDSnapshot.Valid {
+		taxIdSnapshot = &invoice.TaxIDSnapshot.String
+	}
+	var isActive *bool
+	if invoice.IsActive.Valid {
+		isActive = &invoice.IsActive.Bool
+	}
+	var createdAt *string
+	if invoice.CreatedAt.Valid {
+		s := invoice.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+	var updatedAt *string
+	if invoice.UpdatedAt.Valid {
+		s := invoice.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &s
+	}
+
+	res := fiber.Map{
+		"invoiceId":            invoice.InvoiceID,
+		"accountId":            accountID,
+		"buyerId":              buyerID,
+		"buyerCode":            buyerCode,
+		"invoiceCode":          invoice.InvoiceCode,
+		"totalAmount":          invoice.TotalAmount,
+		"deviceHoldingId":      deviceHoldingId,
+		"deviceName":           deviceName,
+		"editStatus":           editStatus,
+		"paidLocked":           paidLocked,
+		"buyerNameSnapshot":    buyerNameSnapshot,
+		"addressSnapshot":      addressSnapshot,
+		"idCardNumberSnapshot": idCardNumberSnapshot,
+		"emailSnapshot":        emailSnapshot,
+		"latSnapshot":          latSnapshot,
+		"lngSnapshot":          lngSnapshot,
+		"phoneNumberSnapshot":  phoneNumberSnapshot,
+		"taxIdSnapshot":        taxIdSnapshot,
+		"isActive":             isActive,
+		"createdAt":            createdAt,
+		"updatedAt":            updatedAt,
+		"lineItems":            lineItems,
 	}
 
 	return c.Status(200).JSON(res)
@@ -826,9 +851,9 @@ func (h *InvoiceHandler) GooglePlaceAutocomplete(c *fiber.Ctx) error {
 			continue
 		}
 
-		desc := EnrichAddress(pred.Text.Text)
-		mainTxt := EnrichAddress(pred.StructuredFormat.MainText.Text)
-		secTxt := EnrichAddress(pred.StructuredFormat.SecondaryText.Text)
+		desc := shared.EnrichAddress(pred.Text.Text)
+		mainTxt := shared.EnrichAddress(pred.StructuredFormat.MainText.Text)
+		secTxt := shared.EnrichAddress(pred.StructuredFormat.SecondaryText.Text)
 
 		predictions = append(predictions, Prediction{
 			Description: desc,
@@ -901,7 +926,7 @@ func (h *InvoiceHandler) GooglePlaceDetails(c *fiber.Ctx) error {
 	resp := fiber.Map{
 		"status": "OK",
 		"result": Result{
-			FormattedAddress: EnrichAddress(newDetails.FormattedAddress),
+			FormattedAddress: shared.EnrichAddress(newDetails.FormattedAddress),
 			Geometry: Geometry{
 				Location: LatLng{
 					Lat: newDetails.Location.Latitude,
@@ -953,7 +978,7 @@ func (h *InvoiceHandler) GoogleReverseGeocode(c *fiber.Ctx) error {
 
 	if len(newResponse.Results) > 0 {
 		return c.JSON(fiber.Map{
-			"address": EnrichAddress(newResponse.Results[0].FormattedAddress),
+			"address": shared.EnrichAddress(newResponse.Results[0].FormattedAddress),
 		})
 	}
 
@@ -1065,41 +1090,7 @@ func (h *InvoiceHandler) GetBuyers(c *fiber.Ctx) error {
 
 	resp := make([]fiber.Map, len(buyers))
 	for i, b := range buyers {
-		var addr, phone, idCard, email, taxID *string
-		var lat, lng *float64
-		if b.Address.Valid {
-			addr = &b.Address.String
-		}
-		if b.PhoneNumber.Valid {
-			phone = &b.PhoneNumber.String
-		}
-		if b.IDCardNumber.Valid {
-			idCard = &b.IDCardNumber.String
-		}
-		if b.Email.Valid {
-			email = &b.Email.String
-		}
-		if b.TaxID.Valid {
-			taxID = &b.TaxID.String
-		}
-		if b.Lat.Valid {
-			lat = &b.Lat.Float64
-		}
-		if b.Lng.Valid {
-			lng = &b.Lng.Float64
-		}
-		resp[i] = fiber.Map{
-			"buyer_id":       b.BuyerID,
-			"buyer_code":     b.BuyerCode,
-			"buyer_name":     b.BuyerName,
-			"address":        addr,
-			"phone_number":   phone,
-			"id_card_number": idCard,
-			"email":          email,
-			"tax_id":         taxID,
-			"lat":            lat,
-			"lng":            lng,
-		}
+		resp[i] = flattenBuyer(b)
 	}
 
 	return c.Status(200).JSON(resp)
@@ -1123,41 +1114,7 @@ func (h *InvoiceHandler) SearchBuyers(c *fiber.Ctx) error {
 
 	resp := make([]fiber.Map, len(buyers))
 	for i, b := range buyers {
-		var addr, phone, idCard, email, taxID *string
-		var lat, lng *float64
-		if b.Address.Valid {
-			addr = &b.Address.String
-		}
-		if b.PhoneNumber.Valid {
-			phone = &b.PhoneNumber.String
-		}
-		if b.IDCardNumber.Valid {
-			idCard = &b.IDCardNumber.String
-		}
-		if b.Email.Valid {
-			email = &b.Email.String
-		}
-		if b.TaxID.Valid {
-			taxID = &b.TaxID.String
-		}
-		if b.Lat.Valid {
-			lat = &b.Lat.Float64
-		}
-		if b.Lng.Valid {
-			lng = &b.Lng.Float64
-		}
-		resp[i] = fiber.Map{
-			"buyer_id":       b.BuyerID,
-			"buyer_code":     b.BuyerCode,
-			"buyer_name":     b.BuyerName,
-			"address":        addr,
-			"phone_number":   phone,
-			"id_card_number": idCard,
-			"email":          email,
-			"tax_id":         taxID,
-			"lat":            lat,
-			"lng":            lng,
-		}
+		resp[i] = flattenBuyer(b)
 	}
 
 	return c.Status(200).JSON(resp)
@@ -1265,44 +1222,9 @@ func (h *InvoiceHandler) PatchBuyer(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	var addr, phone, idCard, email, taxID *string
-	var lat, lng *float64
-	if buyer.Address.Valid {
-		addr = &buyer.Address.String
-	}
-	if buyer.PhoneNumber.Valid {
-		phone = &buyer.PhoneNumber.String
-	}
-	if buyer.IDCardNumber.Valid {
-		idCard = &buyer.IDCardNumber.String
-	}
-	if buyer.Email.Valid {
-		email = &buyer.Email.String
-	}
-	if buyer.TaxID.Valid {
-		taxID = &buyer.TaxID.String
-	}
-	if buyer.Lat.Valid {
-		lat = &buyer.Lat.Float64
-	}
-	if buyer.Lng.Valid {
-		lng = &buyer.Lng.Float64
-	}
-
 	return c.Status(200).JSON(fiber.Map{
 		"message": "Buyer updated",
-		"data": fiber.Map{
-			"buyer_id":       buyer.BuyerID,
-			"buyer_code":     buyer.BuyerCode,
-			"buyer_name":     buyer.BuyerName,
-			"address":        addr,
-			"phone_number":   phone,
-			"id_card_number": idCard,
-			"email":          email,
-			"tax_id":         taxID,
-			"lat":            lat,
-			"lng":            lng,
-		},
+		"data":    flattenBuyer(buyer),
 	})
 }
 
@@ -1401,18 +1323,7 @@ func (h *InvoiceHandler) PatchInvoice(c *fiber.Ctx) error {
 
 	return c.Status(200).JSON(fiber.Map{
 		"message": "Invoice updated",
-		"data": fiber.Map{
-			"invoice_id":              invoice.InvoiceID,
-			"invoice_code":            invoice.InvoiceCode,
-			"buyer_name_snapshot":     invoice.BuyerNameSnapshot.String,
-			"address_snapshot":        invoice.AddressSnapshot.String,
-			"lat_snapshot":            invoice.LatSnapshot.Float64,
-			"lng_snapshot":            invoice.LngSnapshot.Float64,
-			"phone_number_snapshot":   invoice.PhoneNumberSnapshot.String,
-			"id_card_number_snapshot": invoice.IDCardNumberSnapshot.String,
-			"email_snapshot":          invoice.EmailSnapshot.String,
-			"tax_id_snapshot":         invoice.TaxIDSnapshot.String,
-		},
+		"data":    flattenInvoice(invoice),
 	})
 }
 
@@ -1477,7 +1388,7 @@ func (h *InvoiceHandler) PatchLineItem(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.Status(200).JSON(fiber.Map{"message": "Line item updated", "data": updated})
+	return c.Status(200).JSON(fiber.Map{"message": "Line item updated", "data": flattenLineItem(updated)})
 }
 
 func (h *InvoiceHandler) DeleteLineItem(c *fiber.Ctx) error {
@@ -1585,35 +1496,7 @@ func (h *InvoiceHandler) GetInvoices(c *fiber.Ctx) error {
 
 	resp := []fiber.Map{}
 	for _, inv := range invoices {
-		var buyerIDVal *uuid.UUID
-		if inv.BuyerID.Valid {
-			buyerIDVal = &inv.BuyerID.UUID
-		}
-		var deviceIDVal *string
-		if inv.DeviceHoldingID.Valid {
-			deviceIDVal = &inv.DeviceHoldingID.String
-		}
-
-		resp = append(resp, fiber.Map{
-			"invoice_id":              inv.InvoiceID,
-			"account_id":              inv.AccountID,
-			"buyer_id":                buyerIDVal,
-			"buyer_code":              inv.BuyerCode.String,
-			"invoice_code":            inv.InvoiceCode,
-			"total_amount":            inv.TotalAmount,
-			"device_holding_id":       deviceIDVal,
-			"device_name":             inv.DeviceName.String,
-			"edit_status":             inv.EditStatus.Bool,
-			"paid_locked":             inv.PaidLocked.Bool,
-			"buyer_name_snapshot":     inv.BuyerNameSnapshot.String,
-			"address_snapshot":        inv.AddressSnapshot.String,
-			"phone_number_snapshot":   inv.PhoneNumberSnapshot.String,
-			"id_card_number_snapshot": inv.IDCardNumberSnapshot.String,
-			"email_snapshot":          inv.EmailSnapshot.String,
-			"tax_id_snapshot":         inv.TaxIDSnapshot.String,
-			"created_at":              inv.CreatedAt.Time,
-			"updated_at":              inv.UpdatedAt.Time,
-		})
+		resp = append(resp, flattenListInvoicesFilteredRow(inv))
 	}
 
 	return c.Status(200).JSON(fiber.Map{"data": resp})
@@ -1655,42 +1538,7 @@ func (h *InvoiceHandler) GetDeletedBuyers(c *fiber.Ctx) error {
 
 	resp := []fiber.Map{}
 	for _, buyer := range buyers {
-		var addr, phone, idCard, taxID *string
-		var lat, lng *float64
-		if buyer.Address.Valid {
-			addr = &buyer.Address.String
-		}
-		if buyer.PhoneNumber.Valid {
-			phone = &buyer.PhoneNumber.String
-		}
-		if buyer.IDCardNumber.Valid {
-			idCard = &buyer.IDCardNumber.String
-		}
-		if buyer.TaxID.Valid {
-			taxID = &buyer.TaxID.String
-		}
-		if buyer.Lat.Valid {
-			lat = &buyer.Lat.Float64
-		}
-		if buyer.Lng.Valid {
-			lng = &buyer.Lng.Float64
-		}
-
-		resp = append(resp, fiber.Map{
-			"buyer_id":       buyer.BuyerID,
-			"buyer_code":     buyer.BuyerCode,
-			"buyer_name":     buyer.BuyerName,
-			"address":        addr,
-			"phone_number":   phone,
-			"id_card_number": idCard,
-			"tax_id":         taxID,
-			"lat":            lat,
-			"lng":            lng,
-			"is_active":      buyer.IsActive,
-			"created_at":     buyer.CreatedAt,
-			"updated_at":     buyer.UpdatedAt,
-			"deleted_at":     buyer.DeletedAt.Time,
-		})
+		resp = append(resp, flattenBuyer(buyer))
 	}
 
 	return c.Status(200).JSON(resp)
@@ -1732,34 +1580,7 @@ func (h *InvoiceHandler) GetDeletedInvoices(c *fiber.Ctx) error {
 
 	resp := []fiber.Map{}
 	for _, inv := range invoices {
-		var buyerIDVal *uuid.UUID
-		if inv.BuyerID.Valid {
-			buyerIDVal = &inv.BuyerID.UUID
-		}
-		var deviceIDVal *string
-		if inv.DeviceHoldingID.Valid {
-			deviceIDVal = &inv.DeviceHoldingID.String
-		}
-
-		resp = append(resp, fiber.Map{
-			"invoice_id":            inv.InvoiceID,
-			"account_id":            inv.AccountID,
-			"buyer_id":              buyerIDVal,
-			"buyer_code":            inv.BuyerCode.String,
-			"invoice_code":          inv.InvoiceCode,
-			"total_amount":          inv.TotalAmount,
-			"device_holding_id":     deviceIDVal,
-			"device_name":           inv.DeviceName.String,
-			"edit_status":           inv.EditStatus.Bool,
-			"paid_locked":           inv.PaidLocked.Bool,
-			"buyer_name_snapshot":   inv.BuyerNameSnapshot.String,
-			"address_snapshot":      inv.AddressSnapshot.String,
-			"phone_number_snapshot": inv.PhoneNumberSnapshot.String,
-			"tax_id_snapshot":       inv.TaxIDSnapshot.String,
-			"created_at":            inv.CreatedAt.Time,
-			"updated_at":            inv.UpdatedAt.Time,
-			"deleted_at":            inv.DeletedAt.Time,
-		})
+		resp = append(resp, flattenListDeletedInvoicesRow(inv))
 	}
 
 	return c.Status(200).JSON(fiber.Map{"data": resp})
@@ -1769,4 +1590,535 @@ var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]
 
 func isValidEmail(email string) bool {
 	return emailRegex.MatchString(email)
+}
+
+func flattenInvoice(inv sqlc.Invoice) fiber.Map {
+	var accountID *uuid.UUID
+	if inv.AccountID.Valid {
+		accountID = &inv.AccountID.UUID
+	}
+	var buyerID *uuid.UUID
+	if inv.BuyerID.Valid {
+		buyerID = &inv.BuyerID.UUID
+	}
+	var deviceHoldingID *string
+	if inv.DeviceHoldingID.Valid {
+		deviceHoldingID = &inv.DeviceHoldingID.String
+	}
+	var editStatus *bool
+	if inv.EditStatus.Valid {
+		editStatus = &inv.EditStatus.Bool
+	}
+	var paidLocked *bool
+	if inv.PaidLocked.Valid {
+		paidLocked = &inv.PaidLocked.Bool
+	}
+	var buyerNameSnapshot *string
+	if inv.BuyerNameSnapshot.Valid {
+		buyerNameSnapshot = &inv.BuyerNameSnapshot.String
+	}
+	var addressSnapshot *string
+	if inv.AddressSnapshot.Valid {
+		addressSnapshot = &inv.AddressSnapshot.String
+	}
+	var idCardNumberSnapshot *string
+	if inv.IDCardNumberSnapshot.Valid {
+		idCardNumberSnapshot = &inv.IDCardNumberSnapshot.String
+	}
+	var emailSnapshot *string
+	if inv.EmailSnapshot.Valid {
+		emailSnapshot = &inv.EmailSnapshot.String
+	}
+	var latSnapshot *float64
+	if inv.LatSnapshot.Valid {
+		latSnapshot = &inv.LatSnapshot.Float64
+	}
+	var lngSnapshot *float64
+	if inv.LngSnapshot.Valid {
+		lngSnapshot = &inv.LngSnapshot.Float64
+	}
+	var phoneNumberSnapshot *string
+	if inv.PhoneNumberSnapshot.Valid {
+		phoneNumberSnapshot = &inv.PhoneNumberSnapshot.String
+	}
+	var taxIDSnapshot *string
+	if inv.TaxIDSnapshot.Valid {
+		taxIDSnapshot = &inv.TaxIDSnapshot.String
+	}
+	var isActive *bool
+	if inv.IsActive.Valid {
+		isActive = &inv.IsActive.Bool
+	}
+	var createdAt *string
+	if inv.CreatedAt.Valid {
+		s := inv.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+	var updatedAt *string
+	if inv.UpdatedAt.Valid {
+		s := inv.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &s
+	}
+	var deletedAt *string
+	if inv.DeletedAt.Valid {
+		s := inv.DeletedAt.Time.Format(time.RFC3339)
+		deletedAt = &s
+	}
+
+	return fiber.Map{
+		"invoiceId":            inv.InvoiceID,
+		"accountId":            accountID,
+		"buyerId":              buyerID,
+		"invoiceCode":          inv.InvoiceCode,
+		"totalAmount":          inv.TotalAmount,
+		"deviceHoldingId":      deviceHoldingID,
+		"editStatus":           editStatus,
+		"paidLocked":           paidLocked,
+		"buyerNameSnapshot":    buyerNameSnapshot,
+		"addressSnapshot":      addressSnapshot,
+		"idCardNumberSnapshot": idCardNumberSnapshot,
+		"emailSnapshot":        emailSnapshot,
+		"latSnapshot":          latSnapshot,
+		"lngSnapshot":          lngSnapshot,
+		"phoneNumberSnapshot":  phoneNumberSnapshot,
+		"taxIdSnapshot":        taxIDSnapshot,
+		"isActive":             isActive,
+		"createdAt":            createdAt,
+		"updatedAt":            updatedAt,
+		"deletedAt":            deletedAt,
+	}
+}
+
+func flattenGetInvoiceByIDRow(inv sqlc.GetInvoiceByIDRow) fiber.Map {
+	var accountID *uuid.UUID
+	if inv.AccountID.Valid {
+		accountID = &inv.AccountID.UUID
+	}
+	var buyerID *uuid.UUID
+	if inv.BuyerID.Valid {
+		buyerID = &inv.BuyerID.UUID
+	}
+	var deviceHoldingID *string
+	if inv.DeviceHoldingID.Valid {
+		deviceHoldingID = &inv.DeviceHoldingID.String
+	}
+	var editStatus *bool
+	if inv.EditStatus.Valid {
+		editStatus = &inv.EditStatus.Bool
+	}
+	var paidLocked *bool
+	if inv.PaidLocked.Valid {
+		paidLocked = &inv.PaidLocked.Bool
+	}
+	var buyerNameSnapshot *string
+	if inv.BuyerNameSnapshot.Valid {
+		buyerNameSnapshot = &inv.BuyerNameSnapshot.String
+	}
+	var addressSnapshot *string
+	if inv.AddressSnapshot.Valid {
+		addressSnapshot = &inv.AddressSnapshot.String
+	}
+	var idCardNumberSnapshot *string
+	if inv.IDCardNumberSnapshot.Valid {
+		idCardNumberSnapshot = &inv.IDCardNumberSnapshot.String
+	}
+	var emailSnapshot *string
+	if inv.EmailSnapshot.Valid {
+		emailSnapshot = &inv.EmailSnapshot.String
+	}
+	var latSnapshot *float64
+	if inv.LatSnapshot.Valid {
+		latSnapshot = &inv.LatSnapshot.Float64
+	}
+	var lngSnapshot *float64
+	if inv.LngSnapshot.Valid {
+		lngSnapshot = &inv.LngSnapshot.Float64
+	}
+	var phoneNumberSnapshot *string
+	if inv.PhoneNumberSnapshot.Valid {
+		phoneNumberSnapshot = &inv.PhoneNumberSnapshot.String
+	}
+	var taxIDSnapshot *string
+	if inv.TaxIDSnapshot.Valid {
+		taxIDSnapshot = &inv.TaxIDSnapshot.String
+	}
+	var isActive *bool
+	if inv.IsActive.Valid {
+		isActive = &inv.IsActive.Bool
+	}
+	var createdAt *string
+	if inv.CreatedAt.Valid {
+		s := inv.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+	var updatedAt *string
+	if inv.UpdatedAt.Valid {
+		s := inv.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &s
+	}
+	var deletedAt *string
+	if inv.DeletedAt.Valid {
+		s := inv.DeletedAt.Time.Format(time.RFC3339)
+		deletedAt = &s
+	}
+	var buyerCode *string
+	if inv.BuyerCode.Valid {
+		buyerCode = &inv.BuyerCode.String
+	}
+
+	return fiber.Map{
+		"invoiceId":            inv.InvoiceID,
+		"accountId":            accountID,
+		"buyerId":              buyerID,
+		"invoiceCode":          inv.InvoiceCode,
+		"totalAmount":          inv.TotalAmount,
+		"deviceHoldingId":      deviceHoldingID,
+		"editStatus":           editStatus,
+		"paidLocked":           paidLocked,
+		"buyerNameSnapshot":    buyerNameSnapshot,
+		"addressSnapshot":      addressSnapshot,
+		"idCardNumberSnapshot": idCardNumberSnapshot,
+		"emailSnapshot":        emailSnapshot,
+		"latSnapshot":          latSnapshot,
+		"lngSnapshot":          lngSnapshot,
+		"phoneNumberSnapshot":  phoneNumberSnapshot,
+		"taxIdSnapshot":        taxIDSnapshot,
+		"isActive":             isActive,
+		"createdAt":            createdAt,
+		"updatedAt":            updatedAt,
+		"deletedAt":            deletedAt,
+		"buyerCode":            buyerCode,
+	}
+}
+
+func flattenListInvoicesFilteredRow(inv sqlc.ListInvoicesFilteredRow) fiber.Map {
+	var accountID *uuid.UUID
+	if inv.AccountID.Valid {
+		accountID = &inv.AccountID.UUID
+	}
+	var buyerID *uuid.UUID
+	if inv.BuyerID.Valid {
+		buyerID = &inv.BuyerID.UUID
+	}
+	var deviceHoldingID *string
+	if inv.DeviceHoldingID.Valid {
+		deviceHoldingID = &inv.DeviceHoldingID.String
+	}
+	var editStatus *bool
+	if inv.EditStatus.Valid {
+		editStatus = &inv.EditStatus.Bool
+	}
+	var paidLocked *bool
+	if inv.PaidLocked.Valid {
+		paidLocked = &inv.PaidLocked.Bool
+	}
+	var buyerNameSnapshot *string
+	if inv.BuyerNameSnapshot.Valid {
+		buyerNameSnapshot = &inv.BuyerNameSnapshot.String
+	}
+	var addressSnapshot *string
+	if inv.AddressSnapshot.Valid {
+		addressSnapshot = &inv.AddressSnapshot.String
+	}
+	var idCardNumberSnapshot *string
+	if inv.IDCardNumberSnapshot.Valid {
+		idCardNumberSnapshot = &inv.IDCardNumberSnapshot.String
+	}
+	var emailSnapshot *string
+	if inv.EmailSnapshot.Valid {
+		emailSnapshot = &inv.EmailSnapshot.String
+	}
+	var latSnapshot *float64
+	if inv.LatSnapshot.Valid {
+		latSnapshot = &inv.LatSnapshot.Float64
+	}
+	var lngSnapshot *float64
+	if inv.LngSnapshot.Valid {
+		lngSnapshot = &inv.LngSnapshot.Float64
+	}
+	var phoneNumberSnapshot *string
+	if inv.PhoneNumberSnapshot.Valid {
+		phoneNumberSnapshot = &inv.PhoneNumberSnapshot.String
+	}
+	var taxIDSnapshot *string
+	if inv.TaxIDSnapshot.Valid {
+		taxIDSnapshot = &inv.TaxIDSnapshot.String
+	}
+	var isActive *bool
+	if inv.IsActive.Valid {
+		isActive = &inv.IsActive.Bool
+	}
+	var createdAt *string
+	if inv.CreatedAt.Valid {
+		s := inv.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+	var updatedAt *string
+	if inv.UpdatedAt.Valid {
+		s := inv.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &s
+	}
+	var deletedAt *string
+	if inv.DeletedAt.Valid {
+		s := inv.DeletedAt.Time.Format(time.RFC3339)
+		deletedAt = &s
+	}
+	var deviceName *string
+	if inv.DeviceName.Valid {
+		deviceName = &inv.DeviceName.String
+	}
+	var buyerCode *string
+	if inv.BuyerCode.Valid {
+		buyerCode = &inv.BuyerCode.String
+	}
+
+	return fiber.Map{
+		"invoiceId":            inv.InvoiceID,
+		"accountId":            accountID,
+		"buyerId":              buyerID,
+		"invoiceCode":          inv.InvoiceCode,
+		"totalAmount":          inv.TotalAmount,
+		"deviceHoldingId":      deviceHoldingID,
+		"deviceName":           deviceName,
+		"editStatus":           editStatus,
+		"paidLocked":           paidLocked,
+		"buyerNameSnapshot":    buyerNameSnapshot,
+		"addressSnapshot":      addressSnapshot,
+		"idCardNumberSnapshot": idCardNumberSnapshot,
+		"emailSnapshot":        emailSnapshot,
+		"latSnapshot":          latSnapshot,
+		"lngSnapshot":          lngSnapshot,
+		"phoneNumberSnapshot":  phoneNumberSnapshot,
+		"taxIdSnapshot":        taxIDSnapshot,
+		"isActive":             isActive,
+		"createdAt":            createdAt,
+		"updatedAt":            updatedAt,
+		"deletedAt":            deletedAt,
+		"buyerCode":            buyerCode,
+	}
+}
+
+func flattenListDeletedInvoicesRow(inv sqlc.ListDeletedInvoicesRow) fiber.Map {
+	var accountID *uuid.UUID
+	if inv.AccountID.Valid {
+		accountID = &inv.AccountID.UUID
+	}
+	var buyerID *uuid.UUID
+	if inv.BuyerID.Valid {
+		buyerID = &inv.BuyerID.UUID
+	}
+	var deviceHoldingID *string
+	if inv.DeviceHoldingID.Valid {
+		deviceHoldingID = &inv.DeviceHoldingID.String
+	}
+	var editStatus *bool
+	if inv.EditStatus.Valid {
+		editStatus = &inv.EditStatus.Bool
+	}
+	var paidLocked *bool
+	if inv.PaidLocked.Valid {
+		paidLocked = &inv.PaidLocked.Bool
+	}
+	var buyerNameSnapshot *string
+	if inv.BuyerNameSnapshot.Valid {
+		buyerNameSnapshot = &inv.BuyerNameSnapshot.String
+	}
+	var addressSnapshot *string
+	if inv.AddressSnapshot.Valid {
+		addressSnapshot = &inv.AddressSnapshot.String
+	}
+	var idCardNumberSnapshot *string
+	if inv.IDCardNumberSnapshot.Valid {
+		idCardNumberSnapshot = &inv.IDCardNumberSnapshot.String
+	}
+	var emailSnapshot *string
+	if inv.EmailSnapshot.Valid {
+		emailSnapshot = &inv.EmailSnapshot.String
+	}
+	var latSnapshot *float64
+	if inv.LatSnapshot.Valid {
+		latSnapshot = &inv.LatSnapshot.Float64
+	}
+	var lngSnapshot *float64
+	if inv.LngSnapshot.Valid {
+		lngSnapshot = &inv.LngSnapshot.Float64
+	}
+	var phoneNumberSnapshot *string
+	if inv.PhoneNumberSnapshot.Valid {
+		phoneNumberSnapshot = &inv.PhoneNumberSnapshot.String
+	}
+	var taxIDSnapshot *string
+	if inv.TaxIDSnapshot.Valid {
+		taxIDSnapshot = &inv.TaxIDSnapshot.String
+	}
+	var isActive *bool
+	if inv.IsActive.Valid {
+		isActive = &inv.IsActive.Bool
+	}
+	var createdAt *string
+	if inv.CreatedAt.Valid {
+		s := inv.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+	var updatedAt *string
+	if inv.UpdatedAt.Valid {
+		s := inv.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &s
+	}
+	var deletedAt *string
+	if inv.DeletedAt.Valid {
+		s := inv.DeletedAt.Time.Format(time.RFC3339)
+		deletedAt = &s
+	}
+	var deviceName *string
+	if inv.DeviceName.Valid {
+		deviceName = &inv.DeviceName.String
+	}
+	var buyerCode *string
+	if inv.BuyerCode.Valid {
+		buyerCode = &inv.BuyerCode.String
+	}
+
+	return fiber.Map{
+		"invoiceId":            inv.InvoiceID,
+		"accountId":            accountID,
+		"buyerId":              buyerID,
+		"invoiceCode":          inv.InvoiceCode,
+		"totalAmount":          inv.TotalAmount,
+		"deviceHoldingId":      deviceHoldingID,
+		"deviceName":           deviceName,
+		"editStatus":           editStatus,
+		"paidLocked":           paidLocked,
+		"buyerNameSnapshot":    buyerNameSnapshot,
+		"addressSnapshot":      addressSnapshot,
+		"idCardNumberSnapshot": idCardNumberSnapshot,
+		"emailSnapshot":        emailSnapshot,
+		"latSnapshot":          latSnapshot,
+		"lngSnapshot":          lngSnapshot,
+		"phoneNumberSnapshot":  phoneNumberSnapshot,
+		"taxIdSnapshot":        taxIDSnapshot,
+		"isActive":             isActive,
+		"createdAt":            createdAt,
+		"updatedAt":            updatedAt,
+		"deletedAt":            deletedAt,
+		"buyerCode":            buyerCode,
+	}
+}
+
+func flattenBuyer(b sqlc.Buyer) fiber.Map {
+	var addr, phone, idCard, email, taxID *string
+	var lat, lng *float64
+	var isActive *bool
+	var createdAt, updatedAt, deletedAt *string
+
+	if b.Address.Valid {
+		addr = &b.Address.String
+	}
+	if b.PhoneNumber.Valid {
+		phone = &b.PhoneNumber.String
+	}
+	if b.IDCardNumber.Valid {
+		idCard = &b.IDCardNumber.String
+	}
+	if b.Email.Valid {
+		email = &b.Email.String
+	}
+	if b.TaxID.Valid {
+		taxID = &b.TaxID.String
+	}
+	if b.Lat.Valid {
+		lat = &b.Lat.Float64
+	}
+	if b.Lng.Valid {
+		lng = &b.Lng.Float64
+	}
+	if b.IsActive.Valid {
+		isActive = &b.IsActive.Bool
+	}
+	if b.CreatedAt.Valid {
+		s := b.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+	if b.UpdatedAt.Valid {
+		s := b.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &s
+	}
+	if b.DeletedAt.Valid {
+		s := b.DeletedAt.Time.Format(time.RFC3339)
+		deletedAt = &s
+	}
+
+	return fiber.Map{
+		"buyerId":      b.BuyerID,
+		"buyerCode":    b.BuyerCode,
+		"buyerName":    b.BuyerName,
+		"address":      addr,
+		"phoneNumber":  phone,
+		"idCardNumber": idCard,
+		"email":        email,
+		"taxId":        taxID,
+		"lat":          lat,
+		"lng":          lng,
+		"isActive":     isActive,
+		"createdAt":    createdAt,
+		"updatedAt":    updatedAt,
+		"deletedAt":    deletedAt,
+	}
+}
+
+func flattenLineItem(li sqlc.LineItem) fiber.Map {
+	var invoiceID *uuid.UUID
+	if li.InvoiceID.Valid {
+		invoiceID = &li.InvoiceID.UUID
+	}
+	var itemID *uuid.UUID
+	if li.ItemID.Valid {
+		itemID = &li.ItemID.UUID
+	}
+	var unitID *uuid.UUID
+	if li.UnitID.Valid {
+		unitID = &li.UnitID.UUID
+	}
+	var unitPriceCustom *int64
+	if li.UnitPriceCustom.Valid {
+		unitPriceCustom = &li.UnitPriceCustom.Int64
+	}
+	var itemNameSnapshot *string
+	if li.ItemNameSnapshot.Valid {
+		itemNameSnapshot = &li.ItemNameSnapshot.String
+	}
+	var unitNameSnapshot *string
+	if li.UnitNameSnapshot.Valid {
+		unitNameSnapshot = &li.UnitNameSnapshot.String
+	}
+	var createdAt *string
+	if li.CreatedAt.Valid {
+		s := li.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+
+	return fiber.Map{
+		"lineItemId":       li.LineItemID,
+		"invoiceId":        invoiceID,
+		"itemId":           itemID,
+		"unitId":           unitID,
+		"quantity":         li.Quantity,
+		"unitPriceCustom":  unitPriceCustom,
+		"subTotal":         li.SubTotal,
+		"itemNameSnapshot": itemNameSnapshot,
+		"unitNameSnapshot": unitNameSnapshot,
+		"positionKey":      li.PositionKey,
+		"createdAt":        createdAt,
+	}
+}
+
+func flattenDevice(d sqlc.Device) fiber.Map {
+	var deviceName *string
+	if d.DeviceName.Valid {
+		deviceName = &d.DeviceName.String
+	}
+	return fiber.Map{
+		"deviceHoldingId": d.DeviceHoldingID,
+		"deviceName":      deviceName,
+	}
 }

@@ -26,16 +26,16 @@ class InvoiceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    final invoiceCode = invoice['invoice_code']?.toString() ?? 'N/A';
-    final buyerName = invoice['buyer_name_snapshot']?.toString() ?? 'Khách vãng lai';
-    final buyerCode = invoice['buyer_code']?.toString();
-    final editStatus = invoice['edit_status'] == true;
-    final paidLocked = invoice['paid_locked'] == true;
-    final amount = invoice['total_amount'] ?? 0;
-    final deviceName = invoice['device_name']?.toString() ?? '';
+    final invoiceCode = invoice['invoiceCode']?.toString() ?? 'N/A';
+    final buyerName = invoice['buyerNameSnapshot']?.toString() ?? 'Khách vãng lai';
+    final buyerCode = invoice['buyerCode']?.toString();
+    final editStatus = invoice['editStatus'] == true;
+    final paidLocked = invoice['paidLocked'] == true;
+    final amount = invoice['totalAmount'] ?? 0;
+    final deviceName = invoice['deviceName']?.toString() ?? '';
     
-    final createdAtStr = _formatDateTime(invoice['created_at']);
-    final updatedAtStr = _formatDateTime(invoice['updated_at']);
+    final createdAtStr = _formatDateTime(invoice['createdAt']);
+    final updatedAtStr = _formatDateTime(invoice['updatedAt']);
 
     return Card(
       elevation: 2,

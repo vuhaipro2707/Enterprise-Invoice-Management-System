@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"invoice_backend/app/dbconn"
-	"invoice_backend/app/invoice"
+	"invoice_backend/app/shared"
 	sqlc "invoice_backend/db/sqlc"
 	"time"
 
@@ -65,7 +65,7 @@ func (s *PriceListService) CreatePriceList(ctx context.Context, input CreatePric
 	posKey := "i0000"
 	for idx, item := range input.Items {
 		if idx > 0 {
-			posKey = invoice.GenerateMidString(posKey, "zzzzz")
+			posKey = shared.GenerateMidString(posKey, "zzzzz")
 		}
 		itemUUID, err := uuid.Parse(item.ItemID)
 		if err != nil {
@@ -182,7 +182,7 @@ func (s *PriceListService) UpdatePriceList(ctx context.Context, id string, input
 	posKey := "i0000"
 	for idx, item := range input.Items {
 		if idx > 0 {
-			posKey = invoice.GenerateMidString(posKey, "zzzzz")
+			posKey = shared.GenerateMidString(posKey, "zzzzz")
 		}
 		itemUUID, err := uuid.Parse(item.ItemID)
 		if err != nil {

@@ -28,6 +28,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
   Map<String, dynamic>? _aiResponse;
   final Map<int, List<String>> _selectedOptions = {};
   final Map<String, Map<String, TextEditingController>> _priceControllers = {};
+  final Map<String, Map<String, FocusNode>> _priceFocusNodes = {};
   final Map<String, bool> _combinationSelection = {};
 
   @override
@@ -54,6 +55,12 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
       }
     }
     _priceControllers.clear();
+    for (var innerMap in _priceFocusNodes.values) {
+      for (var node in innerMap.values) {
+        node.dispose();
+      }
+    }
+    _priceFocusNodes.clear();
   }
 
   void _selectType() {
@@ -122,44 +129,81 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
         final condUnits = suggestions['conditional_units'] as Map<String, dynamic>? ?? {};
         condUnits.forEach((optionName, unitsList) {
           _priceControllers[optionName] = {};
+          _priceFocusNodes[optionName] = {};
           final list = unitsList as List<dynamic>;
           
           // Find base unit for ratio linkage
           final baseUnit = list.firstWhere((u) => (u['ratio'] as int) == 1, orElse: () => null);
 
           for (var u in list) {
-            final uName = u['unit_name'] as String;
+            final uName = u['unitName'] as String;
             final suggestionPrice = u['price_suggestion'] as int? ?? 0;
             final controller = TextEditingController(
               text: _currencyFormatter.format(suggestionPrice),
             );
             _priceControllers[optionName]![uName] = controller;
+            _priceFocusNodes[optionName]![uName] = FocusNode();
           }
 
-          // Link base unit price changes to secondary units as real-time pricing assistance
-          if (baseUnit != null) {
-            final baseUnitName = baseUnit['unit_name'] as String;
-            final baseController = _priceControllers[optionName]![baseUnitName];
-            
-            if (baseController != null) {
-              baseController.addListener(() {
-                final rawPrice = baseController.text.replaceAll('.', '').trim();
-                if (rawPrice.isEmpty) return;
+          // Link unit price changes as real-time pricing assistance
+          for (var u in list) {
+            final uName = u['unitName'] as String;
+            final ratio = u['ratio'] as int;
+            final isBase = ratio == 1;
+            final controller = _priceControllers[optionName]![uName];
+            final focusNode = _priceFocusNodes[optionName]![uName];
+
+            if (controller != null && focusNode != null) {
+              controller.addListener(() {
+                // Only propagate changes if the user is actively editing this field
+                if (!focusNode.hasFocus) return;
+
+                final rawPrice = controller.text.replaceAll('.', '').trim();
                 
-                final basePrice = int.tryParse(rawPrice) ?? 0;
-                
-                for (var u in list) {
-                  final uName = u['unit_name'] as String;
-                  final ratio = u['ratio'] as int;
-                  if (ratio > 1) {
-                    final targetController = _priceControllers[optionName]![uName];
-                    if (targetController != null) {
-                      // Only update if not currently focused to avoid messing with user direct input
-                      final computedPrice = basePrice * ratio;
-                      targetController.text = _currencyFormatter.format(computedPrice);
+                setState(() {
+                  if (rawPrice.isEmpty) return;
+
+                  final currentPrice = int.tryParse(rawPrice) ?? 0;
+
+                  if (isBase) {
+                    // If base unit is changed, multiply by ratio for all larger units
+                    for (var otherUnit in list) {
+                      final otherName = otherUnit['unitName'] as String;
+                      final otherRatio = otherUnit['ratio'] as int;
+                      if (otherRatio > 1) {
+                        final targetController = _priceControllers[optionName]![otherName];
+                        if (targetController != null) {
+                          final computedPrice = currentPrice * otherRatio;
+                          targetController.text = _currencyFormatter.format(computedPrice);
+                        }
+                      }
+                    }
+                  } else {
+                    // If a larger unit is changed, divide by ratio to get base unit price,
+                    // and then update all other larger units as well!
+                    if (baseUnit != null) {
+                      final baseUnitName = baseUnit['unitName'] as String;
+                      final baseController = _priceControllers[optionName]![baseUnitName];
+                      if (baseController != null) {
+                        final computedBasePrice = (currentPrice / ratio).round();
+                        baseController.text = _currencyFormatter.format(computedBasePrice);
+
+                        // Also update other larger units based on the new base price
+                        for (var otherUnit in list) {
+                          final otherName = otherUnit['unitName'] as String;
+                          final otherRatio = otherUnit['ratio'] as int;
+                          if (otherName != uName && otherRatio > 1) {
+                            final targetController = _priceControllers[optionName]![otherName];
+                            if (targetController != null) {
+                              final computedPrice = computedBasePrice * otherRatio;
+                              targetController.text = _currencyFormatter.format(computedPrice);
+                            }
+                          }
+                        }
+                      }
                     }
                   }
-                }
+                });
               });
             }
           }
@@ -245,7 +289,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
         final rawUnits = _aiResponse!['conditional_units'][matchedQuyCach] as List<dynamic>?;
         if (rawUnits != null) {
           for (var ru in rawUnits) {
-            final uName = ru['unit_name'] as String;
+            final uName = ru['unitName'] as String;
             final uRatio = (ru['ratio'] as num).toInt();
             final isBase = uRatio == 1;
 
@@ -333,7 +377,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
       if (aiSuggestedType != null && aiSuggestedType.trim().isNotEmpty) {
         final cleanType = aiSuggestedType.trim();
         final matchedType = _types.firstWhere(
-          (t) => t['type_name'].toString().toLowerCase() == cleanType.toLowerCase(),
+          (t) => t['typeName'].toString().toLowerCase() == cleanType.toLowerCase(),
           orElse: () => null,
         );
 
@@ -522,7 +566,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
     setState(() => _isSavingBatch = true);
 
     try {
-      final typeId = _selectedType != null ? _selectedType['type_id'] as String : null;
+      final typeId = _selectedType != null ? _selectedType['typeId'] as String : null;
       
       final response = await _apiService.batchCreateItems(
         typeId: typeId,
@@ -692,7 +736,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
                           ),
                         ),
                         Text(
-                          _selectedType != null ? _selectedType['type_name'] : 'Chưa chọn phân loại (bắt buộc)',
+                          _selectedType != null ? _selectedType['typeName'] : 'Chưa chọn phân loại (bắt buộc)',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -725,7 +769,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
                     onTap: () {
                       final aiSuggestedType = _aiResponse!['type'].toString().trim();
                       final matchedType = _types.firstWhere(
-                        (t) => t['type_name'].toString().toLowerCase() == aiSuggestedType.toLowerCase(),
+                        (t) => t['typeName'].toString().toLowerCase() == aiSuggestedType.toLowerCase(),
                         orElse: () => null,
                       );
                       if (matchedType != null) {
@@ -1066,10 +1110,11 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
                   ),
                   const SizedBox(height: 12),
                   ...condUnits.map((u) {
-                    final uName = u['unit_name'] as String;
+                    final uName = u['unitName'] as String;
                     final ratio = u['ratio'] as int;
                     final isBase = ratio == 1;
                     final controller = controllersMap[uName];
+                    final focusNode = _priceFocusNodes[qcOption]?[uName];
 
                     if (controller == null) return const SizedBox.shrink();
 
@@ -1094,6 +1139,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
                               height: 40,
                               child: TextField(
                                 controller: controller,
+                                focusNode: focusNode,
                                 keyboardType: TextInputType.number,
                                 inputFormatters: [CurrencyInputFormatter()],
                                 decoration: InputDecoration(
@@ -1212,7 +1258,8 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
                 onPressed: _isSavingBatch
                     ? null
                     : () {
-                        final selectedItems = combs
+                        final freshCombs = _generateCombinations();
+                        final selectedItems = freshCombs
                             .where((c) => _combinationSelection[c['itemName']] == true)
                             .toList();
                         _saveDirectSelectedItems(selectedItems);

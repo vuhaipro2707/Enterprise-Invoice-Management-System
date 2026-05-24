@@ -119,9 +119,9 @@ class _PricelistTrashScreenState extends State<PricelistTrashScreen> {
   Widget _buildPriceListCard(Map<String, dynamic> priceList) {
     final colorScheme = Theme.of(context).colorScheme;
     final description = priceList['description'] ?? 'Không có mô tả';
-    final buyerName = priceList['buyer_name'] ?? 'Bảng báo giá chung';
-    final buyerCode = priceList['buyer_code'];
-    final updatedAt = _formatDateTime(priceList['updated_at']);
+    final buyerName = priceList['buyerName'] ?? 'Bảng báo giá chung';
+    final buyerCode = priceList['buyerCode'];
+    final updatedAt = _formatDateTime(priceList['updatedAt']);
 
     return Card(
       elevation: 0,
@@ -140,7 +140,7 @@ class _PricelistTrashScreenState extends State<PricelistTrashScreen> {
             context,
             '/edit_pricelist',
             arguments: {
-              'pricelistId': priceList['customer_price_list_id'],
+              'pricelistId': priceList['customerPriceListId'],
               'isDeleted': true,
             },
           );

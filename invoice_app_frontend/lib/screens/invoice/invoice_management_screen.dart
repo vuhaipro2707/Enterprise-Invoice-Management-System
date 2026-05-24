@@ -123,8 +123,8 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
         showDraft: _showEditing,
         showSaved: _showSaved,
         showLocked: _showLocked,
-        buyerId: _selectedBuyer?['buyer_id']?.toString(),
-        itemId: _selectedItem?['item_id']?.toString(),
+        buyerId: _selectedBuyer?['buyerId']?.toString(),
+        itemId: _selectedItem?['itemId']?.toString(),
         invoiceCode: _searchController.text,
         startDate: _startDate,
         endDate: _endDate,
@@ -161,8 +161,8 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
         showDraft: _showEditing,
         showSaved: _showSaved,
         showLocked: _showLocked,
-        buyerId: _selectedBuyer?['buyer_id']?.toString(),
-        itemId: _selectedItem?['item_id']?.toString(),
+        buyerId: _selectedBuyer?['buyerId']?.toString(),
+        itemId: _selectedItem?['itemId']?.toString(),
         invoiceCode: _searchController.text,
         startDate: _startDate,
         endDate: _endDate,
@@ -191,7 +191,7 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
   }
 
   Future<void> _handleInvoiceTap(Map<String, dynamic> inv) async {
-    final invoiceId = inv['invoice_id'].toString();
+    final invoiceId = inv['invoiceId'].toString();
     
     // Helper to get string value safely
     String? getStringValueLocal(dynamic field) {
@@ -200,9 +200,9 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
       return field.toString();
     }
 
-    final isEditing = inv['edit_status'] == true;
-    final currentDeviceHoldingId = getStringValueLocal(inv['device_holding_id']);
-    final deviceName = getStringValueLocal(inv['device_name']) ?? 'Thiết bị khác';
+    final isEditing = inv['editStatus'] == true;
+    final currentDeviceHoldingId = getStringValueLocal(inv['deviceHoldingId']);
+    final deviceName = getStringValueLocal(inv['deviceName']) ?? 'Thiết bị khác';
 
     // Reroute finalized invoices to the read-only details screen
     if (!isEditing) {
@@ -494,7 +494,7 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
                     color: _selectedBuyer != null ? colorScheme.onPrimaryContainer : colorScheme.onSurface,
                   ),
                   label: Text(_selectedBuyer != null
-                      ? 'Người mua: ${_selectedBuyer!['buyer_name']}'
+                      ? 'Người mua: ${_selectedBuyer!['buyerName']}'
                       : 'Lọc theo người mua'),
                   selected: _selectedBuyer != null,
                   selectedColor: colorScheme.primaryContainer,
@@ -516,7 +516,7 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
                     color: _selectedItem != null ? colorScheme.onPrimaryContainer : colorScheme.onSurface,
                   ),
                   label: Text(_selectedItem != null
-                      ? 'Mặt hàng: ${_selectedItem!['item_default_name']}'
+                      ? 'Mặt hàng: ${_selectedItem!['itemDefaultName']}'
                       : 'Lọc theo mặt hàng'),
                   selected: _selectedItem != null,
                   selectedColor: colorScheme.primaryContainer,
@@ -732,8 +732,8 @@ class _BuyerSearchFilterSheetState extends State<_BuyerSearchFilterSheet> {
                           itemCount: _buyers.length,
                           itemBuilder: (context, index) {
                             final buyer = _buyers[index];
-                            final buyerName = buyer['buyer_name'] ?? '';
-                            final buyerCode = buyer['buyer_code'] ?? '';
+                            final buyerName = buyer['buyerName'] ?? '';
+                            final buyerCode = buyer['buyerCode'] ?? '';
                             final address = buyer['address'] ?? '';
 
                             return ListTile(
@@ -865,7 +865,7 @@ class _ItemSearchFilterSheetState extends State<_ItemSearchFilterSheet> {
                           itemCount: _items.length,
                           itemBuilder: (context, index) {
                             final item = _items[index];
-                            final defaultName = item['item_default_name'] ?? '';
+                            final defaultName = item['itemDefaultName'] ?? '';
 
                             return ListTile(
                               leading: CircleAvatar(

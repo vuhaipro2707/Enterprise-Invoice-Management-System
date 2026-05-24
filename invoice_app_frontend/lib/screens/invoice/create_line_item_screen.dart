@@ -40,11 +40,11 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
 
         if (_currentExistingLineItem != null) {
           final item = _currentExistingLineItem!;
-          _itemNameController.text = item['item_name_snapshot'] ?? '';
-          _unitNameController.text = item['unit_name_snapshot'] ?? '';
+          _itemNameController.text = item['itemNameSnapshot'] ?? '';
+          _unitNameController.text = item['unitNameSnapshot'] ?? '';
           _quantityController.text = (item['quantity'] ?? 0).toString();
-          _priceController.text = NumberFormat.decimalPattern('vi_VN').format(item['unit_price_custom'] ?? 0);
-          _selectedUnitId = item['unit_id'];
+          _priceController.text = NumberFormat.decimalPattern('vi_VN').format(item['unitPriceCustom'] ?? 0);
+          _selectedUnitId = item['unitId'];
         }
       } else {
         _currentInvoiceId = widget.invoiceId;
@@ -66,7 +66,7 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
     if (result != null && result is Map<String, dynamic>) {
       setState(() {
         _selectedItem = result;
-        _itemNameController.text = result['item_default_name'] ?? '';
+        _itemNameController.text = result['itemDefaultName'] ?? '';
         _availableUnits = result['units'] as List? ?? [];
         if (_availableUnits.isNotEmpty) {
           _onUnitSelected(_availableUnits[0]);
@@ -81,9 +81,9 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
 
   void _onUnitSelected(Map<String, dynamic> unit) {
     setState(() {
-      _selectedUnitId = unit['unit_id'];
-      _unitNameController.text = unit['unit_name'] ?? '';
-      final rawPrice = unit['unit_price_default'] ?? 0;
+      _selectedUnitId = unit['unitId'];
+      _unitNameController.text = unit['unitName'] ?? '';
+      final rawPrice = unit['unitPriceDefault'] ?? 0;
       _priceController.text = NumberFormat.decimalPattern('vi_VN').format(rawPrice);
     });
   }
@@ -133,9 +133,9 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
               Wrap(
                 spacing: 8,
                 children: _availableUnits.map((unit) {
-                  final isSelected = _selectedUnitId == unit['unit_id'];
+                  final isSelected = _selectedUnitId == unit['unitId'];
                   return ChoiceChip(
-                    label: Text('${unit['unit_name']} (${NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(unit['unit_price_default'])})'),
+                    label: Text('${unit['unitName']} (${NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(unit['unitPriceDefault'])})'),
                     selected: isSelected,
                     onSelected: (val) {
                       if (val) _onUnitSelected(unit);
@@ -238,26 +238,26 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
       }
 
       final payload = {
-        "invoice_id": _currentInvoiceId,
-        "item_id": _selectedItem != null ? (_selectedItem!['item_id'] ?? _selectedItem!['id']) : (_currentExistingLineItem?['item_id']),
-        "unit_id": _selectedUnitId,
-        "item_name_snapshot": itemName,
-        "unit_name_snapshot": unitName,
+        "invoiceId": _currentInvoiceId,
+        "itemId": _selectedItem != null ? (_selectedItem!['itemId'] ?? _selectedItem!['id']) : (_currentExistingLineItem?['itemId']),
+        "unitId": _selectedUnitId,
+        "itemNameSnapshot": itemName,
+        "unitNameSnapshot": unitName,
         "quantity": qty.toInt(),
-        "unit_price_custom": price,
+        "unitPriceCustom": price,
       };
 
       if (_currentExistingLineItem != null) {
-        final lineItemId = _currentExistingLineItem!['line_item_id'];
+        final lineItemId = _currentExistingLineItem!['lineItemId'];
         await _apiService.patchLineItem(lineItemId.toString(), payload);
       } else {
         await _apiService.createLineItem(_currentInvoiceId!, {
-          "itemID": payload["item_id"],
-          "unitID": payload["unit_id"],
-          "itemNameSnapshot": payload["item_name_snapshot"],
-          "unitNameSnapshot": payload["unit_name_snapshot"],
+          "itemId": payload["itemId"],
+          "unitId": payload["unitId"],
+          "itemNameSnapshot": payload["itemNameSnapshot"],
+          "unitNameSnapshot": payload["unitNameSnapshot"],
           "quantity": payload["quantity"],
-          "unitPriceCustom": payload["unit_price_custom"],
+          "unitPriceCustom": payload["unitPriceCustom"],
         });
       }
       if (mounted) Navigator.pop(context, true);

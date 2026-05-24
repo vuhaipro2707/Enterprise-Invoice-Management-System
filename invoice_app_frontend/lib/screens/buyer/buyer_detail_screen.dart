@@ -33,13 +33,13 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _codeController = TextEditingController(text: widget.buyer['buyer_code']);
-    _nameController = TextEditingController(text: widget.buyer['buyer_name']);
+    _codeController = TextEditingController(text: widget.buyer['buyerCode']);
+    _nameController = TextEditingController(text: widget.buyer['buyerName']);
     _addressController = TextEditingController(text: widget.buyer['address']);
-    _phoneController = TextEditingController(text: widget.buyer['phone_number']);
-    _idCardController = TextEditingController(text: widget.buyer['id_card_number']);
+    _phoneController = TextEditingController(text: widget.buyer['phoneNumber']);
+    _idCardController = TextEditingController(text: widget.buyer['idCardNumber']);
     _emailController = TextEditingController(text: widget.buyer['email']);
-    _taxIdController = TextEditingController(text: widget.buyer['tax_id']);
+    _taxIdController = TextEditingController(text: widget.buyer['taxId']);
     _selectedLat = widget.buyer['lat'] != null ? (widget.buyer['lat'] as num).toDouble() : null;
     _selectedLng = widget.buyer['lng'] != null ? (widget.buyer['lng'] as num).toDouble() : null;
   }
@@ -63,13 +63,13 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
 
     try {
       final updates = <String, dynamic>{};
-      if (_codeController.text != widget.buyer['buyer_code']) updates['buyerCode'] = _codeController.text;
-      if (_nameController.text != widget.buyer['buyer_name']) updates['buyerName'] = _nameController.text;
+      if (_codeController.text != widget.buyer['buyerCode']) updates['buyerCode'] = _codeController.text;
+      if (_nameController.text != widget.buyer['buyerName']) updates['buyerName'] = _nameController.text;
       if (_addressController.text != widget.buyer['address']) updates['address'] = _addressController.text;
-      if (_phoneController.text != widget.buyer['phone_number']) updates['phoneNumber'] = _phoneController.text;
-      if (_idCardController.text != widget.buyer['id_card_number']) updates['idCardNumber'] = _idCardController.text;
+      if (_phoneController.text != widget.buyer['phoneNumber']) updates['phoneNumber'] = _phoneController.text;
+      if (_idCardController.text != widget.buyer['idCardNumber']) updates['idCardNumber'] = _idCardController.text;
       if (_emailController.text != widget.buyer['email']) updates['email'] = _emailController.text.trim().isEmpty ? null : _emailController.text.trim();
-      if (_taxIdController.text != widget.buyer['tax_id']) updates['taxId'] = _taxIdController.text;
+      if (_taxIdController.text != widget.buyer['taxId']) updates['taxId'] = _taxIdController.text;
       
       // Update coordinates if they changed or were not set
       if (_selectedLat != (widget.buyer['lat'] != null ? (widget.buyer['lat'] as num).toDouble() : null)) {
@@ -84,7 +84,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
         return;
       }
 
-      await _apiService.patchBuyer(widget.buyer['buyer_id'], updates);
+      await _apiService.patchBuyer(widget.buyer['buyerId'], updates);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -121,7 +121,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
   Future<void> _restoreBuyer() async {
     setState(() => _isLoading = true);
     try {
-      await _apiService.restoreBuyer(widget.buyer['buyer_id']);
+      await _apiService.restoreBuyer(widget.buyer['buyerId']);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Khôi phục người mua thành công')),
@@ -171,7 +171,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await _apiService.deleteBuyer(widget.buyer['buyer_id']);
+      await _apiService.deleteBuyer(widget.buyer['buyerId']);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Xóa người mua thành công')),

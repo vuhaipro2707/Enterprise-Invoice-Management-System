@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	sqlc "invoice_backend/db/sqlc" // Đổi theo module của bạn
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -101,13 +102,28 @@ func (h *AuthHandler) GetCurrentUser(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "User not found"})
 	}
 
+	var isActive *bool
+	if user.IsActive.Valid {
+		isActive = &user.IsActive.Bool
+	}
+	var createdAt *string
+	if user.CreatedAt.Valid {
+		s := user.CreatedAt.Time.Format(time.RFC3339)
+		createdAt = &s
+	}
+	var updatedAt *string
+	if user.UpdatedAt.Valid {
+		s := user.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &s
+	}
+
 	return c.JSON(fiber.Map{
-		"account_id": user.AccountID,
-		"username":   user.Username,
-		"name":       user.Name,
-		"is_active":  user.IsActive,
-		"created_at": user.CreatedAt,
-		"updated_at": user.UpdatedAt,
+		"accountId": user.AccountID,
+		"username":  user.Username,
+		"name":      user.Name,
+		"isActive":  isActive,
+		"createdAt": createdAt,
+		"updatedAt": updatedAt,
 	})
 }
 

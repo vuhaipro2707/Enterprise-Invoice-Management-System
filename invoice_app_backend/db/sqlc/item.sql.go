@@ -205,15 +205,15 @@ func (q *Queries) DeleteUnit(ctx context.Context, unitID uuid.UUID) error {
 const getItemByID = `-- name: GetItemByID :one
 SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'item_other_name_id', ion.item_other_name_id,
-         'name_string', ion.name_string
+         'itemOtherNameId', ion.item_other_name_id,
+         'nameString', ion.name_string
        )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'unit_id', u.unit_id,
-         'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default,
+         'unitId', u.unit_id,
+         'unitName', u.unit_name,
+         'unitPriceDefault', u.unit_price_default,
          'ratio', u.ratio,
-         'is_base_unit', u.is_base_unit
+         'isBaseUnit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -277,15 +277,15 @@ func (q *Queries) GetUnitByID(ctx context.Context, unitID uuid.UUID) (Unit, erro
 const listDeletedItems = `-- name: ListDeletedItems :many
 SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at, 
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'item_other_name_id', ion.item_other_name_id,
-         'name_string', ion.name_string
+         'itemOtherNameId', ion.item_other_name_id,
+         'nameString', ion.name_string
        )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'unit_id', u.unit_id,
-         'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default,
+         'unitId', u.unit_id,
+         'unitName', u.unit_name,
+         'unitPriceDefault', u.unit_price_default,
          'ratio', u.ratio,
-         'is_base_unit', u.is_base_unit
+         'isBaseUnit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -371,15 +371,15 @@ func (q *Queries) ListItemOtherNames(ctx context.Context, itemID uuid.UUID) ([]I
 const listItems = `-- name: ListItems :many
 SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at, 
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'item_other_name_id', ion.item_other_name_id,
-         'name_string', ion.name_string
+         'itemOtherNameId', ion.item_other_name_id,
+         'nameString', ion.name_string
        )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'unit_id', u.unit_id,
-         'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default,
+         'unitId', u.unit_id,
+         'unitName', u.unit_name,
+         'unitPriceDefault', u.unit_price_default,
          'ratio', u.ratio,
-         'is_base_unit', u.is_base_unit
+         'isBaseUnit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -437,15 +437,15 @@ func (q *Queries) ListItems(ctx context.Context) ([]ListItemsRow, error) {
 const listItemsFiltered = `-- name: ListItemsFiltered :many
 SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at, 
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'item_other_name_id', ion.item_other_name_id,
-         'name_string', ion.name_string
+         'itemOtherNameId', ion.item_other_name_id,
+         'nameString', ion.name_string
        )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'unit_id', u.unit_id,
-         'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default,
+         'unitId', u.unit_id,
+         'unitName', u.unit_name,
+         'unitPriceDefault', u.unit_price_default,
          'ratio', u.ratio,
-         'is_base_unit', u.is_base_unit
+         'isBaseUnit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
@@ -763,15 +763,15 @@ func (q *Queries) RestoreItem(ctx context.Context, itemID uuid.UUID) error {
 const searchItems = `-- name: SearchItems :many
 SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.updated_at, i.deleted_at,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'item_other_name_id', ion.item_other_name_id,
-         'name_string', ion.name_string
+         'itemOtherNameId', ion.item_other_name_id,
+         'nameString', ion.name_string
        )) FILTER (WHERE ion.item_other_name_id IS NOT NULL), '[]')::JSONB AS item_other_names,
        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-         'unit_id', u.unit_id,
-         'unit_name', u.unit_name,
-         'unit_price_default', u.unit_price_default,
+         'unitId', u.unit_id,
+         'unitName', u.unit_name,
+         'unitPriceDefault', u.unit_price_default,
          'ratio', u.ratio,
-         'is_base_unit', u.is_base_unit
+         'isBaseUnit', u.is_base_unit
        )) FILTER (WHERE u.unit_id IS NOT NULL), '[]')::JSONB AS units
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id

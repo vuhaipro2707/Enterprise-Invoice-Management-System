@@ -24,6 +24,10 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
   int? _pickedIndex;
   String _localSearchQuery = '';
 
+  String _initialDescription = '';
+  String? _initialBuyerId;
+  List<Map<String, dynamic>> _initialPriceItems = [];
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -37,6 +41,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
               _priceItems.add(Map<String, dynamic>.from(item));
             }
           }
+          _initialPriceItems = _priceItems.map((itm) => Map<String, dynamic>.from(itm)).toList();
         });
       }
       _isInitialized = true;
@@ -164,14 +169,14 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
     // Get units array from item. When we edit, it might be nested differently, so look for both structures
     final List<dynamic> units = item['units'] as List? ?? [];
     
-    String? currentUnitId = index != null ? item['unit_id'] : (units.isNotEmpty ? units[0]['unit_id'] : null);
+    String? currentUnitId = index != null ? item['unitId'] : (units.isNotEmpty ? units[0]['unitId'] : null);
     
     // Setup initial price
     int initialPrice = 0;
     if (index != null) {
-      initialPrice = item['unit_price_custom'] as int? ?? 0;
+      initialPrice = item['unitPriceCustom'] as int? ?? 0;
     } else if (units.isNotEmpty) {
-      initialPrice = (units[0]['unit_price_default'] as num?)?.toInt() ?? 0;
+      initialPrice = (units[0]['unitPriceDefault'] as num?)?.toInt() ?? 0;
     }
 
     final priceController = TextEditingController(
@@ -187,7 +192,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
             Map<String, dynamic>? selectedUnitObj;
             if (currentUnitId != null) {
               for (var u in units) {
-                if (u['unit_id'] == currentUnitId) {
+                if (u['unitId'] == currentUnitId) {
                   selectedUnitObj = u as Map<String, dynamic>;
                   break;
                 }
@@ -195,10 +200,10 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
             }
 
             final defaultPrice = selectedUnitObj != null
-                ? (selectedUnitObj['unit_price_default'] as num?)?.toInt() ?? 0
+                ? (selectedUnitObj['unitPriceDefault'] as num?)?.toInt() ?? 0
                 : 0;
 
-            final itemName = item['item_default_name'] ?? item['item_name'] ?? 'Mặt hàng không tên';
+            final itemName = item['itemDefaultName'] ?? 'Mặt hàng không tên';
 
             return AlertDialog(
               title: Text(
@@ -233,17 +238,17 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                         spacing: 8,
                         runSpacing: 8,
                         children: units.map((u) {
-                          final isSelected = u['unit_id'] == currentUnitId;
-                          final uPrice = (u['unit_price_default'] as num?)?.toInt() ?? 0;
+                          final isSelected = u['unitId'] == currentUnitId;
+                          final uPrice = (u['unitPriceDefault'] as num?)?.toInt() ?? 0;
                           final priceFormatted = CurrencyFormatter.formatVND(uPrice);
                           
                           return ChoiceChip(
-                            label: Text('${u['unit_name']} ($priceFormatted)'),
+                            label: Text('${u['unitName']} ($priceFormatted)'),
                             selected: isSelected,
                             onSelected: (selected) {
                               if (selected) {
                                 setDialogState(() {
-                                  currentUnitId = u['unit_id'];
+                                  currentUnitId = u['unitId'];
                                   // Update the custom price text field with default price of new unit
                                   priceController.text = NumberFormat.decimalPattern('vi_VN').format(uPrice);
                                 });
@@ -322,19 +327,19 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                     // Get selected unit details
                     String unitName = 'Cái';
                     if (selectedUnitObj != null) {
-                      unitName = selectedUnitObj['unit_name'] ?? 'Cái';
-                    } else if (item['unit_name'] != null) {
-                      unitName = item['unit_name'];
+                      unitName = selectedUnitObj['unitName'] ?? 'Cái';
+                    } else if (item['unitName'] != null) {
+                      unitName = item['unitName'];
                     }
 
                     setState(() {
                       final itemData = {
-                        'item_id': item['item_id'] ?? item['id'],
-                        'item_default_name': itemName,
-                        'unit_id': currentUnitId,
-                        'unit_name': unitName,
-                        'unit_price_custom': price,
-                        'unit_price_default': defaultPrice,
+                        'itemId': item['itemId'] ?? item['id'],
+                        'itemDefaultName': itemName,
+                        'unitId': currentUnitId,
+                        'unitName': unitName,
+                        'unitPriceCustom': price,
+                        'unitPriceDefault': defaultPrice,
                         'units': units, // Preserve for subsequent editing
                       };
 
@@ -343,8 +348,8 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                       } else {
                         // Check if item-unit combination already exists
                         final existingIdx = _priceItems.indexWhere((element) =>
-                            element['item_id'] == itemData['item_id'] &&
-                            element['unit_id'] == itemData['unit_id']);
+                            element['itemId'] == itemData['itemId'] &&
+                            element['unitId'] == itemData['unitId']);
                         
                         if (existingIdx != -1) {
                           _priceItems[existingIdx] = itemData;
@@ -373,8 +378,29 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
     );
   }
 
-  void _savePriceList() async {
-    if (!_formKey.currentState!.validate()) return;
+  bool _hasUnsavedChanges() {
+    if (_isLoading) return false;
+    if (_descriptionController.text.trim() != _initialDescription.trim()) return true;
+    
+    final currentBuyerId = _selectedBuyer?['buyerId']?.toString();
+    if (currentBuyerId != _initialBuyerId) return true;
+    
+    if (_priceItems.length != _initialPriceItems.length) return true;
+    
+    for (int i = 0; i < _priceItems.length; i++) {
+      final cur = _priceItems[i];
+      final init = _initialPriceItems[i];
+      if (cur['itemId'] != init['itemId'] ||
+          cur['unitId'] != init['unitId'] ||
+          cur['unitPriceCustom'] != init['unitPriceCustom']) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<bool> _savePriceListWithResult() async {
+    if (!_formKey.currentState!.validate()) return false;
 
     if (_priceItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -383,7 +409,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
           backgroundColor: Colors.orange,
         ),
       );
-      return;
+      return false;
     }
 
     setState(() => _isLoading = true);
@@ -392,29 +418,38 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
       // Map frontend model list to Go API Request format
       final formattedItems = _priceItems.map((itm) {
         return {
-          'itemId': itm['item_id'],
-          'unitId': itm['unit_id'],
-          'unitPriceCustom': itm['unit_price_custom'],
+          'itemId': itm['itemId'],
+          'unitId': itm['unitId'],
+          'unitPriceCustom': itm['unitPriceCustom'],
         };
       }).toList();
 
       await _apiService.createCustomerPriceList(
         description: _descriptionController.text.trim(),
-        buyerId: _selectedBuyer?['buyer_id'],
+        buyerId: _selectedBuyer?['buyerId'],
         items: formattedItems,
       );
 
       if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _initialDescription = _descriptionController.text.trim();
+          _initialBuyerId = _selectedBuyer?['buyerId']?.toString();
+          _initialPriceItems = _priceItems.map((itm) => Map<String, dynamic>.from(itm)).toList();
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Tạo bảng báo giá thành công!'),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context, true);
+        return true;
       }
+      return false;
     } catch (e) {
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Lỗi khi tạo bảng báo giá: $e'),
@@ -422,19 +457,90 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      return false;
     }
+  }
+
+  void _savePriceList() async {
+    final success = await _savePriceListWithResult();
+    if (success && mounted) {
+      Navigator.pop(context, true);
+    }
+  }
+
+  Future<bool> _showBackConfirmationDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: colorScheme.error),
+              const SizedBox(width: 8),
+              const Text('Chưa lưu thay đổi'),
+            ],
+          ),
+          content: const Text(
+            'Bạn chưa lưu bảng báo giá mới này. Bạn có chắc chắn muốn thoát không?',
+          ),
+          actionsAlignment: MainAxisAlignment.end,
+          actionsOverflowButtonSpacing: 8,
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'cancel'),
+              child: const Text('HỦY'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'discard'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colorScheme.error,
+                side: BorderSide(color: colorScheme.error),
+              ),
+              child: const Text('THOÁT KHÔNG LƯU'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'save'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+              ),
+              child: const Text('LƯU VÀ THOÁT'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == 'discard') {
+      return true;
+    } else if (result == 'save') {
+      final success = await _savePriceListWithResult();
+      return success;
+    }
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tạo bảng báo giá mới'),
-      ),
+    return PopScope(
+      canPop: !_hasUnsavedChanges(),
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        final shouldPop = await _showBackConfirmationDialog();
+        if (shouldPop && mounted) {
+          navigator.pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Tạo bảng báo giá mới'),
+        ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Form(
@@ -481,7 +587,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                                   ),
                                   tooltip: 'Tạo mô tả mặc định',
                                   onPressed: () {
-                                    final buyerName = _selectedBuyer?['buyer_name'] ?? 'lẻ';
+                                    final buyerName = _selectedBuyer?['buyerName'] ?? 'lẻ';
                                     final nowStr = DateFormat('dd/MM/yyyy').format(DateTime.now());
                                     _descriptionController.text = 'Báo giá khách hàng $buyerName ngày $nowStr';
                                   },
@@ -592,7 +698,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                _selectedBuyer?['buyer_name'] ?? 'Không tên',
+                                                _selectedBuyer?['buyerName'] ?? 'Không tên',
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
                                                   fontSize: 16,
@@ -600,7 +706,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
-                                                'Mã khách: ${_selectedBuyer?['buyer_code'] ?? 'N/A'}',
+                                                'Mã khách: ${_selectedBuyer?['buyerCode'] ?? 'N/A'}',
                                                 style: TextStyle(
                                                   color: colorScheme.primary,
                                                   fontWeight: FontWeight.w600,
@@ -637,14 +743,14 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                                       ),
                                       const SizedBox(height: 6),
                                     ],
-                                    if (_selectedBuyer?['phone_number'] != null &&
-                                        _selectedBuyer?['phone_number'].toString().isNotEmpty == true) ...[
+                                    if (_selectedBuyer?['phoneNumber'] != null &&
+                                        _selectedBuyer?['phoneNumber'].toString().isNotEmpty == true) ...[
                                       Row(
                                         children: [
                                           Icon(Icons.phone_outlined, size: 16, color: colorScheme.outline),
                                           const SizedBox(width: 8),
                                           Text(
-                                            _selectedBuyer!['phone_number'],
+                                            _selectedBuyer!['phoneNumber'],
                                             style: const TextStyle(fontSize: 13),
                                           ),
                                         ],
@@ -768,7 +874,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                             }
 
                             final filteredItems = itemsWithOrigIndex.where((itm) {
-                              final name = (itm['item_default_name'] ?? '').toString();
+                              final name = (itm['itemDefaultName'] ?? '').toString();
                               return StringUtils.containsUnaccented(name, _localSearchQuery);
                             }).toList();
 
@@ -798,7 +904,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                                   final item = filteredItems[idx];
                                   final origIndex = item['orig_index'];
                                   return ReorderableDelayedDragStartListener(
-                                    key: ValueKey('${item['item_id']}_${item['unit_id']}'),
+                                    key: ValueKey('${item['itemId']}_${item['unitId']}'),
                                     index: idx,
                                     child: PriceItemCard(
                                       item: item,
@@ -885,6 +991,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                 ),
               ),
             ),
+      ),
     );
   }
 }

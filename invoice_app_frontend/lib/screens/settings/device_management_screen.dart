@@ -27,7 +27,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
         setState(() {
           if (result['registered'] == true) {
             final data = result['data'];
-            final deviceName = data['device_name'];
+            final deviceName = data['deviceName'];
             if (deviceName is Map) {
               _currentDeviceName = deviceName['String'];
             } else {

@@ -1,4 +1,4 @@
-package invoice
+package shared
 
 import (
 	"encoding/json"

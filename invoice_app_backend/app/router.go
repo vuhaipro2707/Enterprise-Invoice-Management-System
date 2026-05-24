@@ -90,4 +90,6 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	pricelistGroup.Patch("/changeOrder/:pricelistId", pricelistHandler.ChangePriceItemOrder)
 	pricelistGroup.Delete("/id/:pricelistId", pricelistHandler.DeletePriceList)
 	pricelistGroup.Post("/id/:pricelistId/restore", pricelistHandler.RestorePriceList)
+	pricelistGroup.Get("/id/:pricelistId/export", pricelistHandler.ExportPriceList)
+	pricelistGroup.Post("/id/:pricelistId/export-email", pricelistHandler.ExportAndEmailPriceList)
 }

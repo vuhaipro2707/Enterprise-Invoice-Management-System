@@ -25,10 +25,10 @@ class BuyerCard extends StatelessWidget {
       ));
     }
 
-    if (buyer['phone_number'] != null && buyer['phone_number'].toString().trim().isNotEmpty) {
+    if (buyer['phoneNumber'] != null && buyer['phoneNumber'].toString().trim().isNotEmpty) {
       if (details.isNotEmpty) details.add(const SizedBox(height: 4));
       details.add(Text(
-        'SĐT: ${buyer['phone_number']}', 
+        'SĐT: ${buyer['phoneNumber']}', 
         style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -45,20 +45,20 @@ class BuyerCard extends StatelessWidget {
       ));
     }
 
-    if (buyer['id_card_number'] != null && buyer['id_card_number'].toString().trim().isNotEmpty) {
+    if (buyer['idCardNumber'] != null && buyer['idCardNumber'].toString().trim().isNotEmpty) {
       if (details.isNotEmpty) details.add(const SizedBox(height: 2));
       details.add(Text(
-        'CCCD: ${buyer['id_card_number']}', 
+        'CCCD: ${buyer['idCardNumber']}', 
         style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ));
     }
 
-    if (buyer['tax_id'] != null && buyer['tax_id'].toString().trim().isNotEmpty) {
+    if (buyer['taxId'] != null && buyer['taxId'].toString().trim().isNotEmpty) {
       if (details.isNotEmpty) details.add(const SizedBox(height: 2));
       details.add(Text(
-        'Mã số thuế: ${buyer['tax_id']}', 
+        'Mã số thuế: ${buyer['taxId']}', 
         style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -81,14 +81,14 @@ class BuyerCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    (buyer['buyer_name'] != null && buyer['buyer_name'].toString().isNotEmpty) 
-                      ? buyer['buyer_name'] 
+                    (buyer['buyerName'] != null && buyer['buyerName'].toString().isNotEmpty) 
+                      ? buyer['buyerName'] 
                       : 'Không có tên',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Mã: ${(buyer['buyer_code'] != null && buyer['buyer_code'].toString().isNotEmpty) ? buyer['buyer_code'] : 'Không có'}', 
+                    'Mã: ${(buyer['buyerCode'] != null && buyer['buyerCode'].toString().isNotEmpty) ? buyer['buyerCode'] : 'Không có'}', 
                     style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

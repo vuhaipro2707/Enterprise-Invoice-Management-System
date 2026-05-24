@@ -27,14 +27,14 @@ class EditingInvoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final deviceName = _getStringValue(invoice['device_name']) ?? 'Không rõ';
-    final buyerName = _getStringValue(invoice['buyer_name_snapshot']) ?? 'K.Hàng vãng lai';
-    final buyerCode = _getStringValue(invoice['buyer_code']);
-    final address = _getStringValue(invoice['address_snapshot']);
-    final phoneNumber = _getStringValue(invoice['phone_number_snapshot']);
+    final deviceName = _getStringValue(invoice['deviceName']) ?? 'Không rõ';
+    final buyerName = _getStringValue(invoice['buyerNameSnapshot']) ?? 'K.Hàng vãng lai';
+    final buyerCode = _getStringValue(invoice['buyerCode']);
+    final address = _getStringValue(invoice['addressSnapshot']);
+    final phoneNumber = _getStringValue(invoice['phoneNumberSnapshot']);
     
-    final createdDateStr = _getTimestamp(invoice['created_at']);
-    final updatedDateStr = _getTimestamp(invoice['updated_at']);
+    final createdDateStr = _getTimestamp(invoice['createdAt']);
+    final updatedDateStr = _getTimestamp(invoice['updatedAt']);
 
     String createdTime = '--:--';
     if (createdDateStr != null) {
@@ -81,7 +81,7 @@ class EditingInvoiceCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        invoice['invoice_code'] ?? 'N/A',
+                        invoice['invoiceCode'] ?? 'N/A',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,

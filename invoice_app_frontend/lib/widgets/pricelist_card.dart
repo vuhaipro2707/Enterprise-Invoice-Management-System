@@ -5,23 +5,25 @@ class PriceListCard extends StatelessWidget {
   final Map<String, dynamic> priceList;
   final VoidCallback onTap;
   final VoidCallback? onQuickInvoice;
+  final VoidCallback? onExportQuote;
 
   const PriceListCard({
     super.key,
     required this.priceList,
     required this.onTap,
     this.onQuickInvoice,
+    this.onExportQuote,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final String description = priceList['description'] ?? '';
-    final String? buyerName = priceList['buyer_name'];
-    final String? buyerCode = priceList['buyer_code'];
+    final String? buyerName = priceList['buyerName'];
+    final String? buyerCode = priceList['buyerCode'];
 
-    final String createdAtRaw = priceList['created_at'] ?? '';
-    final String updatedAtRaw = priceList['updated_at'] ?? '';
+    final String createdAtRaw = priceList['createdAt'] ?? '';
+    final String updatedAtRaw = priceList['updatedAt'] ?? '';
 
     String createdText = '';
     String updatedText = '';
@@ -96,49 +98,6 @@ class PriceListCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (onQuickInvoice != null) ...[
-                    const SizedBox(width: 8),
-                    Tooltip(
-                      message: 'Tạo hóa đơn nhanh',
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: onQuickInvoice,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: colorScheme.primary.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.bolt_rounded,
-                                  size: 14,
-                                  color: colorScheme.primary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Tạo nhanh',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
               const SizedBox(height: 12),
@@ -153,6 +112,57 @@ class PriceListCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onQuickInvoice != null || onExportQuote != null) ...[
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (onExportQuote != null)
+                      OutlinedButton.icon(
+                        onPressed: onExportQuote,
+                        icon: Icon(Icons.ios_share_rounded, size: 16, color: colorScheme.secondary),
+                        label: Text(
+                          'Xuất báo giá',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.secondary,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          side: BorderSide(color: colorScheme.secondary.withValues(alpha: 0.3)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    if (onQuickInvoice != null) ...[
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: onQuickInvoice,
+                        icon: Icon(Icons.bolt_rounded, size: 16, color: colorScheme.onPrimary),
+                        label: const Text(
+                          'Tạo nhanh',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.primary,
+                          foregroundColor: colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          elevation: 1,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
               const Divider(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

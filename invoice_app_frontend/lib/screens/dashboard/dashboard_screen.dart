@@ -73,7 +73,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _handleTakeTurn(Map<String, dynamic> inv) async {
-    final invoiceId = inv['invoice_id'].toString();
+    final invoiceId = inv['invoiceId'].toString();
 
     // Helper to extract values from sqlc Null types
     String? getStringValueLocal(dynamic field) {
@@ -82,8 +82,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return field.toString();
     }
 
-    final currentDeviceHoldingId = getStringValueLocal(inv['device_holding_id']);
-    final deviceName = getStringValueLocal(inv['device_name']) ?? 'Thiết bị khác';
+    final currentDeviceHoldingId = getStringValueLocal(inv['deviceHoldingId']);
+    final deviceName = getStringValueLocal(inv['deviceName']) ?? 'Thiết bị khác';
 
     // Check if another device is holding the invoice
     if (currentDeviceHoldingId != null &&

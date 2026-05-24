@@ -76,9 +76,9 @@ func CheckHoldingDevice(repo *sqlc.Queries) fiber.Handler {
 
 		if !invoice.EditStatus.Bool || !invoice.DeviceHoldingID.Valid || invoice.DeviceHoldingID.String != currentDeviceID {
 			return c.Status(403).JSON(fiber.Map{
-				"error":             "Permission denied: Invoice is not in edit mode or you do not hold the lock",
-				"device_holding_id": invoice.DeviceHoldingID.String,
-				"edit_status":       invoice.EditStatus.Bool,
+				"error":           "Permission denied: Invoice is not in edit mode or you do not hold the lock",
+				"deviceHoldingId": invoice.DeviceHoldingID.String,
+				"editStatus":      invoice.EditStatus.Bool,
 			})
 		}
 

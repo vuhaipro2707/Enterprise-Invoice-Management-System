@@ -97,7 +97,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
         sortBy: _sortBy,
         sortOrder: _sortOrder,
         buyerName: _searchController.text.trim(),
-        buyerId: _selectedBuyer?['buyer_id']?.toString(),
+        buyerId: _selectedBuyer?['buyerId']?.toString(),
         startDate: _startDate,
         endDate: _endDate,
       );
@@ -131,7 +131,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
         sortBy: _sortBy,
         sortOrder: _sortOrder,
         buyerName: _searchController.text.trim(),
-        buyerId: _selectedBuyer?['buyer_id']?.toString(),
+        buyerId: _selectedBuyer?['buyerId']?.toString(),
         startDate: _startDate,
         endDate: _endDate,
       );
@@ -219,7 +219,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
   }
 
   Future<void> _handlePriceListTap(Map<String, dynamic> pl) async {
-    final pricelistId = pl['customer_price_list_id'].toString();
+    final pricelistId = pl['customerPriceListId'].toString();
     if (mounted) {
       Navigator.pushNamed(
         context,
@@ -230,8 +230,8 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
   }
 
   Future<void> _handleQuickInvoice(Map<String, dynamic> pl) async {
-    final buyerId = pl['buyer_id'];
-    final pricelistId = pl['customer_price_list_id'].toString();
+    final buyerId = pl['buyerId'];
+    final pricelistId = pl['customerPriceListId'].toString();
 
     if (buyerId != null) {
       // Case 1: Has Buyer ID
@@ -243,7 +243,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
 
       if (pickedItems != null && pickedItems is List && pickedItems.isNotEmpty) {
         if (!mounted) return;
-        final buyerName = pl['buyer_name'] ?? 'Khách lẻ';
+        final buyerName = pl['buyerName'] ?? 'Khách lẻ';
         final itemCount = pickedItems.length;
 
         final bool? confirm = await showDialog<bool>(
@@ -285,15 +285,15 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
             invoiceCode: code,
           );
 
-          final invoiceId = response['data']['invoice_id'];
+          final invoiceId = response['data']['invoiceId'];
 
           for (final item in pickedItems) {
             final Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
             await _apiService.createLineItem(invoiceId, {
-              "itemID": itemMap['item_id'],
-              "unitID": itemMap['unit_id'],
-              "itemNameSnapshot": itemMap['item_name'],
-              "unitNameSnapshot": itemMap['unit_name'],
+              "itemId": itemMap['itemId'],
+              "unitId": itemMap['unitId'],
+              "itemNameSnapshot": itemMap['itemName'],
+              "unitNameSnapshot": itemMap['unitName'],
               "quantity": (itemMap['quantity'] as num?)?.toInt() ?? 1,
               "unitPriceCustom": itemMap['price'],
             });
@@ -324,6 +324,16 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
           arguments: {'auto_apply_pricelist_id': pricelistId},
         ).then((_) => _fetchInitialPriceLists());
       }
+    }
+  }
+
+  void _handleExportQuote(Map<String, dynamic> pl) {
+    if (mounted) {
+      Navigator.pushNamed(
+        context,
+        '/export_pricelist',
+        arguments: pl,
+      );
     }
   }
 
@@ -431,7 +441,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
                     color: _selectedBuyer != null ? colorScheme.onPrimaryContainer : colorScheme.onSurface,
                   ),
                   label: Text(_selectedBuyer != null
-                      ? 'Người mua: ${_selectedBuyer!['buyer_name']}'
+                      ? 'Người mua: ${_selectedBuyer!['buyerName']}'
                       : 'Lọc theo người mua'),
                   selected: _selectedBuyer != null,
                   selectedColor: colorScheme.primaryContainer,
@@ -498,7 +508,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
                                   crossAxisCount: 3,
                                   crossAxisSpacing: 16,
                                   mainAxisSpacing: 16,
-                                  mainAxisExtent: 180,
+                                  mainAxisExtent: 238,
                                 ),
                                 itemCount: _priceLists.length + (_isLoadingMore ? 1 : 0),
                                 itemBuilder: (context, index) => _buildPriceListItem(context, index, colorScheme),
@@ -511,7 +521,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
                                 itemBuilder: (context, index) => Padding(
                                   padding: const EdgeInsets.only(bottom: 12.0),
                                   child: SizedBox(
-                                    height: 180,
+                                    height: 238,
                                     child: _buildPriceListItem(context, index, colorScheme),
                                   ),
                                 ),
@@ -538,6 +548,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
       priceList: pl,
       onTap: () => _handlePriceListTap(pl),
       onQuickInvoice: () => _handleQuickInvoice(pl),
+      onExportQuote: () => _handleExportQuote(pl),
     );
   }
 }
@@ -646,8 +657,8 @@ class _BuyerSearchFilterSheetState extends State<_BuyerSearchFilterSheet> {
                           itemCount: _buyers.length,
                           itemBuilder: (context, index) {
                             final buyer = _buyers[index];
-                            final buyerName = buyer['buyer_name'] ?? '';
-                            final buyerCode = buyer['buyer_code'] ?? '';
+                            final buyerName = buyer['buyerName'] ?? '';
+                            final buyerCode = buyer['buyerCode'] ?? '';
                             final address = buyer['address'] ?? '';
 
                             return ListTile(

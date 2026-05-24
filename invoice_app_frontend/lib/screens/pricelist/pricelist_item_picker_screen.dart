@@ -55,7 +55,7 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
 
     try {
       final data = await _apiService.getCustomerPriceList(_pricelistId!);
-      final List<dynamic> items = data['item_prices'] as List? ?? [];
+      final List<dynamic> items = data['itemPrices'] as List? ?? [];
       
       if (mounted) {
         setState(() {
@@ -192,11 +192,11 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
       final itm = _priceItems[idx];
       final qty = double.tryParse(_quantityControllers[idx]?.text.trim() ?? '') ?? 1.0;
       results.add({
-        'item_id': itm['item_id'],
-        'unit_id': itm['unit_id'],
-        'item_name': itm['item_default_name'] ?? 'Sản phẩm không tên',
-        'unit_name': itm['unit_name'] ?? 'Cái',
-        'price': (itm['unit_price_custom'] as num?)?.toInt() ?? 0,
+        'itemId': itm['itemId'],
+        'unitId': itm['unitId'],
+        'itemName': itm['itemDefaultName'] ?? 'Sản phẩm không tên',
+        'unitName': itm['unitName'] ?? 'Cái',
+        'price': (itm['unitPriceCustom'] as num?)?.toInt() ?? 0,
         'quantity': qty.toInt(),
       });
     }
@@ -216,8 +216,8 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
     }
 
     final String title = _priceListData?['description'] ?? 'Bảng báo giá';
-    final String? buyerName = _priceListData?['buyer_name'];
-    final String? buyerCode = _priceListData?['buyer_code'];
+    final String? buyerName = _priceListData?['buyerName'];
+    final String? buyerCode = _priceListData?['buyerCode'];
 
     final allSelected = _selectedIndexes.length == _priceItems.length;
 
@@ -307,9 +307,9 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
                     itemBuilder: (context, index) {
                       final itm = _priceItems[index];
                       final isSelected = _selectedIndexes.contains(index);
-                      final String itemName = itm['item_default_name'] ?? 'Mặt hàng không tên';
-                      final String unitName = itm['unit_name'] ?? 'Cái';
-                      final int customPrice = (itm['unit_price_custom'] as num?)?.toInt() ?? 0;
+                      final String itemName = itm['itemDefaultName'] ?? 'Mặt hàng không tên';
+                      final String unitName = itm['unitName'] ?? 'Cái';
+                      final int customPrice = (itm['unitPriceCustom'] as num?)?.toInt() ?? 0;
 
                       return Card(
                         elevation: 0,

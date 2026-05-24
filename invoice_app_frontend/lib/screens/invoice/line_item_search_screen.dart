@@ -160,7 +160,7 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
           onTypeSelected: (type) {
             if (mounted) {
               setState(() {
-                _selectedTypeId = type['type_id'];
+                _selectedTypeId = type['typeId'];
               });
               _fetchItems();
             }
@@ -169,7 +169,7 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
             if (mounted) {
               setState(() {
                 _types.add(newType);
-                _selectedTypeId = newType['type_id'];
+                _selectedTypeId = newType['typeId'];
               });
               _fetchItems();
             }
@@ -365,11 +365,11 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
                   return Padding(
                     padding: const EdgeInsets.only(right: 8.0),
                     child: FilterChip(
-                      label: Text(type['type_name']),
-                      selected: _selectedTypeId == type['type_id'],
+                      label: Text(type['typeName']),
+                      selected: _selectedTypeId == type['typeId'],
                       onSelected: (selected) {
                         setState(() {
-                          _selectedTypeId = selected ? type['type_id'] : null;
+                          _selectedTypeId = selected ? type['typeId'] : null;
                           _offset = 0;
                           _hasMore = true;
                         });

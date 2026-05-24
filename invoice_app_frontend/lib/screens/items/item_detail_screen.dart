@@ -61,7 +61,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.item['item_default_name']);
+    _nameController = TextEditingController(text: widget.item['itemDefaultName']);
     
     _otherNameFocusNode.addListener(() {
       if (!_otherNameFocusNode.hasFocus) {
@@ -70,23 +70,23 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     });
 
     // Khởi tạo tên gọi khác kèm ID
-    final rawOtherNames = widget.item['item_other_names'] as List? ?? [];
+    final rawOtherNames = widget.item['itemOtherNames'] as List? ?? [];
     _otherNames = rawOtherNames.map((e) {
-      if (e is String) return {'item_other_name_id': null, 'name_string': e};
+      if (e is String) return {'itemOtherNameId': null, 'nameString': e};
       return Map<String, dynamic>.from(e);
     }).toList();
 
-    _selectedTypeId = widget.item['type_id'];
+    _selectedTypeId = widget.item['typeId'];
     _types = widget.types;
 
     // Tìm tên loại từ list types truyền vào
     if (_selectedTypeId != null) {
       final type = _types.firstWhere(
-        (t) => t['type_id'] == _selectedTypeId,
+        (t) => t['typeId'] == _selectedTypeId,
         orElse: () => null,
       );
       if (type != null) {
-        _selectedTypeName = type['type_name'];
+        _selectedTypeName = type['typeName'];
       }
     }
     
@@ -96,8 +96,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     // Sắp xếp sao cho đơn vị gốc luôn đứng đầu tiên
     final List<dynamic> sortedUnits = List.from(existingUnits);
     sortedUnits.sort((a, b) {
-      final aBase = a['is_base_unit'] ?? false;
-      final bBase = b['is_base_unit'] ?? false;
+      final aBase = a['isBaseUnit'] ?? false;
+      final bBase = b['isBaseUnit'] ?? false;
       if (aBase && !bBase) return -1;
       if (!aBase && bBase) return 1;
       return 0;
@@ -105,15 +105,15 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
     for (var u in sortedUnits) {
       String formattedPrice = '';
-      if (u['unit_price_default'] != null) {
-        formattedPrice = _formatter.format(u['unit_price_default']);
+      if (u['unitPriceDefault'] != null) {
+        formattedPrice = _formatter.format(u['unitPriceDefault']);
       }
       _units.add({
-        'unit_id': u['unit_id'],
-        'nameController': TextEditingController(text: u['unit_name']),
+        'unitId': u['unitId'],
+        'nameController': TextEditingController(text: u['unitName']),
         'priceController': TextEditingController(text: formattedPrice),
         'ratioController': TextEditingController(text: (u['ratio'] ?? 1).toString()),
-        'isBaseUnit': u['is_base_unit'] ?? false,
+        'isBaseUnit': u['isBaseUnit'] ?? false,
       });
     }
   }
@@ -122,9 +122,9 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
   void _addOtherName(String name) {
     final trimmed = name.trim();
-    if (trimmed.isNotEmpty && !_otherNames.any((e) => e['name_string'] == trimmed)) {
+    if (trimmed.isNotEmpty && !_otherNames.any((e) => e['nameString'] == trimmed)) {
       setState(() {
-        _otherNames.add({'item_other_name_id': null, 'name_string': trimmed});
+        _otherNames.add({'itemOtherNameId': null, 'nameString': trimmed});
         _otherNameInputController.clear();
       });
     }
@@ -132,8 +132,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
   void _removeOtherName(Map<String, dynamic> otherName) {
     setState(() {
-      if (otherName['item_other_name_id'] != null) {
-        _removedOtherNameIds.add(otherName['item_other_name_id']);
+      if (otherName['itemOtherNameId'] != null) {
+        _removedOtherNameIds.add(otherName['itemOtherNameId']);
       }
       _otherNames.remove(otherName);
     });
@@ -151,15 +151,15 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           initialTypes: _types,
           onTypeSelected: (type) {
             setState(() {
-              _selectedTypeId = type['type_id'];
-              _selectedTypeName = type['type_name'];
+              _selectedTypeId = type['typeId'];
+              _selectedTypeName = type['typeName'];
             });
           },
           onTypeCreated: (newType) {
             setState(() {
               _types.add(newType);
-              _selectedTypeId = newType['type_id'];
-              _selectedTypeName = newType['type_name'];
+              _selectedTypeId = newType['typeId'];
+              _selectedTypeName = newType['typeName'];
             });
           },
         );
@@ -174,14 +174,14 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final itemId = widget.item['item_id'];
+      final itemId = widget.item['itemId'];
       
       // 1. Cập nhật thông tin cơ bản mặt hàng
       final Map<String, dynamic> itemUpdate = {};
-      if (_nameController.text.trim() != widget.item['item_default_name']) {
+      if (_nameController.text.trim() != widget.item['itemDefaultName']) {
         itemUpdate['itemDefaultName'] = _nameController.text.trim();
       }
-      if (_selectedTypeId != widget.item['type_id']) {
+      if (_selectedTypeId != widget.item['typeId']) {
         itemUpdate['typeId'] = _selectedTypeId;
       }
       
@@ -196,8 +196,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
       }
       // Thêm những cái mới (không có ID)
       for (var on in _otherNames) {
-        if (on['item_other_name_id'] == null) {
-          await ApiService().addItemOtherName(itemId, on['name_string']);
+        if (on['itemOtherNameId'] == null) {
+          await ApiService().addItemOtherName(itemId, on['nameString']);
         }
       }
 
@@ -223,7 +223,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         final ratio = int.tryParse(ratioStr) ?? 1;
         final isBaseUnit = unit['isBaseUnit'] ?? false;
         
-        if (unit['unit_id'] == null) {
+        if (unit['unitId'] == null) {
           // Tạo mới đơn vị nếu chưa có ID
           if (unitName.isNotEmpty) {
             await ApiService().createUnit(
@@ -236,19 +236,19 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           }
         } else {
           // Cập nhật đơn vị cũ nếu có thay đổi
-          final String unitId = unit['unit_id'];
-          final originalUnit = originalUnits.firstWhere((u) => u['unit_id'] == unitId, orElse: () => null);
+          final String unitId = unit['unitId'];
+          final originalUnit = originalUnits.firstWhere((u) => u['unitId'] == unitId, orElse: () => null);
           
           if (originalUnit != null) {
             final Map<String, dynamic> unitUpdate = {};
-            if (unitName != originalUnit['unit_name']) unitUpdate['unitName'] = unitName;
+            if (unitName != originalUnit['unitName']) unitUpdate['unitName'] = unitName;
             if (ratio != (originalUnit['ratio'] as int?)) unitUpdate['ratio'] = ratio;
-            if (isBaseUnit != (originalUnit['is_base_unit'] as bool?)) unitUpdate['isBaseUnit'] = isBaseUnit;
+            if (isBaseUnit != (originalUnit['isBaseUnit'] as bool?)) unitUpdate['isBaseUnit'] = isBaseUnit;
             
             // Only update unitPriceDefault for the Base Unit.
             // Secondary units' prices are automatically recalculated and propagated by the DB trigger.
             if (isBaseUnit) {
-              if (unitPrice != (originalUnit['unit_price_default'] as int?)) {
+              if (unitPrice != (originalUnit['unitPriceDefault'] as int?)) {
                 unitUpdate['unitPriceDefault'] = unitPrice;
               }
             }
@@ -280,7 +280,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   Future<void> _restoreItem() async {
     setState(() => _isSaving = true);
     try {
-      final itemId = widget.item['item_id'];
+      final itemId = widget.item['itemId'];
       await ApiService().restoreItem(itemId);
       if (mounted) {
         Navigator.pop(context, true);
@@ -331,7 +331,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
     setState(() => _isSaving = true);
     try {
-      final itemId = widget.item['item_id'];
+      final itemId = widget.item['itemId'];
       await ApiService().deleteItem(itemId);
       if (mounted) {
         Navigator.pop(context, true);
@@ -413,7 +413,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               runSpacing: 8.0,
               children: [
                 ..._otherNames.map((on) => Chip(
-                      label: Text(on['name_string']),
+                      label: Text(on['nameString']),
                       onDeleted: widget.isDeleted ? null : () => _removeOtherName(on),
                     )),
                 if (!widget.isDeleted)

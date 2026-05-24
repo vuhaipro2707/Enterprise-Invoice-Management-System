@@ -27,10 +27,10 @@ class _ItemCardState extends State<ItemCard> {
     final colorScheme = Theme.of(context).colorScheme;
     
     // Xử lý danh sách tên khác vì API đã thay đổi cấu trúc sang List<Map>
-    final rawOtherNames = widget.item['item_other_names'] as List? ?? [];
+    final rawOtherNames = widget.item['itemOtherNames'] as List? ?? [];
     final otherNamesStr = rawOtherNames.map((e) {
       if (e is String) return e;
-      if (e is Map) return e['name_string'] ?? '';
+      if (e is Map) return e['nameString'] ?? '';
       return '';
     }).where((s) => s.isNotEmpty).join(', ');
 
@@ -38,13 +38,13 @@ class _ItemCardState extends State<ItemCard> {
     
     // Tìm tên type từ list types đã fetch ở trên frontend
     String typeName = 'Chưa phân loại';
-    if (widget.item['type_id'] != null) {
+    if (widget.item['typeId'] != null) {
       final typeMatch = widget.types.firstWhere(
-        (t) => t['type_id'] == widget.item['type_id'],
+        (t) => t['typeId'] == widget.item['typeId'],
         orElse: () => null,
       );
       if (typeMatch != null) {
-        typeName = typeMatch['type_name'];
+        typeName = typeMatch['typeName'];
       }
     }
 
@@ -65,7 +65,7 @@ class _ItemCardState extends State<ItemCard> {
                     children: [
                       Expanded(
                         child: Text(
-                          widget.item['item_default_name'] ?? 'Không tên',
+                          widget.item['itemDefaultName'] ?? 'Không tên',
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -85,7 +85,7 @@ class _ItemCardState extends State<ItemCard> {
                         ),
                         color: colorScheme.primary,
                         onPressed: () async {
-                          final name = widget.item['item_default_name'] ?? '';
+                          final name = widget.item['itemDefaultName'] ?? '';
                           if (name.isNotEmpty) {
                             final scaffold = ScaffoldMessenger.of(context);
                             final inverseSurf = colorScheme.inverseSurface;
@@ -165,8 +165,8 @@ class _ItemCardState extends State<ItemCard> {
                             spacing: 8,
                             runSpacing: 8,
                             children: visibleUnits.map((u) {
-                              final name = u['unit_name'] ?? '';
-                              final price = u['unit_price_default'] ?? 0;
+                              final name = u['unitName'] ?? '';
+                              final price = u['unitPriceDefault'] ?? 0;
                               final formattedPrice = NumberFormat.decimalPattern('vi_VN').format(price);
                               
                               return Container(
@@ -253,8 +253,8 @@ class _ItemCardState extends State<ItemCard> {
                   spacing: 8,
                   runSpacing: 8,
                   children: units.map((u) {
-                    final name = u['unit_name'] ?? '';
-                    final price = u['unit_price_default'] ?? 0;
+                    final name = u['unitName'] ?? '';
+                    final price = u['unitPriceDefault'] ?? 0;
                     final formattedPrice = NumberFormat.decimalPattern('vi_VN').format(price);
                     
                     return Container(

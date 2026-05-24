@@ -108,9 +108,9 @@ class _BuyerTrashScreenState extends State<BuyerTrashScreen> {
 
   Widget _buildBuyerCard(Map<String, dynamic> buyer) {
     final colorScheme = Theme.of(context).colorScheme;
-    final code = buyer['buyer_code'] ?? '';
-    final name = buyer['buyer_name'] ?? '';
-    final phone = buyer['phone_number'] ?? '';
+    final code = buyer['buyerCode'] ?? '';
+    final name = buyer['buyerName'] ?? '';
+    final phone = buyer['phoneNumber'] ?? '';
     final address = buyer['address'] ?? '';
 
     return Card(

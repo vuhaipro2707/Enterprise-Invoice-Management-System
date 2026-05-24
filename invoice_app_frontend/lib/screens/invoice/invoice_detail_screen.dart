@@ -183,9 +183,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       return field.toString();
     }
 
-    final isEditing = inv['edit_status'] == true;
-    final currentDeviceHoldingId = getStringValueLocal(inv['device_holding_id']);
-    final deviceName = getStringValueLocal(inv['device_name']) ?? 'Thiết bị khác';
+    final isEditing = inv['editStatus'] == true;
+    final currentDeviceHoldingId = getStringValueLocal(inv['deviceHoldingId']);
+    final deviceName = getStringValueLocal(inv['deviceName']) ?? 'Thiết bị khác';
 
     // Show warning if invoice is being edited by another device
     if (isEditing && currentDeviceHoldingId != null && currentDeviceHoldingId != _apiService.deviceId) {
@@ -256,11 +256,11 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       // Lock / Take turn on invoice
       await _apiService.takeTurn(_invoiceId!);
       if (mounted) {
-        Navigator.pushNamed(
+        Navigator.pushReplacementNamed(
           context,
           '/edit_invoice',
           arguments: _invoiceId,
-        ).then((_) => _fetchInvoiceDetails());
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -315,23 +315,23 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
 
     final inv = _invoiceData!;
-    final invoiceCode = inv['invoice_code']?.toString() ?? 'N/A';
-    final buyerName = _getStringValue(inv['buyer_name_snapshot']) ?? 'Khách vãng lai';
-    final buyerCode = _getStringValue(inv['buyer_code']);
-    final address = _getStringValue(inv['address_snapshot']);
-    final phoneNumber = _getStringValue(inv['phone_number_snapshot']);
-    final taxIdSnapshot = _getStringValue(inv['tax_id_snapshot']);
-    final lat = inv['lat_snapshot'] != null ? (inv['lat_snapshot'] as num).toDouble() : null;
-    final lng = inv['lng_snapshot'] != null ? (inv['lng_snapshot'] as num).toDouble() : null;
-    final totalAmount = inv['total_amount'] ?? 0;
-    final editStatus = inv['edit_status'] == true;
-    final paidLocked = inv['paid_locked'] == true;
-    final deviceName = _getStringValue(inv['device_name']) ?? 'Không rõ';
+    final invoiceCode = inv['invoiceCode']?.toString() ?? 'N/A';
+    final buyerName = _getStringValue(inv['buyerNameSnapshot']) ?? 'Khách vãng lai';
+    final buyerCode = _getStringValue(inv['buyerCode']);
+    final address = _getStringValue(inv['addressSnapshot']);
+    final phoneNumber = _getStringValue(inv['phoneNumberSnapshot']);
+    final taxIdSnapshot = _getStringValue(inv['taxIdSnapshot']);
+    final lat = inv['latSnapshot'] != null ? (inv['latSnapshot'] as num).toDouble() : null;
+    final lng = inv['lngSnapshot'] != null ? (inv['lngSnapshot'] as num).toDouble() : null;
+    final totalAmount = inv['totalAmount'] ?? 0;
+    final editStatus = inv['editStatus'] == true;
+    final paidLocked = inv['paidLocked'] == true;
+    final deviceName = _getStringValue(inv['deviceName']) ?? 'Không rõ';
 
-    final createdAtStr = _formatDateTime(inv['created_at']);
-    final updatedAtStr = _formatDateTime(inv['updated_at']);
+    final createdAtStr = _formatDateTime(inv['createdAt']);
+    final updatedAtStr = _formatDateTime(inv['updatedAt']);
 
-    final lineItems = (inv['line_items'] as List?) ?? [];
+    final lineItems = (inv['lineItems'] as List?) ?? [];
 
     return Scaffold(
       appBar: AppBar(
@@ -383,12 +383,12 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                 if (confirm == true && mounted) {
                   final clonedItems = lineItems.map((itm) {
                     return {
-                      'item_id': itm['item_id'],
-                      'unit_id': itm['unit_id'],
-                      'item_name': itm['item_name_snapshot'],
-                      'unit_name': itm['unit_name_snapshot'],
+                      'itemId': itm['itemId'],
+                      'unitId': itm['unitId'],
+                      'itemNameSnapshot': itm['itemNameSnapshot'],
+                      'unitNameSnapshot': itm['unitNameSnapshot'],
                       'quantity': itm['quantity'],
-                      'price': itm['unit_price_custom'],
+                      'unitPriceCustom': itm['unitPriceCustom'],
                     };
                   }).toList();
 
@@ -514,13 +514,13 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                       const SizedBox(height: 12),
                       _buildDetailRow(Icons.receipt_long, 'Mã số thuế', taxIdSnapshot, colorScheme),
                     ],
-                    if (_getStringValue(inv['id_card_number_snapshot']) != null && _getStringValue(inv['id_card_number_snapshot'])!.isNotEmpty) ...[
+                    if (_getStringValue(inv['idCardNumberSnapshot']) != null && _getStringValue(inv['idCardNumberSnapshot'])!.isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      _buildDetailRow(Icons.credit_card, 'Số CMND/CCCD', _getStringValue(inv['id_card_number_snapshot'])!, colorScheme),
+                      _buildDetailRow(Icons.credit_card, 'Số CMND/CCCD', _getStringValue(inv['idCardNumberSnapshot'])!, colorScheme),
                     ],
-                    if (_getStringValue(inv['email_snapshot']) != null && _getStringValue(inv['email_snapshot'])!.isNotEmpty) ...[
+                    if (_getStringValue(inv['emailSnapshot']) != null && _getStringValue(inv['emailSnapshot'])!.isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      _buildDetailRow(Icons.email, 'Email', _getStringValue(inv['email_snapshot'])!, colorScheme),
+                      _buildDetailRow(Icons.email, 'Email', _getStringValue(inv['emailSnapshot'])!, colorScheme),
                     ],
                     if (phoneNumber != null && phoneNumber.isNotEmpty) ...[
                       const SizedBox(height: 12),
@@ -576,12 +576,12 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                 itemCount: lineItems.length,
                 itemBuilder: (context, index) {
                   final item = lineItems[index];
-                  final name = item['item_name_snapshot']?.toString() ?? 'N/A';
-                  final typeName = item['item_type_name_snapshot']?.toString() ?? '';
-                  final unitName = item['unit_name_snapshot']?.toString() ?? 'cái';
+                  final name = item['itemNameSnapshot']?.toString() ?? 'N/A';
+                  // final typeName = item['itemTypeNameSnapshot']?.toString() ?? '';
+                  final unitName = item['unitNameSnapshot']?.toString() ?? 'cái';
                   final qty = item['quantity'] ?? 0;
-                  final price = item['unit_price_custom'] ?? 0;
-                  final subtotal = item['sub_total'] ?? (qty * price);
+                  final price = item['unitPriceCustom'] ?? 0;
+                  final subtotal = item['subTotal'] ?? (qty * price);
 
                   return Card(
                     elevation: 0,
@@ -615,16 +615,16 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                                     fontSize: 14,
                                   ),
                                 ),
-                                if (typeName.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    typeName,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: colorScheme.outline,
-                                    ),
-                                  ),
-                                ],
+                                // if (typeName.isNotEmpty) ...[
+                                //   const SizedBox(height: 2),
+                                //   Text(
+                                //     typeName,
+                                //     style: TextStyle(
+                                //       fontSize: 12,
+                                //       color: colorScheme.outline,
+                                //     ),
+                                //   ),
+                                // ],
                                 const SizedBox(height: 6),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

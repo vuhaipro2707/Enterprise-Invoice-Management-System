@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"invoice_backend/app/invoice"
+	"invoice_backend/app/mail"
+	"invoice_backend/app/shared"
 	sqlc "invoice_backend/db/sqlc"
 
 	"github.com/gofiber/fiber/v2"
@@ -249,13 +250,13 @@ func flattenCustomerPriceList(cpl sqlc.CustomerPriceList) fiber.Map {
 	}
 
 	return fiber.Map{
-		"customer_price_list_id": cpl.CustomerPriceListID,
-		"description":            cpl.Description,
-		"buyer_id":               buyerID,
-		"is_active":              isActive,
-		"created_at":             createdAt,
-		"updated_at":             updatedAt,
-		"deleted_at":             deletedAt,
+		"customerPriceListId": cpl.CustomerPriceListID,
+		"description":         cpl.Description,
+		"buyerId":             buyerID,
+		"isActive":            isActive,
+		"createdAt":           createdAt,
+		"updatedAt":           updatedAt,
+		"deletedAt":           deletedAt,
 	}
 }
 
@@ -301,17 +302,17 @@ func flattenListPriceListRow(row sqlc.ListCustomerPriceListsFilteredRow) fiber.M
 	}
 
 	return fiber.Map{
-		"customer_price_list_id": row.CustomerPriceListID,
-		"description":            row.Description,
-		"buyer_id":               buyerID,
-		"is_active":              isActive,
-		"created_at":             createdAt,
-		"updated_at":             updatedAt,
-		"deleted_at":             deletedAt,
-		"buyer_code":             buyerCode,
-		"buyer_name":             buyerName,
-		"phone_number":           phoneNumber,
-		"address":                address,
+		"customerPriceListId": row.CustomerPriceListID,
+		"description":         row.Description,
+		"buyerId":             buyerID,
+		"isActive":            isActive,
+		"createdAt":           createdAt,
+		"updatedAt":           updatedAt,
+		"deletedAt":           deletedAt,
+		"buyerCode":           buyerCode,
+		"buyerName":           buyerName,
+		"phoneNumber":         phoneNumber,
+		"address":             address,
 	}
 }
 
@@ -362,26 +363,26 @@ func flattenGetPriceListByIDRow(row sqlc.GetCustomerPriceListByIDRow) fiber.Map 
 	}
 
 	return fiber.Map{
-		"customer_price_list_id": row.CustomerPriceListID,
-		"description":            row.Description,
-		"buyer_id":               buyerID,
-		"is_active":              isActive,
-		"created_at":             createdAt,
-		"updated_at":             updatedAt,
-		"deleted_at":             deletedAt,
-		"buyer_code":             buyerCode,
-		"buyer_name":             buyerName,
-		"phone_number":           phoneNumber,
-		"address":                address,
-		"item_prices":            itemPrices,
+		"customerPriceListId": row.CustomerPriceListID,
+		"description":         row.Description,
+		"buyerId":             buyerID,
+		"isActive":            isActive,
+		"createdAt":           createdAt,
+		"updatedAt":           updatedAt,
+		"deletedAt":           deletedAt,
+		"buyerCode":           buyerCode,
+		"buyerName":           buyerName,
+		"phoneNumber":         phoneNumber,
+		"address":             address,
+		"itemPrices":          itemPrices,
 	}
 }
 
 func (h *PriceListHandler) ChangePriceItemOrder(c *fiber.Ctx) error {
 	type changeOrderRequest struct {
-		PrevCustomerItemPriceID *string `json:"prev_customer_item_price_id"`
-		NextCustomerItemPriceID *string `json:"next_customer_item_price_id"`
-		CustomerItemPriceID     string  `json:"customer_item_price_id"`
+		PrevCustomerItemPriceID *string `json:"prevCustomerItemPriceId"`
+		NextCustomerItemPriceID *string `json:"nextCustomerItemPriceId"`
+		CustomerItemPriceID     string  `json:"customerItemPriceId"`
 	}
 
 	var req changeOrderRequest
@@ -397,7 +398,7 @@ func (h *PriceListHandler) ChangePriceItemOrder(c *fiber.Ctx) error {
 
 	targetUUID, err := uuid.Parse(req.CustomerItemPriceID)
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid customer_item_price_id"})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid customerItemPriceId"})
 	}
 
 	row, err := h.service.Repo.GetCustomerPriceListByID(c.UserContext(), plID)
@@ -412,8 +413,8 @@ func (h *PriceListHandler) ChangePriceItemOrder(c *fiber.Ctx) error {
 
 	var prevKey, nextKey string
 	for _, item := range itemPrices {
-		id, _ := item["customer_item_price_id"].(string)
-		pk, _ := item["position_key"].(string)
+		id, _ := item["customerItemPriceId"].(string)
+		pk, _ := item["positionKey"].(string)
 		if req.PrevCustomerItemPriceID != nil && *req.PrevCustomerItemPriceID == id {
 			prevKey = pk
 		}
@@ -422,7 +423,7 @@ func (h *PriceListHandler) ChangePriceItemOrder(c *fiber.Ctx) error {
 		}
 	}
 
-	newPosKey := invoice.GenerateMidString(prevKey, nextKey)
+	newPosKey := shared.GenerateMidString(prevKey, nextKey)
 
 	err = h.service.Repo.UpdateCustomerItemPricePos(c.UserContext(), sqlc.UpdateCustomerItemPricePosParams{
 		CustomerItemPriceID: targetUUID,
@@ -432,7 +433,7 @@ func (h *PriceListHandler) ChangePriceItemOrder(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.Status(200).JSON(fiber.Map{"message": "Order updated", "new_position_key": newPosKey})
+	return c.Status(200).JSON(fiber.Map{"message": "Order updated", "newPositionKey": newPosKey})
 }
 
 func (h *PriceListHandler) RestorePriceList(c *fiber.Ctx) error {
@@ -506,21 +507,181 @@ func (h *PriceListHandler) GetDeletedPriceLists(c *fiber.Ctx) error {
 		}
 
 		resp = append(resp, fiber.Map{
-			"customer_price_list_id": l.CustomerPriceListID,
-			"description":            l.Description,
-			"buyer_id":               buyerID,
-			"is_active":              isActive,
-			"created_at":             createdAt,
-			"updated_at":             updatedAt,
-			"deleted_at":             deletedAt,
-			"buyer_code":             buyerCode,
-			"buyer_name":             buyerName,
-			"phone_number":           phoneNumber,
-			"address":                address,
+			"customerPriceListId": l.CustomerPriceListID,
+			"description":         l.Description,
+			"buyerId":             buyerID,
+			"isActive":            isActive,
+			"createdAt":           createdAt,
+			"updatedAt":           updatedAt,
+			"deletedAt":           deletedAt,
+			"buyerCode":           buyerCode,
+			"buyerName":           buyerName,
+			"phoneNumber":         phoneNumber,
+			"address":             address,
 		})
 	}
 
 	return c.Status(200).JSON(fiber.Map{
 		"data": resp,
+	})
+}
+
+func (h *PriceListHandler) ExportPriceList(c *fiber.Ctx) error {
+	id := c.Params("pricelistId")
+	if id == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path parameter: pricelistId"})
+	}
+
+	format := c.Query("format", "pdf")
+	format = strings.ToLower(format)
+
+	row, err := h.service.GetPriceListByID(c.UserContext(), id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(404).JSON(fiber.Map{"error": fmt.Sprintf("Price list not found with ID: %s", id)})
+		}
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	plData := flattenGetPriceListByIDRow(row)
+
+	var fileBytes []byte
+	var fileName string
+	var contentType string
+
+	description := fmt.Sprintf("%v", plData["description"])
+	cleanDescription := strings.ReplaceAll(description, " ", "_")
+	cleanDescription = removeDiacritics(cleanDescription)
+
+	if format == "excel" {
+		fileBytes, err = GeneratePriceListExcel(plData)
+		fileName = fmt.Sprintf("Bao_gia_%s.xlsx", cleanDescription)
+		contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	} else {
+		fileBytes, err = GeneratePriceListPDF(plData)
+		fileName = fmt.Sprintf("Bao_gia_%s.pdf", cleanDescription)
+		contentType = "application/pdf"
+	}
+
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to generate export file: %s", err.Error())})
+	}
+
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
+	c.Set("Content-Type", contentType)
+	c.Set("Content-Length", fmt.Sprintf("%d", len(fileBytes)))
+
+	return c.Send(fileBytes)
+}
+
+func (h *PriceListHandler) ExportAndEmailPriceList(c *fiber.Ctx) error {
+	id := c.Params("pricelistId")
+	if id == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path parameter: pricelistId"})
+	}
+
+	type emailRequest struct {
+		Email  string `json:"email"`
+		Format string `json:"format"`
+	}
+
+	var req emailRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid body. Required keys: email, format(pdf/excel)"})
+	}
+
+	if req.Email == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing required key: email"})
+	}
+
+	req.Format = strings.ToLower(req.Format)
+	if req.Format != "excel" {
+		req.Format = "pdf"
+	}
+
+	row, err := h.service.GetPriceListByID(c.UserContext(), id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(404).JSON(fiber.Map{"error": fmt.Sprintf("Price list not found with ID: %s", id)})
+		}
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	plData := flattenGetPriceListByIDRow(row)
+
+	var fileBytes []byte
+	var fileName string
+
+	description := fmt.Sprintf("%v", plData["description"])
+	cleanDescription := strings.ReplaceAll(description, " ", "_")
+	cleanDescription = removeDiacritics(cleanDescription)
+
+	if req.Format == "excel" {
+		fileBytes, err = GeneratePriceListExcel(plData)
+		fileName = fmt.Sprintf("Bao_gia_%s.xlsx", cleanDescription)
+	} else {
+		fileBytes, err = GeneratePriceListPDF(plData)
+		fileName = fmt.Sprintf("Bao_gia_%s.pdf", cleanDescription)
+	}
+
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to generate attachment: %s", err.Error())})
+	}
+
+	buyerName := "Khách lẻ"
+	if nameVal := getStringValue(plData["buyerName"]); nameVal != "" {
+		buyerName = nameVal
+	}
+
+	itemCount := 0
+	if items, ok := plData["itemPrices"].([]interface{}); ok {
+		itemCount = len(items)
+	}
+
+	subject := fmt.Sprintf("[Báo giá] %s", description)
+	bodyHTML := fmt.Sprintf(`
+		<html>
+		<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333333;">
+			<div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+				<div style="text-align: center; border-bottom: 2px solid #1e64c8; padding-bottom: 10px; margin-bottom: 20px;">
+					<h2 style="color: #1e64c8; margin: 0;">BẢNG BÁO GIÁ SẢN PHẨM</h2>
+				</div>
+				<p>Kính chào quý khách <strong>%s</strong>,</p>
+				<p>Chúng tôi xin gửi đến quý khách bảng báo giá chi tiết sản phẩm <strong>%s</strong>.</p>
+				<div style="background-color: #f5f8ff; padding: 15px; border-radius: 6px; margin: 20px 0;">
+					<h4 style="margin-top: 0; color: #1e64c8;">Thông tin tóm tắt báo giá:</h4>
+					<table style="width: 100%%; border-collapse: collapse;">
+						<tr>
+							<td style="padding: 5px 0; font-weight: bold; width: 140px;">Tên báo giá:</td>
+							<td style="padding: 5px 0;">%s</td>
+						</tr>
+						<tr>
+							<td style="padding: 5px 0; font-weight: bold;">Số mặt hàng:</td>
+							<td style="padding: 5px 0;">%d sản phẩm</td>
+						</tr>
+						<tr>
+							<td style="padding: 5px 0; font-weight: bold;">Ngày tạo báo giá:</td>
+							<td style="padding: 5px 0;">%s</td>
+						</tr>
+					</table>
+				</div>
+				<p>Chi tiết báo giá được đính kèm trong thư này dưới định dạng tệp tin <strong>%s</strong>.</p>
+				<p>Nếu quý khách có bất kỳ thắc mắc hay yêu cầu thay đổi nào, xin vui lòng phản hồi lại email này.</p>
+				<br/>
+				<p style="margin-bottom: 0;">Trân trọng cảm ơn,</p>
+				<p style="font-weight: bold; margin-top: 5px; color: #1e64c8;">Invoice App Team</p>
+			</div>
+		</body>
+		</html>
+	`, buyerName, description, description, itemCount, time.Now().Format("02/01/2006"), strings.ToUpper(req.Format))
+
+	err = mail.SendEmailWithAttachment(req.Email, subject, bodyHTML, fileName, fileBytes)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to send email: %s", err.Error())})
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Báo giá đã được gửi thành công đến email: %s", req.Email),
 	})
 }

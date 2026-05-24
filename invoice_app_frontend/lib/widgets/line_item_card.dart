@@ -21,7 +21,7 @@ class LineItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subTotal = (item['sub_total'] as num?)?.toDouble() ?? 0;
+    final subTotal = (item['subTotal'] as num?)?.toDouble() ?? 0;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
@@ -50,11 +50,11 @@ class LineItemCard extends StatelessWidget {
           ),
         ),
         title: Text(
-          '${item['item_name_snapshot']} (x${item['quantity']})',
+          '${item['itemNameSnapshot']} (x${item['quantity']})',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
         subtitle: Text(
-          '${item['unit_name_snapshot']} - ${NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(item['unit_price_custom'])}',
+          '${item['unitNameSnapshot']} - ${NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(item['unitPriceCustom'])}',
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
