@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import '../services/currency_formatter.dart';
 
-class PriceItemCard extends StatelessWidget {
+class PriceItemCard extends StatefulWidget {
   final Map<String, dynamic> item;
   final VoidCallback? onTap;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final int index;
   final bool isPicked;
+  final bool isHighlighted;
 
   const PriceItemCard({
     super.key,
@@ -17,13 +18,58 @@ class PriceItemCard extends StatelessWidget {
     this.onDelete,
     required this.index,
     this.isPicked = false,
+    this.isHighlighted = false,
   });
+
+  @override
+  State<PriceItemCard> createState() => _PriceItemCardState();
+}
+
+class _PriceItemCardState extends State<PriceItemCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _glowController;
+  late Animation<double> _glowAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _glowAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+    );
+    if (widget.isHighlighted) {
+      _runGlowAnimation();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PriceItemCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isHighlighted && !oldWidget.isHighlighted) {
+      _runGlowAnimation();
+    }
+  }
+
+  void _runGlowAnimation() {
+    _glowController.forward(from: 0).then((_) {
+      if (mounted) _glowController.reverse();
+    });
+  }
+
+  @override
+  void dispose() {
+    _glowController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final customPrice = (item['unitPriceCustom'] as num?)?.toDouble() ?? 0.0;
-    final defaultPrice = (item['unitPriceDefault'] as num?)?.toDouble() ?? 0.0;
+    final customPrice = (widget.item['unitPriceCustom'] as num?)?.toDouble() ?? 0.0;
+    final defaultPrice = (widget.item['unitPriceDefault'] as num?)?.toDouble() ?? 0.0;
     
     // Calculate difference if base price is available
     final diff = customPrice - defaultPrice;
@@ -34,23 +80,36 @@ class PriceItemCard extends StatelessWidget {
       diffSign = '';
     }
 
-    return Card(
-      elevation: isPicked ? 4 : 1,
-      margin: const EdgeInsets.only(bottom: 8),
-      color: isPicked 
-          ? colorScheme.primaryContainer.withValues(alpha: 0.15) 
-          : colorScheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isPicked 
-              ? colorScheme.primary 
-              : colorScheme.outline.withValues(alpha: 0.1),
-          width: isPicked ? 2.5 : 1.0,
-        ),
-      ),
+    return AnimatedBuilder(
+      animation: _glowAnimation,
+      builder: (context, child) {
+        final glowOpacity = _glowAnimation.value;
+        return Card(
+          elevation: widget.isPicked ? 4 : (glowOpacity > 0 ? 4 : 1),
+          margin: const EdgeInsets.only(bottom: 8),
+          color: widget.isPicked
+              ? colorScheme.primaryContainer.withValues(alpha: 0.15)
+              : colorScheme.surfaceContainerLow,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: widget.isPicked
+                  ? colorScheme.primary
+                  : glowOpacity > 0
+                      ? colorScheme.primary.withValues(alpha: glowOpacity)
+                      : colorScheme.outline.withValues(alpha: 0.1),
+              width: widget.isPicked
+                  ? 2.5
+                  : glowOpacity > 0
+                      ? 2.0 * glowOpacity + 0.5
+                      : 1.0,
+            ),
+          ),
+          child: child,
+        );
+      },
       child: InkWell(
-        onTap: onEdit,
+        onTap: widget.onEdit,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -60,10 +119,10 @@ class PriceItemCard extends StatelessWidget {
               // Index CircleAvatar
               CircleAvatar(
                 radius: 18,
-                backgroundColor: isPicked ? colorScheme.primary : colorScheme.secondaryContainer,
-                foregroundColor: isPicked ? colorScheme.onPrimary : colorScheme.onSecondaryContainer,
+                backgroundColor: widget.isPicked ? colorScheme.primary : colorScheme.secondaryContainer,
+                foregroundColor: widget.isPicked ? colorScheme.onPrimary : colorScheme.onSecondaryContainer,
                 child: Text(
-                  '${index + 1}',
+                  '${widget.index + 1}',
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
               ),
@@ -76,10 +135,8 @@ class PriceItemCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      item['itemDefaultName'] ?? 'Mặt hàng không tên',
+                      widget.item['itemDefaultName'] ?? 'Mặt hàng không tên',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Wrap(
@@ -94,7 +151,7 @@ class PriceItemCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            item['unitName'] ?? 'Cái',
+                            widget.item['unitName'] ?? 'Cái',
                             style: TextStyle(
                               color: colorScheme.onSecondaryContainer,
                               fontSize: 11,
@@ -125,7 +182,7 @@ class PriceItemCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               
-              // Trailing Price and Actions
+              // Trailing: price on top, buttons below
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
@@ -133,35 +190,35 @@ class PriceItemCard extends StatelessWidget {
                   Text(
                     CurrencyFormatter.formatVND(customPrice.toInt()),
                     style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: isPicked ? colorScheme.primary : colorScheme.onSurface,
-                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: widget.isPicked ? colorScheme.primary : colorScheme.onSurface,
+                      fontSize: 18,
                     ),
                   ),
-                  if (onDelete != null || onTap != null) ...[
-                    const SizedBox(height: 4),
+                  if (widget.onDelete != null || widget.onTap != null) ...[
+                    const SizedBox(height: 2),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (onDelete != null)
+                        if (widget.onDelete != null)
                           IconButton(
                             visualDensity: VisualDensity.compact,
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                             icon: Icon(Icons.delete_outline_rounded, size: 20, color: colorScheme.error),
-                            onPressed: onDelete,
+                            onPressed: widget.onDelete,
                             tooltip: 'Xóa giá',
                           ),
-                        if (onDelete != null && onTap != null) const SizedBox(width: 12),
-                        if (onTap != null)
+                        if (widget.onDelete != null && widget.onTap != null) const SizedBox(width: 12),
+                        if (widget.onTap != null)
                           ReorderableDragStartListener(
-                            index: index,
+                            index: widget.index,
                             child: IconButton(
                               visualDensity: VisualDensity.compact,
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
                               icon: Icon(Icons.drag_handle, color: colorScheme.onSurfaceVariant),
-                              onPressed: onTap,
+                              onPressed: widget.onTap,
                               tooltip: 'Kéo hoặc bấm để di chuyển',
                             ),
                           ),

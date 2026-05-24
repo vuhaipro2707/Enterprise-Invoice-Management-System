@@ -16,6 +16,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
   final ApiService _apiService = ApiService();
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   String? _pricelistId;
   Map<String, dynamic>? _selectedBuyer;
@@ -26,6 +27,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
   bool _isDeleted = false;
   int? _pickedIndex;
   String _localSearchQuery = '';
+  String? _highlightedItemKey; // 'itemId_unitId' of the newly added item
 
   String _initialDescription = '';
   String? _initialBuyerId;
@@ -65,6 +67,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
   @override
   void dispose() {
     _descriptionController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -144,7 +147,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
   void _addItem() async {
     final item = await Navigator.pushNamed(context, '/line_item_search');
     if (item != null && item is Map<String, dynamic>) {
-      _showAddOrEditItemDialog(item: item);
+      _showAddOrEditItemDialog(item: item, isNewItem: true);
     }
   }
 
@@ -268,7 +271,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
     );
   }
 
-  void _showAddOrEditItemDialog({required Map<String, dynamic> item, int? index}) {
+  void _showAddOrEditItemDialog({required Map<String, dynamic> item, int? index, bool isNewItem = false}) {
     final colorScheme = Theme.of(context).colorScheme;
     final List<dynamic> units = item['units'] as List? ?? [];
     
@@ -487,11 +490,30 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                           );
                         } else {
                           _priceItems.add(itemData);
+                          if (isNewItem) {
+                            final key = '${itemData['itemId']}_${itemData['unitId']}';
+                            _highlightedItemKey = key;
+                          }
                         }
                       }
                     });
 
                     Navigator.pop(dialogContext);
+
+                    // Scroll to bottom and show highlight after dialog closes
+                    if (isNewItem) {
+                      Future.delayed(const Duration(milliseconds: 200), () async {
+                        if (mounted && _scrollController.hasClients) {
+                          await _scrollController.animateTo(
+                            _scrollController.position.maxScrollExtent,
+                            duration: const Duration(milliseconds: 400),
+                            curve: Curves.easeOut,
+                          );
+                        }
+                        await Future.delayed(const Duration(milliseconds: 1400));
+                        if (mounted) setState(() => _highlightedItemKey = null);
+                      });
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: colorScheme.primary,
@@ -817,6 +839,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
           : Form(
               key: _formKey,
               child: SingleChildScrollView(
+                controller: _scrollController,
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1191,9 +1214,30 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                                       item: item,
                                       index: origIndex,
                                       isPicked: false,
+                                      isHighlighted: _highlightedItemKey != null &&
+                                          _highlightedItemKey == '${item['itemId']}_${item['unitId']}',
                                       onTap: () {
+                                        final tappedFilteredIdx = idx;
                                         setState(() {
                                           _pickedIndex = origIndex;
+                                        });
+                                        // Compensate scroll for insert slots appearing above
+                                        WidgetsBinding.instance.addPostFrameCallback((_) async {
+                                          if (mounted) {
+                                            // Wait for the slot expansion and container resizing animation to complete first
+                                            await Future.delayed(const Duration(milliseconds: 310));
+                                            if (mounted && _scrollController.hasClients) {
+                                              const slotHeight = 44.0 + 8.0;
+                                              final extraOffset = tappedFilteredIdx * slotHeight;
+                                              final target = (_scrollController.offset + extraOffset)
+                                                  .clamp(0.0, _scrollController.position.maxScrollExtent);
+                                              _scrollController.animateTo(
+                                                target,
+                                                duration: const Duration(milliseconds: 250),
+                                                curve: Curves.easeOut,
+                                              );
+                                            }
+                                          }
                                         });
                                       },
                                       onEdit: () => _editItem(origIndex),
@@ -1211,6 +1255,8 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                                       item: filteredItems[j],
                                       index: filteredItems[j]['orig_index'],
                                       isPicked: _pickedIndex == filteredItems[j]['orig_index'],
+                                      isHighlighted: _highlightedItemKey != null &&
+                                          _highlightedItemKey == '${filteredItems[j]['itemId']}_${filteredItems[j]['unitId']}',
                                       onTap: () {
                                         setState(() {
                                           if (_pickedIndex == filteredItems[j]['orig_index']) {
@@ -1235,6 +1281,20 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                               );
                             }
                           },
+                        ),
+                      ),
+                    ],
+                    // Quick-add button at the bottom of the list
+                    if (!_isDeleted) ...[
+                      const SizedBox(height: 12),
+                      Center(
+                        child: IconButton.filled(
+                          onPressed: _addItem,
+                          icon: const Icon(Icons.add),
+                          tooltip: 'Thêm mặt hàng',
+                          style: IconButton.styleFrom(
+                            padding: const EdgeInsets.all(14),
+                          ),
                         ),
                       ),
                     ],

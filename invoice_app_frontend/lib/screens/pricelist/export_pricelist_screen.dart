@@ -80,9 +80,7 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
       if (buyerCode != null && buyerCode.isNotEmpty && buyerCode != 'N/A') {
         final buyer = await _apiService.getBuyerByCode(buyerCode);
         _buyerProfile = buyer;
-        if (_buyerProfile != null && _buyerProfile!['email'] != null) {
-          _sendToBuyer = true; // Auto-select buyer email if available
-        }
+        // Do NOT auto-enable _sendToBuyer; user must opt in manually
       }
     } catch (e) {
       debugPrint('Lỗi tải thông tin chi tiết: $e');

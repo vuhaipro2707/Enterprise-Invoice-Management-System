@@ -16,11 +16,14 @@ class EditInvoiceScreen extends StatefulWidget {
 
 class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   final ApiService _apiService = ApiService();
+  final ScrollController _scrollController = ScrollController();
   String? _invoiceId;
   Map<String, dynamic>? _invoiceData;
   bool _isLoading = true;
   int? _pickedIndex;
   String _localSearchQuery = '';
+  String? _highlightedLineItemId; // for single add (create line item)
+  Set<String> _highlightedLineItemIds = {}; // for batch add (from pricelist)
   final _formKey = GlobalKey<FormState>();
 
   final _buyerCodeController = TextEditingController();
@@ -564,6 +567,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
           ],
         ),
         body: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -874,9 +878,31 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                             item: item,
                             index: origIndex,
                             isPicked: false,
+                            isHighlighted: (_highlightedLineItemId != null &&
+                                _highlightedLineItemId == item['lineItemId']?.toString()) ||
+                                _highlightedLineItemIds.contains(item['lineItemId']?.toString()),
                             onTap: () {
+                              final tappedFilteredIdx = idx;
                               setState(() {
                                 _pickedIndex = origIndex;
+                              });
+                              // Compensate scroll for insert slots appearing above
+                              WidgetsBinding.instance.addPostFrameCallback((_) async {
+                                if (mounted) {
+                                  // Wait for the slot expansion and container resizing animation to complete first
+                                  await Future.delayed(const Duration(milliseconds: 310));
+                                  if (mounted && _scrollController.hasClients) {
+                                    const slotHeight = 44.0 + 8.0; // slot height + vertical margin
+                                    final extraOffset = tappedFilteredIdx * slotHeight;
+                                    final target = (_scrollController.offset + extraOffset)
+                                        .clamp(0.0, _scrollController.position.maxScrollExtent);
+                                    _scrollController.animateTo(
+                                      target,
+                                      duration: const Duration(milliseconds: 250),
+                                      curve: Curves.easeOut,
+                                    );
+                                  }
+                                }
                               });
                             },
                             onEdit: () => _openEditLineItem(item),
@@ -894,6 +920,9 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                             item: filteredItems[j],
                             index: filteredItems[j]['orig_index'],
                             isPicked: _pickedIndex == filteredItems[j]['orig_index'],
+                            isHighlighted: (_highlightedLineItemId != null &&
+                                _highlightedLineItemId == filteredItems[j]['lineItemId']) ||
+                                _highlightedLineItemIds.contains(filteredItems[j]['lineItemId']?.toString()),
                             onTap: () {
                               setState(() {
                                 if (_pickedIndex == filteredItems[j]['orig_index']) {
@@ -922,6 +951,32 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
               ),
             ),
           ],
+            // Quick-add buttons at the bottom of the list
+            if (!_isLoading) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton.outlined(
+                    onPressed: _openPriceListSelection,
+                    icon: const Icon(Icons.request_quote),
+                    tooltip: 'Thêm từ bảng báo giá',
+                    style: IconButton.styleFrom(
+                      padding: const EdgeInsets.all(14),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  IconButton.filled(
+                    onPressed: () => _openCreateLineItem(),
+                    icon: const Icon(Icons.add),
+                    tooltip: 'Thêm dòng mới',
+                    style: IconButton.styleFrom(
+                      padding: const EdgeInsets.all(14),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 100),
           ],
         ),
@@ -1101,7 +1156,28 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       '/create_line_item',
       arguments: {'invoiceId': _invoiceId!},
     );
-    if (result == true) _fetchInvoiceDetails();
+    if (result == true) {
+      await _fetchInvoiceDetails();
+      if (!mounted) return;
+      // Scroll to bottom and highlight the last added item
+      final lineItems = (_invoiceData?['lineItems'] as List?) ?? [];
+      if (lineItems.isNotEmpty) {
+        final lastItem = lineItems.last;
+        final lastId = lastItem['lineItemId']?.toString();
+        setState(() => _highlightedLineItemId = lastId);
+        await Future.delayed(const Duration(milliseconds: 150));
+        if (mounted && _scrollController.hasClients) {
+          await _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOut,
+          );
+        }
+        // Auto-clear highlight after animation
+        await Future.delayed(const Duration(milliseconds: 1400));
+        if (mounted) setState(() => _highlightedLineItemId = null);
+      }
+    }
   }
 
   void _openPriceListSelection() async {
@@ -1120,11 +1196,34 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
             "unitId": item['unitId'],
             "itemNameSnapshot": item['itemName'],
             "unitNameSnapshot": item['unitName'],
-            "quantity": (item['quantity'] as num?)?.toInt() ?? 1, // Quantity chosen in selection screen (must be int)
+            "quantity": (item['quantity'] as num?)?.toInt() ?? 1,
             "unitPriceCustom": item['price'],
           });
         }
-        _fetchInvoiceDetails();
+        await _fetchInvoiceDetails();
+        if (!mounted) return;
+        // Scroll to bottom and highlight ALL newly added items
+        final lineItems = (_invoiceData?['lineItems'] as List?) ?? [];
+        if (lineItems.isNotEmpty) {
+          // The last N items correspond to the ones just added
+          final addedCount = result.length;
+          final addedIds = lineItems
+              .skip((lineItems.length - addedCount).clamp(0, lineItems.length))
+              .map((itm) => itm['lineItemId']?.toString() ?? '')
+              .where((id) => id.isNotEmpty)
+              .toSet();
+          setState(() => _highlightedLineItemIds = addedIds);
+          await Future.delayed(const Duration(milliseconds: 150));
+          if (mounted && _scrollController.hasClients) {
+            await _scrollController.animateTo(
+              _scrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOut,
+            );
+          }
+          await Future.delayed(const Duration(milliseconds: 1400));
+          if (mounted) setState(() => _highlightedLineItemIds = {});
+        }
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
@@ -1179,6 +1278,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   @override
   void dispose() {
     _pingTimer?.cancel();
+    _scrollController.dispose();
     _buyerCodeController.dispose();
     _buyerNameController.dispose();
     _addressController.dispose();

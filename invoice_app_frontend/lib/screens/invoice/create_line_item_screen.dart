@@ -19,7 +19,52 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
   final _unitNameController = TextEditingController();
   final _quantityController = TextEditingController();
   final _priceController = TextEditingController();
+  final _unitFocusNode = FocusNode();
   bool _isSaving = false;
+  // Tracks the pre-filled unit name for Autocomplete's initialValue / key
+  String _unitInitialValue = '';
+
+  // Common Vietnamese unit suggestions
+  static const List<String> _unitSuggestions = [
+    'Thùng', 'Túi', 'Hộp', 'Chai', 'Két',
+    'Cái', 'Lon', 'Gói', 'Bao', 'Bình',
+    'Lít', 'Kg', 'Gram', 'Mét', 'Cuộn',
+    'Tấm', 'Đôi', 'Bộ', 'Chiếc', 'Viên',
+  ];
+
+  /// Normalize a string: lowercase + strip Vietnamese diacritics.
+  static String _unaccent(String s) {
+    const map = {
+      // Latin basic
+      'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a',
+      'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
+      'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i',
+      'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
+      'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
+      'ý': 'y', 'ÿ': 'y',
+      // Vietnamese ă-family
+      'ă': 'a', 'ắ': 'a', 'ặ': 'a', 'ẳ': 'a', 'ẵ': 'a',
+      // Vietnamese â-family
+      'ấ': 'a', 'ầ': 'a', 'ẫ': 'a', 'ậ': 'a',
+      // Vietnamese đ
+      'đ': 'd',
+      // Vietnamese e-family
+      'ẹ': 'e', 'ẻ': 'e', 'ẽ': 'e',
+      'ế': 'e', 'ề': 'e', 'ệ': 'e', 'ể': 'e', 'ễ': 'e',
+      // Vietnamese i-family
+      'ị': 'i', 'ỉ': 'i', 'ĩ': 'i',
+      // Vietnamese o-family
+      'ọ': 'o', 'ỏ': 'o',
+      'ố': 'o', 'ồ': 'o', 'ổ': 'o', 'ỗ': 'o', 'ộ': 'o',
+      'ớ': 'o', 'ờ': 'o', 'ở': 'o', 'ỡ': 'o', 'ợ': 'o',
+      // Vietnamese u-family
+      'ụ': 'u', 'ủ': 'u', 'ũ': 'u',
+      'ứ': 'u', 'ừ': 'u', 'ự': 'u', 'ử': 'u', 'ữ': 'u',
+      // Vietnamese y-family
+      'ỵ': 'y', 'ỷ': 'y', 'ỹ': 'y',
+    };
+    return s.toLowerCase().split('').map((c) => map[c] ?? c).join();
+  }
 
   String? _currentInvoiceId;
   Map<String, dynamic>? _currentExistingLineItem;
@@ -41,7 +86,9 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
         if (_currentExistingLineItem != null) {
           final item = _currentExistingLineItem!;
           _itemNameController.text = item['itemNameSnapshot'] ?? '';
-          _unitNameController.text = item['unitNameSnapshot'] ?? '';
+          final unitName = item['unitNameSnapshot'] ?? '';
+          _unitNameController.text = unitName;
+          _unitInitialValue = unitName;
           _quantityController.text = (item['quantity'] ?? 0).toString();
           _priceController.text = NumberFormat.decimalPattern('vi_VN').format(item['unitPriceCustom'] ?? 0);
           _selectedUnitId = item['unitId'];
@@ -80,9 +127,11 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
   }
 
   void _onUnitSelected(Map<String, dynamic> unit) {
+    final unitName = unit['unitName'] as String? ?? '';
     setState(() {
       _selectedUnitId = unit['unitId'];
-      _unitNameController.text = unit['unitName'] ?? '';
+      _unitNameController.text = unitName;
+      _unitInitialValue = unitName; // triggers Autocomplete key rebuild
       final rawPrice = unit['unitPriceDefault'] ?? 0;
       _priceController.text = NumberFormat.decimalPattern('vi_VN').format(rawPrice);
     });
@@ -157,13 +206,65 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _unitNameController,
-              decoration: const InputDecoration(
-                labelText: 'Đơn vị tính *',
-                border: OutlineInputBorder(),
-                hintText: 'Cái, Thùng, Lon...',
-              ),
+            // Unit name field with autocomplete suggestions
+            Autocomplete<String>(
+              // Key forces a rebuild (with new initialValue) when a unit chip is selected
+              key: ValueKey(_unitInitialValue),
+              initialValue: TextEditingValue(text: _unitInitialValue),
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                if (textEditingValue.text.isEmpty) return const Iterable.empty();
+                final query = _unaccent(textEditingValue.text);
+                return _unitSuggestions.where(
+                  (unit) => _unaccent(unit).contains(query),
+                );
+              },
+              onSelected: (String selection) {
+                setState(() {
+                  _unitNameController.text = selection;
+                  _unitInitialValue = selection;
+                });
+              },
+              fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
+                return TextField(
+                  controller: textController,
+                  focusNode: focusNode,
+                  decoration: const InputDecoration(
+                    labelText: 'Đơn vị tính *',
+                    border: OutlineInputBorder(),
+                    hintText: 'Cái, Thùng, Lon...',
+                    suffixIcon: Icon(Icons.expand_more),
+                  ),
+                  // Keep external controller in sync so _save() reads correctly
+                  onChanged: (value) => _unitNameController.text = value,
+                  onSubmitted: (_) => onFieldSubmitted(),
+                );
+              },
+              optionsViewBuilder: (context, onSelected, options) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    elevation: 4,
+                    borderRadius: BorderRadius.circular(12),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 220),
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        itemBuilder: (context, index) {
+                          final option = options.elementAt(index);
+                          return ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.straighten_rounded, size: 18),
+                            title: Text(option),
+                            onTap: () => onSelected(option),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 12),
             Row(
@@ -274,6 +375,7 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
     _unitNameController.dispose();
     _quantityController.dispose();
     _priceController.dispose();
+    _unitFocusNode.dispose();
     super.dispose();
   }
 }

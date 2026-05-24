@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-class LineItemCard extends StatelessWidget {
+class LineItemCard extends StatefulWidget {
   final Map<String, dynamic> item;
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final int index;
   final bool isPicked;
+  final bool isHighlighted;
 
   const LineItemCard({
     super.key,
@@ -17,71 +18,167 @@ class LineItemCard extends StatelessWidget {
     required this.onDelete,
     required this.index,
     this.isPicked = false,
+    this.isHighlighted = false,
   });
 
   @override
+  State<LineItemCard> createState() => _LineItemCardState();
+}
+
+class _LineItemCardState extends State<LineItemCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _glowController;
+  late Animation<double> _glowAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _glowAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+    );
+    if (widget.isHighlighted) {
+      _runGlowAnimation();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant LineItemCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isHighlighted && !oldWidget.isHighlighted) {
+      _runGlowAnimation();
+    }
+  }
+
+  void _runGlowAnimation() {
+    _glowController.forward(from: 0).then((_) {
+      if (mounted) _glowController.reverse();
+    });
+  }
+
+  @override
+  void dispose() {
+    _glowController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final subTotal = (item['subTotal'] as num?)?.toDouble() ?? 0;
+    final subTotal = (widget.item['subTotal'] as num?)?.toDouble() ?? 0;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: isPicked ? 4 : 1,
-      color: isPicked 
-          ? colorScheme.primaryContainer.withValues(alpha: 0.15) 
-          : colorScheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isPicked 
-              ? colorScheme.primary 
-              : colorScheme.outline.withValues(alpha: 0.1),
-          width: isPicked ? 2.5 : 1.0,
-        ),
-      ),
-      child: ListTile(
-        onTap: onEdit,
-        leading: CircleAvatar(
-          backgroundColor: isPicked ? colorScheme.primary : colorScheme.secondaryContainer,
-          foregroundColor: isPicked ? colorScheme.onPrimary : colorScheme.onSecondaryContainer,
-          child: Text(
-            '${index + 1}',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+    return AnimatedBuilder(
+      animation: _glowAnimation,
+      builder: (context, child) {
+        final glowOpacity = _glowAnimation.value;
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          elevation: widget.isPicked ? 4 : (glowOpacity > 0 ? 4 : 1),
+          color: widget.isPicked
+              ? colorScheme.primaryContainer.withValues(alpha: 0.15)
+              : colorScheme.surfaceContainerLow,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: widget.isPicked
+                  ? colorScheme.primary
+                  : glowOpacity > 0
+                      ? colorScheme.primary.withValues(alpha: glowOpacity)
+                      : colorScheme.outline.withValues(alpha: 0.1),
+              width: widget.isPicked
+                  ? 2.5
+                  : glowOpacity > 0
+                      ? 2.0 * glowOpacity + 0.5
+                      : 1.0,
+            ),
           ),
-        ),
-        title: Text(
-          '${item['itemNameSnapshot']} (x${item['quantity']})',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-        ),
-        subtitle: Text(
-          '${item['unitNameSnapshot']} - ${NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(item['unitPriceCustom'])}',
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(subTotal),
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: isPicked ? colorScheme.primary : colorScheme.onSurface,
+          child: child,
+        );
+      },
+      child: InkWell(
+        onTap: widget.onEdit,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Index badge
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: widget.isPicked ? colorScheme.primary : colorScheme.secondaryContainer,
+                foregroundColor: widget.isPicked ? colorScheme.onPrimary : colorScheme.onSecondaryContainer,
+                child: Text(
+                  '${widget.index + 1}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              icon: Icon(Icons.delete_outline_rounded, size: 20, color: colorScheme.error),
-              onPressed: onDelete,
-              tooltip: 'Xóa dòng',
-            ),
-            const SizedBox(width: 4),
-            ReorderableDragStartListener(
-              index: index,
-              child: IconButton(
-                icon: Icon(Icons.drag_handle, color: colorScheme.onSurfaceVariant),
-                onPressed: onTap,
-                tooltip: 'Kéo hoặc bấm để di chuyển',
+              const SizedBox(width: 12),
+              // Title + subtitle
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${widget.item['itemNameSnapshot']} (x${widget.item['quantity']})',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${widget.item['unitNameSnapshot']} - ${NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(widget.item['unitPriceCustom'])}',
+                      style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              // Trailing: price on top, buttons below
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(subTotal),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: widget.isPicked ? colorScheme.primary : colorScheme.onSurface,
+                      fontSize: 17,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.delete_outline_rounded, size: 20, color: colorScheme.error),
+                        onPressed: widget.onDelete,
+                        tooltip: 'Xóa dòng',
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 4),
+                      ReorderableDragStartListener(
+                        index: widget.index,
+                        child: IconButton(
+                          icon: Icon(Icons.drag_handle, color: colorScheme.onSurfaceVariant),
+                          onPressed: widget.onTap,
+                          tooltip: 'Kéo hoặc bấm để di chuyển',
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
