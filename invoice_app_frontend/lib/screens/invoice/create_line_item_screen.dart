@@ -20,6 +20,7 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
   final _quantityController = TextEditingController();
   final _priceController = TextEditingController();
   final _unitFocusNode = FocusNode();
+  final _quantityFocusNode = FocusNode();
   bool _isSaving = false;
   // Tracks the pre-filled unit name for Autocomplete's initialValue / key
   String _unitInitialValue = '';
@@ -135,6 +136,9 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
       final rawPrice = unit['unitPriceDefault'] ?? 0;
       _priceController.text = NumberFormat.decimalPattern('vi_VN').format(rawPrice);
     });
+    
+    // Auto focus quantity field after unit selection
+    _quantityFocusNode.requestFocus();
   }
 
   @override
@@ -272,6 +276,7 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
                 Expanded(
                   child: TextField(
                     controller: _quantityController,
+                    focusNode: _quantityFocusNode,
                     decoration: const InputDecoration(
                       labelText: 'Số lượng *',
                       border: OutlineInputBorder(),
@@ -376,6 +381,7 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
     _quantityController.dispose();
     _priceController.dispose();
     _unitFocusNode.dispose();
+    _quantityFocusNode.dispose();
     super.dispose();
   }
 }

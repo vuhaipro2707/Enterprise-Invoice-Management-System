@@ -16,6 +16,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
   final ApiService _apiService = ApiService();
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   Map<String, dynamic>? _selectedBuyer;
   final List<Map<String, dynamic>> _priceItems = [];
@@ -23,6 +24,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
   bool _isInitialized = false;
   int? _pickedIndex;
   String _localSearchQuery = '';
+  String? _highlightedItemKey; // 'itemId_unitId' of the newly added item
 
   String _initialDescription = '';
   String? _initialBuyerId;
@@ -51,6 +53,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
   @override
   void dispose() {
     _descriptionController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -358,11 +361,28 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                           );
                         } else {
                           _priceItems.add(itemData);
+                          // Set highlight key for new items
+                          _highlightedItemKey = '${itemData['itemId']}_${itemData['unitId']}';
                         }
                       }
                     });
 
                     Navigator.pop(dialogContext);
+
+                    // Scroll to bottom and show highlight after dialog closes
+                    if (index == null) {
+                      Future.delayed(const Duration(milliseconds: 200), () async {
+                        if (mounted && _scrollController.hasClients) {
+                          await _scrollController.animateTo(
+                            _scrollController.position.maxScrollExtent,
+                            duration: const Duration(milliseconds: 400),
+                            curve: Curves.easeOut,
+                          );
+                        }
+                        await Future.delayed(const Duration(milliseconds: 1400));
+                        if (mounted) setState(() => _highlightedItemKey = null);
+                      });
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: colorScheme.primary,
@@ -546,6 +566,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
           : Form(
               key: _formKey,
               child: SingleChildScrollView(
+                controller: _scrollController,
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -910,9 +931,32 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                                       item: item,
                                       index: origIndex,
                                       isPicked: false,
+                                      isHighlighted: _highlightedItemKey != null &&
+                                          _highlightedItemKey == '${item['itemId']}_${item['unitId']}',
                                       onTap: () {
+                                        final tappedFilteredIdx = idx;
                                         setState(() {
                                           _pickedIndex = origIndex;
+                                        });
+
+                                        // Compensate scroll for insert slots appearing above
+                                        WidgetsBinding.instance.addPostFrameCallback((_) async {
+                                          if (mounted) {
+                                            // Wait for the slot expansion animation to complete first
+                                            await Future.delayed(const Duration(milliseconds: 310));
+                                            if (mounted && _scrollController.hasClients) {
+                                              const slotHeight = 44.0 + 8.0; // height + vertical margin
+                                              final extraOffset = tappedFilteredIdx * slotHeight;
+                                              final target = (_scrollController.offset + extraOffset)
+                                                  .clamp(0.0, _scrollController.position.maxScrollExtent);
+                                              
+                                              _scrollController.animateTo(
+                                                target,
+                                                duration: const Duration(milliseconds: 250),
+                                                curve: Curves.easeOut,
+                                              );
+                                            }
+                                          }
                                         });
                                       },
                                       onEdit: () => _editItem(origIndex),
@@ -930,6 +974,8 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                                       item: filteredItems[j],
                                       index: filteredItems[j]['orig_index'],
                                       isPicked: _pickedIndex == filteredItems[j]['orig_index'],
+                                      isHighlighted: _highlightedItemKey != null &&
+                                          _highlightedItemKey == '${filteredItems[j]['itemId']}_${filteredItems[j]['unitId']}',
                                       onTap: () {
                                         setState(() {
                                           if (_pickedIndex == filteredItems[j]['orig_index']) {

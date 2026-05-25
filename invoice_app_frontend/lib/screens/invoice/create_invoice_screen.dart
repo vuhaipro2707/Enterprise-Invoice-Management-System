@@ -45,6 +45,32 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         if (args.containsKey('cloned_items')) {
           _clonedItems = args['cloned_items'] as List?;
         }
+
+        // Pre-fill fields if provided
+        if (args.containsKey('prefill_buyer_name')) {
+          _buyerNameController.text = args['prefill_buyer_name'] ?? '';
+        }
+        if (args.containsKey('prefill_address')) {
+          _addressController.text = args['prefill_address'] ?? '';
+        }
+        if (args.containsKey('prefill_phone')) {
+          _phoneController.text = args['prefill_phone'] ?? '';
+        }
+        if (args.containsKey('prefill_tax_id')) {
+          _taxIdController.text = args['prefill_tax_id'] ?? '';
+        }
+        if (args.containsKey('prefill_lat')) {
+          _selectedLat = args['prefill_lat'] != null ? (args['prefill_lat'] as num).toDouble() : null;
+        }
+        if (args.containsKey('prefill_lng')) {
+          _selectedLng = args['prefill_lng'] != null ? (args['prefill_lng'] as num).toDouble() : null;
+        }
+        if (args.containsKey('prefill_id_card')) {
+          _idCardController.text = args['prefill_id_card'] ?? '';
+        }
+        if (args.containsKey('prefill_email')) {
+          _emailController.text = args['prefill_email'] ?? '';
+        }
       }
     }
   }
@@ -121,60 +147,73 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final response = await ApiService().createInvoice(
-        buyerId: _selectedBuyerId,
-        invoiceCode: _invoiceCodeController.text.trim(),
-        buyerNameSnapshot: _buyerNameController.text.trim(),
-        latSnapshot: _selectedLat,
-        lngSnapshot: _selectedLng,
-        addressSnapshot: _addressController.text.trim(),
-        phoneNumberSnapshot: _phoneController.text.trim(),
-        idCardNumberSnapshot: _idCardController.text.trim().isEmpty ? null : _idCardController.text.trim(),
-        emailSnapshot: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
-        taxIdSnapshot: _taxIdController.text.trim().isEmpty ? null : _taxIdController.text.trim(),
-      );
+      final invoiceData = {
+        'buyerId': _selectedBuyerId,
+        'invoiceCode': _invoiceCodeController.text.trim(),
+        'editStatus': true,
+        'buyerNameSnapshot': _buyerNameController.text.trim(),
+        'latSnapshot': _selectedLat,
+        'lngSnapshot': _selectedLng,
+        'addressSnapshot': _addressController.text.trim(),
+        'phoneNumberSnapshot': _phoneController.text.trim(),
+        'idCardNumberSnapshot': _idCardController.text.trim().isEmpty ? null : _idCardController.text.trim(),
+        'emailSnapshot': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        'taxIdSnapshot': _taxIdController.text.trim().isEmpty ? null : _taxIdController.text.trim(),
+      };
 
-      if (mounted) {
-        final invoiceId = response['data']['invoiceId'];
-        if (_clonedItems != null && _clonedItems!.isNotEmpty) {
-          try {
-            for (final item in _clonedItems!) {
-              final Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
-              await ApiService().createLineItem(invoiceId, {
-                "itemId": itemMap['itemId'],
-                "unitId": itemMap['unitId'],
-                "itemNameSnapshot": itemMap['itemNameSnapshot'],
-                "unitNameSnapshot": itemMap['unitNameSnapshot'],
-                "quantity": (itemMap['quantity'] as num?)?.toInt() ?? 1,
-                "unitPriceCustom": itemMap['unitPriceCustom'],
-              });
-            }
-          } catch (e) {
-            debugPrint('Error applying cloned items: $e');
-          }
-        } else if (_autoApplyPriceListId != null) {
+      Map<String, dynamic> finalInvoiceResponse;
+
+      if (_clonedItems != null && _clonedItems!.isNotEmpty) {
+        // Use bulk endpoint for cloned items to avoid N+1
+        final lineItems = _clonedItems!.map((item) {
+          final Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
+          return {
+            "itemId": itemMap['itemId'],
+            "unitId": itemMap['unitId'],
+            "itemNameSnapshot": itemMap['itemNameSnapshot'],
+            "unitNameSnapshot": itemMap['unitNameSnapshot'],
+            "quantity": (itemMap['quantity'] as num?)?.toInt() ?? 1,
+            "unitPriceCustom": itemMap['unitPriceCustom'],
+          };
+        }).toList();
+
+        finalInvoiceResponse = await ApiService().cloneInvoice({
+          ...invoiceData,
+          'lineItems': lineItems,
+        });
+      } else {
+        // Standard single creation
+        finalInvoiceResponse = await ApiService().createInvoice(
+          buyerId: _selectedBuyerId,
+          invoiceCode: _invoiceCodeController.text.trim(),
+          buyerNameSnapshot: _buyerNameController.text.trim(),
+          latSnapshot: _selectedLat,
+          lngSnapshot: _selectedLng,
+          addressSnapshot: _addressController.text.trim(),
+          phoneNumberSnapshot: _phoneController.text.trim(),
+          idCardNumberSnapshot: _idCardController.text.trim().isEmpty ? null : _idCardController.text.trim(),
+          emailSnapshot: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+          taxIdSnapshot: _taxIdController.text.trim().isEmpty ? null : _taxIdController.text.trim(),
+        );
+
+        // Handle auto-apply price list if applicable
+        if (_autoApplyPriceListId != null && mounted) {
+          final invoiceId = finalInvoiceResponse['data']['invoiceId'];
           final pickedItems = await Navigator.pushNamed(
             context,
             '/pricelist_item_picker',
             arguments: _autoApplyPriceListId,
           );
 
-          if (pickedItems != null && pickedItems is List && pickedItems.isNotEmpty) {
-            if (!mounted) return;
-            final buyerName = _buyerNameController.text.trim().isNotEmpty
-                ? _buyerNameController.text.trim()
-                : 'Khách lẻ';
+          if (pickedItems != null && pickedItems is List && pickedItems.isNotEmpty && mounted) {
+            // Confirmation and loop for pricelist items
             final itemCount = pickedItems.length;
-
             final bool? confirm = await showDialog<bool>(
               context: context,
               builder: (dialogContext) {
-                final colorScheme = Theme.of(context).colorScheme;
                 return AlertDialog(
                   title: const Text('Xác nhận thêm mặt hàng'),
-                  content: Text(
-                    'Bạn có chắc chắn muốn thêm $itemCount mặt hàng đã chọn vào hóa đơn mới cho $buyerName không?'
-                  ),
+                  content: Text('Bạn có chắc chắn muốn thêm $itemCount mặt hàng đã chọn vào hóa đơn này không?'),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(dialogContext, false),
@@ -182,10 +221,6 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                     ),
                     ElevatedButton(
                       onPressed: () => Navigator.pop(dialogContext, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: colorScheme.primary,
-                        foregroundColor: colorScheme.onPrimary,
-                      ),
                       child: const Text('XÁC NHẬN'),
                     ),
                   ],
@@ -194,33 +229,29 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             );
 
             if (confirm == true) {
-              if (mounted) setState(() => _isLoading = true);
-              try {
-                for (final item in pickedItems) {
-                  final Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
-                  await ApiService().createLineItem(invoiceId, {
-                    "itemId": itemMap['itemId'],
-                    "unitId": itemMap['unitId'],
-                    "itemNameSnapshot": itemMap['itemName'],
-                    "unitNameSnapshot": itemMap['unitName'],
-                    "quantity": (itemMap['quantity'] as num?)?.toInt() ?? 1,
-                    "unitPriceCustom": itemMap['price'],
-                  });
-                }
-              } catch (e) {
-                debugPrint('Error applying auto price list items: $e');
+              for (final item in pickedItems) {
+                final Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
+                await ApiService().createLineItem(invoiceId, {
+                  "itemId": itemMap['itemId'],
+                  "unitId": itemMap['unitId'],
+                  "itemNameSnapshot": itemMap['itemName'],
+                  "unitNameSnapshot": itemMap['unitName'],
+                  "quantity": (itemMap['quantity'] as num?)?.toInt() ?? 1,
+                  "unitPriceCustom": itemMap['price'],
+                });
               }
             }
           }
         }
+      }
 
-        if (mounted) {
-          Navigator.pushReplacementNamed(
-            context,
-            '/edit_invoice',
-            arguments: {'invoiceId': invoiceId},
-          );
-        }
+      if (mounted) {
+        final invoiceId = finalInvoiceResponse['data']['invoiceId'];
+        Navigator.pushReplacementNamed(
+          context,
+          '/edit_invoice',
+          arguments: {'invoiceId': invoiceId},
+        );
       }
     } catch (e) {
       if (mounted) {

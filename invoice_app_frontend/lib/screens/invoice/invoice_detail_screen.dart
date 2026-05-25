@@ -365,7 +365,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                       ],
                     ),
                     content: const Text(
-                      'Tất cả các mặt hàng, đơn vị tính, đơn giá và số lượng sẽ được chép nguyên vẹn sang hóa đơn mới. Bạn có muốn tiếp tục?',
+                      'Tất cả các mặt hàng, đơn vị tính, đơn giá và số lượng sẽ được chép nguyên vẹn sang hóa đơn mới. Bạn có muốn chọn khách hàng khác không?',
                     ),
                     actions: [
                       TextButton(

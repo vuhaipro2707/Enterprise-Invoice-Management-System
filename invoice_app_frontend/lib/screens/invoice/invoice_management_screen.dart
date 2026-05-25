@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../widgets/invoice_card.dart';
+import '../../main.dart' show routeObserver;
 
 class InvoiceManagementScreen extends StatefulWidget {
   const InvoiceManagementScreen({super.key});
@@ -13,7 +14,7 @@ class InvoiceManagementScreen extends StatefulWidget {
 
 enum SortState { updatedAtDesc, createdAtDesc }
 
-class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
+class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with RouteAware {
   final ApiService _apiService = ApiService();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -27,7 +28,7 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
   final int _limit = 20;
 
   // Search & Filter state
-  bool _showEditing = false;
+  bool _showEditing = true;
   bool _showSaved = true;
   bool _showLocked = false;
   String? _sortBy = 'updated_at'; // 'updated_at' or 'created_at'
@@ -52,9 +53,13 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
     if (!_isArgumentsParsed) {
       _isArgumentsParsed = true;
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final args = route?.settings.arguments as Map<String, dynamic>?;
       if (args != null) {
         if (args.containsKey('buyer')) {
           _selectedBuyer = args['buyer'];
@@ -65,6 +70,12 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
       }
       _fetchInitialInvoices();
     }
+  }
+
+  /// Called when a route above this one is popped (user navigated back here).
+  @override
+  void didPopNext() {
+    _fetchInitialInvoices();
   }
 
   void _toggleSort() {
@@ -84,6 +95,7 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
 
   @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     _searchController.dispose();
     _scrollController.dispose();
     _debounce?.cancel();

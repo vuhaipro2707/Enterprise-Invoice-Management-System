@@ -26,6 +26,9 @@ import 'screens/invoice/invoice_trash_screen.dart';
 import 'screens/pricelist/pricelist_trash_screen.dart';
 import 'screens/pricelist/export_pricelist_screen.dart';
 
+/// Global RouteObserver to allow screens to detect when they are returned to.
+final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -52,6 +55,7 @@ class MyApp extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
+      navigatorObservers: [routeObserver],
       title: 'Invoice App',
       debugShowCheckedModeBanner: false,
       themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,

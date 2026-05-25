@@ -71,6 +71,7 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	invoiceGroup.Get("/ping/invoiceId/:invoiceId", invoiceHandler.PingInvoice)
 	invoiceGroup.Get("/id/:invoiceId", invoiceHandler.GetInvoiceWithLines)
 	invoiceGroup.Post("/lock/invoiceId/:invoiceId", invoiceHandler.LockInvoice)
+	invoiceGroup.Post("/clone", invoiceHandler.CloneInvoice)
 
 	// Các route yêu cầu phải đang giữ quyền chỉnh sửa (Edit Lock)
 	invoiceLockGroup := invoiceGroup.Group("", auth.CheckHoldingDevice(repo))

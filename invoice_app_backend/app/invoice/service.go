@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"invoice_backend/app/dbconn"
 	sqlc "invoice_backend/db/sqlc"
 	"os"
 	"time"
@@ -257,32 +258,32 @@ func (s *InvoiceService) PatchBuyer(ctx context.Context, id uuid.UUID, input Pat
 }
 
 type PatchInvoiceInput struct {
-	AccountID              uuid.NullUUID
-	SetAccountID           bool
-	BuyerID                uuid.NullUUID
-	SetBuyerID             bool
-	InvoiceCode            string
-	SetInvoiceCode         bool
-	DeviceHoldingID        sql.NullString
-	SetDeviceHoldingID     bool
-	EditStatus             sql.NullBool
-	SetEditStatus          bool
-	BuyerNameSnapshot      sql.NullString
-	SetBuyerNameSnapshot   bool
-	AddressSnapshot        sql.NullString
-	SetAddressSnapshot     bool
-	PhoneNumberSnapshot    sql.NullString
-	SetPhoneNumberSnapshot bool
-	IDCardNumberSnapshot   sql.NullString
+	AccountID               uuid.NullUUID
+	SetAccountID            bool
+	BuyerID                 uuid.NullUUID
+	SetBuyerID              bool
+	InvoiceCode             string
+	SetInvoiceCode          bool
+	DeviceHoldingID         sql.NullString
+	SetDeviceHoldingID      bool
+	EditStatus              sql.NullBool
+	SetEditStatus           bool
+	BuyerNameSnapshot       sql.NullString
+	SetBuyerNameSnapshot    bool
+	AddressSnapshot         sql.NullString
+	SetAddressSnapshot      bool
+	PhoneNumberSnapshot     sql.NullString
+	SetPhoneNumberSnapshot  bool
+	IDCardNumberSnapshot    sql.NullString
 	SetIDCardNumberSnapshot bool
-	EmailSnapshot          sql.NullString
-	SetEmailSnapshot       bool
-	TaxIDSnapshot          sql.NullString
-	SetTaxIDSnapshot       bool
-	LatSnapshot            sql.NullFloat64
-	SetLatSnapshot         bool
-	LngSnapshot            sql.NullFloat64
-	SetLngSnapshot         bool
+	EmailSnapshot           sql.NullString
+	SetEmailSnapshot        bool
+	TaxIDSnapshot           sql.NullString
+	SetTaxIDSnapshot        bool
+	LatSnapshot             sql.NullFloat64
+	SetLatSnapshot          bool
+	LngSnapshot             sql.NullFloat64
+	SetLngSnapshot          bool
 }
 
 func (s *InvoiceService) PatchInvoice(ctx context.Context, id uuid.UUID, input PatchInvoiceInput) (sqlc.Invoice, error) {
@@ -498,4 +499,35 @@ func (s *InvoiceService) RestoreInvoice(ctx context.Context, invoiceID string) e
 
 func (s *InvoiceService) GetDeletedInvoices(ctx context.Context) ([]sqlc.ListDeletedInvoicesRow, error) {
 	return s.Repo.ListDeletedInvoices(ctx)
+}
+
+func (s *InvoiceService) CloneInvoice(ctx context.Context, invoiceParams sqlc.CreateInvoiceParams, lineItems []sqlc.CreateLineItemParams) (sqlc.Invoice, error) {
+	tx, err := dbconn.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return sqlc.Invoice{}, err
+	}
+	defer tx.Rollback()
+
+	qTx := s.Repo.WithTx(tx)
+
+	// 1. Create Invoice Header
+	invoice, err := qTx.CreateInvoice(ctx, invoiceParams)
+	if err != nil {
+		return sqlc.Invoice{}, err
+	}
+
+	// 2. Create Line Items
+	for _, li := range lineItems {
+		li.InvoiceID = uuid.NullUUID{UUID: invoice.InvoiceID, Valid: true}
+		_, err := qTx.CreateLineItem(ctx, li)
+		if err != nil {
+			return sqlc.Invoice{}, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return sqlc.Invoice{}, err
+	}
+
+	return invoice, nil
 }

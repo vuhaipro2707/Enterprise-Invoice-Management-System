@@ -283,10 +283,12 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
                                   pos.latitude,
                                   pos.longitude,
                                 );
-                                setDialogState(() {
-                                  userLocation = newPos;
-                                });
-                                mapController.move(newPos, 16);
+                                if (dialogContext.mounted) {
+                                  setDialogState(() {
+                                    userLocation = newPos;
+                                  });
+                                  mapController.move(newPos, 16);
+                                }
                               }
                             },
                             child: const Icon(Icons.my_location),

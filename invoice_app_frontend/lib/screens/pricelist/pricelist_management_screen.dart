@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../widgets/pricelist_card.dart';
+import '../../main.dart' show routeObserver;
 
 class PriceListManagementScreen extends StatefulWidget {
   const PriceListManagementScreen({super.key});
@@ -13,7 +14,7 @@ class PriceListManagementScreen extends StatefulWidget {
 
 enum PriceListSortState { updatedAtDesc, createdAtDesc }
 
-class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
+class _PriceListManagementScreenState extends State<PriceListManagementScreen> with RouteAware {
   final ApiService _apiService = ApiService();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -46,9 +47,13 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
     if (!_isArgumentsParsed) {
       _isArgumentsParsed = true;
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final args = route?.settings.arguments as Map<String, dynamic>?;
       if (args != null) {
         if (args.containsKey('buyer')) {
           _selectedBuyer = args['buyer'];
@@ -58,8 +63,17 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
     }
   }
 
+  /// Called when a route above this one is popped (user navigated back here).
+  @override
+  void didPopNext() {
+    _fetchInitialPriceLists();
+  }
+
+
+
   @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     _searchController.dispose();
     _scrollController.dispose();
     _debounce?.cancel();
@@ -233,71 +247,83 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
     final buyerId = pl['buyerId'];
     final pricelistId = pl['customerPriceListId'].toString();
 
-    if (buyerId != null) {
-      // Case 1: Has Buyer ID
-      final pickedItems = await Navigator.pushNamed(
-        context,
-        '/pricelist_item_picker',
-        arguments: pricelistId,
+    // Show picker first regardless of buyerId presence
+    final pickedItems = await Navigator.pushNamed(
+      context,
+      '/pricelist_item_picker',
+      arguments: pricelistId,
+    );
+
+    if (pickedItems != null && pickedItems is List && pickedItems.isNotEmpty) {
+      if (!mounted) return;
+      final buyerName = pl['buyerName'] ?? 'Chưa có người mua';
+      final itemCount = pickedItems.length;
+
+      final bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          final colorScheme = Theme.of(context).colorScheme;
+          return AlertDialog(
+            title: const Text('Xác nhận tạo hóa đơn'),
+            content: Text(
+              'Bạn có chắc chắn muốn tạo hóa đơn mới với $itemCount mặt hàng đã chọn từ bảng báo giá của $buyerName không?'
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('HỦY'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                ),
+                child: const Text('TIẾP TỤC'),
+              ),
+            ],
+          );
+        },
       );
 
-      if (pickedItems != null && pickedItems is List && pickedItems.isNotEmpty) {
-        if (!mounted) return;
-        final buyerName = pl['buyerName'] ?? 'Khách lẻ';
-        final itemCount = pickedItems.length;
+      if (confirm != true) return;
+      if (!mounted) return;
 
-        final bool? confirm = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) {
-            final colorScheme = Theme.of(context).colorScheme;
-            return AlertDialog(
-              title: const Text('Xác nhận tạo hóa đơn'),
-              content: Text(
-                'Bạn có chắc chắn muốn tạo hóa đơn mới cho $buyerName với $itemCount mặt hàng đã chọn không?'
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
-                  child: const Text('HỦY'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(dialogContext, true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    foregroundColor: colorScheme.onPrimary,
-                  ),
-                  child: const Text('TẠO HÓA ĐƠN'),
-                ),
-              ],
-            );
-          },
-        );
-
-        if (confirm != true) return;
-        if (!mounted) return;
-
+      if (buyerId != null) {
+        // Case 1: Has Buyer ID - Use bulk clone directly
         setState(() => _isLoading = true);
 
         try {
           final code = await _apiService.getNextInvoiceCode();
-          final response = await _apiService.createInvoice(
-            buyerId: buyerId.toString(),
-            invoiceCode: code,
-          );
-
-          final invoiceId = response['data']['invoiceId'];
-
-          for (final item in pickedItems) {
+          
+          final lineItems = pickedItems.map((item) {
             final Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
-            await _apiService.createLineItem(invoiceId, {
+            return {
               "itemId": itemMap['itemId'],
               "unitId": itemMap['unitId'],
               "itemNameSnapshot": itemMap['itemName'],
               "unitNameSnapshot": itemMap['unitName'],
               "quantity": (itemMap['quantity'] as num?)?.toInt() ?? 1,
               "unitPriceCustom": itemMap['price'],
-            });
-          }
+            };
+          }).toList();
+
+          final response = await _apiService.cloneInvoice({
+            'buyerId': buyerId.toString(),
+            'invoiceCode': code,
+            'editStatus': true,
+            'buyerNameSnapshot': pl['buyerName'],
+            'addressSnapshot': pl['address'],
+            'phoneNumberSnapshot': pl['phoneNumber'],
+            'taxIdSnapshot': pl['taxId'],
+            'latSnapshot': pl['lat'] != null ? (pl['lat'] as num).toDouble() : null,
+            'lngSnapshot': pl['lng'] != null ? (pl['lng'] as num).toDouble() : null,
+            'idCardNumberSnapshot': pl['idCardNumber'],
+            'emailSnapshot': pl['email'],
+            'lineItems': lineItems,
+          });
+
+          final invoiceId = response['data']['invoiceId'];
 
           if (mounted) {
             Navigator.pushReplacementNamed(
@@ -314,15 +340,39 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> {
             );
           }
         }
-      }
-    } else {
-      // Case 2: No Buyer ID
-      if (mounted) {
-        Navigator.pushNamed(
-          context,
-          '/create_invoice',
-          arguments: {'auto_apply_pricelist_id': pricelistId},
-        ).then((_) => _fetchInitialPriceLists());
+      } else {
+        // Case 2: No Buyer ID - Go to Create screen with clonedItems
+        // We also pre-populate as much as we can from the pricelist snapshot
+        final List<dynamic> clonedItems = pickedItems.map((item) {
+          final Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
+          return {
+            "itemId": itemMap['itemId'],
+            "unitId": itemMap['unitId'],
+            "itemNameSnapshot": itemMap['itemName'],
+            "unitNameSnapshot": itemMap['unitName'],
+            "quantity": (itemMap['quantity'] as num?)?.toInt() ?? 1,
+            "unitPriceCustom": itemMap['price'],
+          };
+        }).toList();
+
+        if (mounted) {
+          Navigator.pushNamed(
+            context,
+            '/create_invoice',
+            arguments: {
+              'cloned_items': clonedItems,
+              // Pre-fill fields from pricelist if available
+              'prefill_buyer_name': pl['buyerName'],
+              'prefill_address': pl['address'],
+              'prefill_phone': pl['phoneNumber'],
+              'prefill_tax_id': pl['taxId'],
+              'prefill_lat': pl['lat'],
+              'prefill_lng': pl['lng'],
+              'prefill_id_card': pl['idCardNumber'],
+              'prefill_email': pl['email'],
+            },
+          ).then((_) => _fetchInitialPriceLists());
+        }
       }
     }
   }

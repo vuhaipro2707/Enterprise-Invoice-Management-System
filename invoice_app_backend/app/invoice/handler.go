@@ -2122,3 +2122,117 @@ func flattenDevice(d sqlc.Device) fiber.Map {
 		"deviceName":      deviceName,
 	}
 }
+
+func (h *InvoiceHandler) CloneInvoice(c *fiber.Ctx) error {
+	type lineItemRequest struct {
+		ItemID           *string `json:"itemId"`
+		UnitID           *string `json:"unitId"`
+		Quantity         int32   `json:"quantity"`
+		UnitPriceCustom  *int64  `json:"unitPriceCustom"`
+		ItemNameSnapshot *string `json:"itemNameSnapshot"`
+		UnitNameSnapshot *string `json:"unitNameSnapshot"`
+	}
+
+	type bulkCreateRequest struct {
+		BuyerID       *string           `json:"buyerId"`
+		InvoiceCode   string            `json:"invoiceCode"`
+		EditStatus    bool              `json:"editStatus"`
+		BuyerNameSnap *string           `json:"buyerNameSnapshot"`
+		AddressSnap   *string           `json:"addressSnapshot"`
+		PhoneSnap     *string           `json:"phoneNumberSnapshot"`
+		IdCardSnap    *string           `json:"idCardNumberSnapshot"`
+		EmailSnap     *string           `json:"emailSnapshot"`
+		TaxIDSnap     *string           `json:"taxIdSnapshot"`
+		LatSnap       *float64          `json:"latSnapshot"`
+		LngSnap       *float64          `json:"lngSnapshot"`
+		LineItems     []lineItemRequest `json:"lineItems"`
+	}
+
+	deviceHoldingID := c.Get("X-Device-Holding-ID")
+	if deviceHoldingID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing header: X-Device-Holding-ID"})
+	}
+
+	var req bulkCreateRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body"})
+	}
+
+	if req.InvoiceCode == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: invoiceCode"})
+	}
+
+	// Get username from middleware
+	usernameRaw := c.Locals("username")
+	if usernameRaw == nil {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized: user not found"})
+	}
+	username := usernameRaw.(string)
+
+	// Fetch account details to get AccountID
+	account, err := h.Repo.GetAccountByUsername(context.Background(), username)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to retrieve account information"})
+	}
+
+	var buyID uuid.NullUUID
+	if req.BuyerID != nil {
+		parsedID, err := uuid.Parse(*req.BuyerID)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid buyerId"})
+		}
+		buyID = uuid.NullUUID{UUID: parsedID, Valid: true}
+	}
+
+	// Prepare invoice params
+	invoiceParams := sqlc.CreateInvoiceParams{
+		AccountID:            uuid.NullUUID{UUID: account.AccountID, Valid: true},
+		BuyerID:              buyID,
+		InvoiceCode:          req.InvoiceCode,
+		TotalAmount:          0,
+		DeviceHoldingID:      sql.NullString{String: deviceHoldingID, Valid: deviceHoldingID != ""},
+		EditStatus:           sql.NullBool{Bool: req.EditStatus, Valid: true},
+		BuyerNameSnapshot:    sql.NullString{String: getString(req.BuyerNameSnap), Valid: req.BuyerNameSnap != nil},
+		AddressSnapshot:      sql.NullString{String: getString(req.AddressSnap), Valid: req.AddressSnap != nil},
+		PhoneNumberSnapshot:  sql.NullString{String: getString(req.PhoneSnap), Valid: req.PhoneSnap != nil},
+		IDCardNumberSnapshot: sql.NullString{String: getString(req.IdCardSnap), Valid: req.IdCardSnap != nil},
+		EmailSnapshot:        sql.NullString{String: getString(req.EmailSnap), Valid: req.EmailSnap != nil},
+		TaxIDSnapshot:        sql.NullString{String: getString(req.TaxIDSnap), Valid: req.TaxIDSnap != nil},
+		LatSnapshot:          sql.NullFloat64{Float64: getFloat(req.LatSnap), Valid: req.LatSnap != nil},
+		LngSnapshot:          sql.NullFloat64{Float64: getFloat(req.LngSnap), Valid: req.LngSnap != nil},
+	}
+
+	// Prepare line items
+	lineItemParams := make([]sqlc.CreateLineItemParams, len(req.LineItems))
+	for i, itm := range req.LineItems {
+		var itmID, untID uuid.NullUUID
+		if itm.ItemID != nil {
+			parsed, _ := uuid.Parse(*itm.ItemID)
+			itmID = uuid.NullUUID{UUID: parsed, Valid: true}
+		}
+		if itm.UnitID != nil {
+			parsed, _ := uuid.Parse(*itm.UnitID)
+			untID = uuid.NullUUID{UUID: parsed, Valid: true}
+		}
+
+		lineItemParams[i] = sqlc.CreateLineItemParams{
+			ItemID:           itmID,
+			UnitID:           untID,
+			Quantity:         itm.Quantity,
+			UnitPriceCustom:  sql.NullInt64{Int64: getInt64(itm.UnitPriceCustom), Valid: itm.UnitPriceCustom != nil},
+			ItemNameSnapshot: sql.NullString{String: getString(itm.ItemNameSnapshot), Valid: itm.ItemNameSnapshot != nil},
+			UnitNameSnapshot: sql.NullString{String: getString(itm.UnitNameSnapshot), Valid: itm.UnitNameSnapshot != nil},
+			PositionKey:      fmt.Sprintf("i%04d", i),
+		}
+	}
+
+	invoice, err := h.service.CloneInvoice(context.Background(), invoiceParams, lineItemParams)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(201).JSON(fiber.Map{
+		"message": "Bulk invoice created",
+		"data":    flattenInvoice(invoice),
+	})
+}

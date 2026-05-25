@@ -380,6 +380,15 @@ class ApiService {
     throw Exception(data['error'] ?? 'Failed to update invoice');
   }
 
+  Future<Map<String, dynamic>> cloneInvoice(Map<String, dynamic> body) async {
+    final response = await post('/invoice/clone', body);
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to bulk create invoice');
+  }
+
   Future<Map<String, dynamic>> createLineItem(String invoiceId, Map<String, dynamic> body) async {
     final response = await post('/invoice/lineItem/invoiceId/$invoiceId', body);
     final data = jsonDecode(response.body);
