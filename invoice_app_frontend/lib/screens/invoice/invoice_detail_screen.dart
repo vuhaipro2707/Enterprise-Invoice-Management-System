@@ -16,6 +16,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   Map<String, dynamic>? _invoiceData;
   bool _isLoading = true;
   bool _isDeleted = false;
+  bool _areButtonsExpanded = true;
 
   @override
   void didChangeDependencies() {
@@ -268,6 +269,179 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
           SnackBar(content: Text('Không thể chuyển sang chế độ chỉnh sửa: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _showPrintOptionsDialog() async {
+    // Helper to check for existing pending/printing jobs
+    Future<Map<String, bool>> checkPrintJobStatus() async {
+      if (_invoiceId == null) return {'Pending': false, 'Printing': false, 'Completed': false};
+      try {
+        final jobs = await _apiService.getPrintJobs(invoiceId: _invoiceId);
+        return {
+          'Pending': jobs.any((job) => job['printStatus'] == 'Pending'),
+          'Printing': jobs.any((job) => job['printStatus'] == 'Printing'),
+          'Completed': jobs.any((job) => job['printStatus'] == 'Completed'),
+        };
+      } catch (_) {
+        return {'Pending': false, 'Printing': false, 'Completed': false};
+      }
+    }
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.print, color: Colors.teal),
+              SizedBox(width: 8),
+              Text('In hóa đơn'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Bạn có chắc chắn muốn đưa hóa đơn này vào hàng chờ in không?',
+              ),
+              FutureBuilder<Map<String, bool>>(
+                future: checkPrintJobStatus(),
+                builder: (futureContext, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 1.5),
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Đang kiểm tra hàng chờ in...',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  
+                  final statusMap = snapshot.data;
+                  if (statusMap == null) return const SizedBox.shrink();
+
+                  final hasPending = statusMap['Pending'] ?? false;
+                  final hasPrinting = statusMap['Printing'] ?? false;
+                  final hasCompleted = statusMap['Completed'] ?? false;
+
+                  if (hasPending || hasPrinting || hasCompleted) {
+                    String msg = '';
+                    Color bannerColor = Colors.amber;
+                    IconData bannerIcon = Icons.warning_amber_rounded;
+
+                    if (hasPending) {
+                      msg = 'Lưu ý: Có bản in của hóa đơn này đang chờ xử lý.';
+                      bannerColor = Colors.orange;
+                      bannerIcon = Icons.hourglass_empty;
+                    } else if (hasPrinting) {
+                      msg = 'Lưu ý: Hóa đơn này đang được tiến hành in.';
+                      bannerColor = Colors.blue;
+                      bannerIcon = Icons.print;
+                    } else if (hasCompleted) {
+                      msg = 'Thông báo: Hóa đơn này đã được in thành công trước đó.';
+                      bannerColor = Colors.green;
+                      bannerIcon = Icons.check_circle_outline;
+                    }
+
+                    return Container(
+                      margin: const EdgeInsets.only(top: 12),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: bannerColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: bannerColor.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(bannerIcon, color: bannerColor, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              msg,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(futureContext).colorScheme.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('HỦY'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false), // false means 1 copy
+              child: const Text('IN 1 BẢN (GỐC)'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true), // true means 3 copies
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('IN 3 BẢN (LIÊN BA)'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == null) return;
+
+    final String printType = confirm ? 'Triplicate' : 'Original';
+
+    setState(() => _isLoading = true);
+    try {
+      await _apiService.createPrintJob(
+        invoiceId: _invoiceId!,
+        printType: printType,
+        priorityNum: 0,
+      );
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã đưa hóa đơn vào hàng chờ in thành công!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi gửi lệnh in: $e')),
+        );
+      }
+    }
+  }
+
+  void _navigateToPrintQueue() {
+    if (_invoiceId != null) {
+      Navigator.pushNamed(
+        context,
+        '/print_management',
+        arguments: {'invoiceId': _invoiceId},
+      );
     }
   }
 
@@ -577,7 +751,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                 itemBuilder: (context, index) {
                   final item = lineItems[index];
                   final name = item['itemNameSnapshot']?.toString() ?? 'N/A';
-                  // final typeName = item['itemTypeNameSnapshot']?.toString() ?? '';
                   final unitName = item['unitNameSnapshot']?.toString() ?? 'cái';
                   final qty = item['quantity'] ?? 0;
                   final price = item['unitPriceCustom'] ?? 0;
@@ -593,7 +766,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
                             padding: const EdgeInsets.all(8),
@@ -614,40 +787,33 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14,
                                   ),
+                                  softWrap: true,
                                 ),
-                                // if (typeName.isNotEmpty) ...[
-                                //   const SizedBox(height: 2),
-                                //   Text(
-                                //     typeName,
-                                //     style: TextStyle(
-                                //       fontSize: 12,
-                                //       color: colorScheme.outline,
-                                //     ),
-                                //   ),
-                                // ],
                                 const SizedBox(height: 6),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      '$qty x ${CurrencyFormatter.formatVND(price)} / $unitName',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: colorScheme.outline,
-                                      ),
-                                    ),
-                                    Text(
-                                      CurrencyFormatter.formatVND(subtotal),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                        color: colorScheme.secondary,
-                                      ),
-                                    ),
-                                  ],
+                                Text(
+                                  '$qty x ${CurrencyFormatter.formatVND(price)} / $unitName',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colorScheme.outline,
+                                  ),
                                 ),
                               ],
                             ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                CurrencyFormatter.formatVND(subtotal),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: colorScheme.secondary,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -675,12 +841,25 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
                   'Tổng cộng:',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
+                const Spacer(),
+                IconButton(
+                  icon: Icon(
+                    _areButtonsExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+                    color: colorScheme.primary,
+                  ),
+                  tooltip: _areButtonsExpanded ? 'Ẩn bảng nút' : 'Hiện bảng nút',
+                  onPressed: () {
+                    setState(() {
+                      _areButtonsExpanded = !_areButtonsExpanded;
+                    });
+                  },
+                ),
+                const Spacer(),
                 Text(
                   CurrencyFormatter.formatVND(totalAmount),
                   style: TextStyle(
@@ -691,105 +870,228 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            if (paidLocked) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colorScheme.outline.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.verified_user_rounded, color: Colors.green),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'HÓA ĐƠN ĐÃ ĐƯỢC CHỐT & KHÓA VĨNH VIỄN',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: colorScheme.onSurface,
-                        ),
-                        textAlign: TextAlign.center,
+            AnimatedCrossFade(
+              firstChild: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 12),
+                  if (paidLocked) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.verified_user_rounded, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'HÓA ĐƠN ĐÃ ĐƯỢC CHỐT & KHÓA VĨNH VIỄN',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: colorScheme.onSurface,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: SizedBox(
+                            height: 50,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.teal,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              onPressed: _showPrintOptionsDialog,
+                              icon: const Icon(Icons.print),
+                              label: const Text(
+                                'IN HÓA ĐƠN',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 1,
+                          child: SizedBox(
+                            height: 50,
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.teal,
+                                side: const BorderSide(color: Colors.teal),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              onPressed: _navigateToPrintQueue,
+                              icon: const Icon(Icons.playlist_play),
+                              label: const Text(
+                                'HÀNG CHỜ',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else if (_isDeleted) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.primaryContainer,
+                          foregroundColor: colorScheme.onPrimaryContainer,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: _restoreInvoice,
+                        icon: const Icon(Icons.restore_rounded),
+                        label: const Text(
+                          'KHÔI PHỤC HÓA ĐƠN',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: _lockInvoice,
+                        icon: const Icon(Icons.lock_outline),
+                        label: const Text(
+                          'XÁC NHẬN HOÀN THÀNH & KHÓA HÓA ĐƠN',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.green,
+                          side: const BorderSide(color: Colors.green),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: _handleEditPress,
+                        icon: const Icon(Icons.edit),
+                        label: const Text(
+                          'CHỈNH SỬA HÓA ĐƠN',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: SizedBox(
+                            height: 50,
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.teal,
+                                side: const BorderSide(color: Colors.teal),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              onPressed: _showPrintOptionsDialog,
+                              icon: const Icon(Icons.print),
+                              label: const Text(
+                                'IN HÓA ĐƠN',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 1,
+                          child: SizedBox(
+                            height: 50,
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.teal,
+                                side: const BorderSide(color: Colors.teal),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              onPressed: _navigateToPrintQueue,
+                              icon: const Icon(Icons.playlist_play),
+                              label: const Text(
+                                'HÀNG CHỜ',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
-                ),
+                ],
               ),
-            ] else if (_isDeleted) ...[
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primaryContainer,
-                    foregroundColor: colorScheme.onPrimaryContainer,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: _restoreInvoice,
-                  icon: const Icon(Icons.restore_rounded),
-                  label: const Text(
-                    'KHÔI PHỤC HÓA ĐƠN',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
-            ] else ...[
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: _lockInvoice,
-                  icon: const Icon(Icons.lock_outline),
-                  label: const Text(
-                    'XÁC NHẬN HOÀN THÀNH & KHÓA HÓA ĐƠN',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.green,
-                    side: const BorderSide(color: Colors.green),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: _handleEditPress,
-                  icon: const Icon(Icons.edit),
-                  label: const Text(
-                    'CHỈNH SỬA HÓA ĐƠN',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+              secondChild: const SizedBox.shrink(),
+              crossFadeState: _areButtonsExpanded
+                  ? CrossFadeState.showFirst
+                  : CrossFadeState.showSecond,
+              duration: const Duration(milliseconds: 250),
+              sizeCurve: Curves.easeInOut,
+              firstCurve: Curves.easeInOut,
+              secondCurve: Curves.easeInOut,
+            ),
           ],
         ),
       ),

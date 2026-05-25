@@ -204,6 +204,13 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with 
 
   Future<void> _handleInvoiceTap(Map<String, dynamic> inv) async {
     final invoiceId = inv['invoiceId'].toString();
+
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final bool isPicker = args != null && args['isPicker'] == true;
+    if (isPicker) {
+      Navigator.pop(context, inv);
+      return;
+    }
     
     // Helper to get string value safely
     String? getStringValueLocal(dynamic field) {

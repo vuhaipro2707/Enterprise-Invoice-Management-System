@@ -234,6 +234,14 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> w
 
   Future<void> _handlePriceListTap(Map<String, dynamic> pl) async {
     final pricelistId = pl['customerPriceListId'].toString();
+
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final bool isPicker = args != null && args['isPicker'] == true;
+    if (isPicker) {
+      Navigator.pop(context, pl);
+      return;
+    }
+
     if (mounted) {
       Navigator.pushNamed(
         context,

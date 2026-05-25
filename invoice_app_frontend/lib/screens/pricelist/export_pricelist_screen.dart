@@ -31,6 +31,7 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
   bool _sendToBuyer = false;
   bool _sendToCustom = false;
   bool _saveLocally = true;
+  bool _addToPrintQueue = false;
 
   // Execution state for premium progress animation
   bool _isExecuting = false;
@@ -150,7 +151,7 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
       return;
     }
 
-    if (!_sendToBuyer && !_sendToCustom && !_saveLocally) {
+    if (!_sendToBuyer && !_sendToCustom && !_saveLocally && !_addToPrintQueue) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Vui lòng chọn ít nhất một tác vụ thực hiện!'),
@@ -204,8 +205,8 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
         downloadFile(bytes as Uint8List, fileName, mimeType, downloadUrl);
       }
 
-      // Send emails if selected
-      if (_sendToBuyer || _sendToCustom) {
+      // Send emails or add to print queue if selected
+      if (_sendToBuyer || _sendToCustom || _addToPrintQueue) {
         setState(() => _currentStep = 3);
         
         if (_sendToBuyer && _buyerProfile?['email'] != null) {
@@ -216,6 +217,14 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
         if (_sendToCustom) {
           final customEmail = _customEmailController.text.trim();
           await _apiService.exportAndEmailPriceList(pricelistId, customEmail, _selectedFormat);
+        }
+
+        if (_addToPrintQueue) {
+          await _apiService.createPrintJob(
+            customerPriceListId: pricelistId,
+            printType: 'Original',
+            priorityNum: 0,
+          );
         }
       }
 
@@ -302,6 +311,17 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
                               icon: Icons.alternate_email_rounded,
                               value: _sendToCustom,
                               onChanged: (val) => setState(() => _sendToCustom = val ?? false),
+                              colorScheme: colorScheme,
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Add to print queue option
+                            _buildActionCheckbox(
+                              title: 'Đưa vào hàng chờ in',
+                              subtitle: 'In một bản duy nhất',
+                              icon: Icons.print_rounded,
+                              value: _addToPrintQueue,
+                              onChanged: (val) => setState(() => _addToPrintQueue = val ?? false),
                               colorScheme: colorScheme,
                             ),
                             
@@ -677,9 +697,15 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
                     const Text('Thành Công!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green)),
                     const SizedBox(height: 12),
                     Text(
-                      _saveLocally && (_sendToBuyer || _sendToCustom)
-                          ? 'Đã tải xuống tệp tin và hoàn tất gửi báo giá qua email!'
-                          : (_saveLocally ? 'Đã tải thành công tệp tin báo giá!' : 'Đã hoàn thành gửi báo giá qua email!'),
+                      () {
+                        final List<String> actions = [];
+                        if (_saveLocally) actions.add('tải xuống tệp tin');
+                        if (_sendToBuyer || _sendToCustom) actions.add('gửi email');
+                        if (_addToPrintQueue) actions.add('thêm vào hàng chờ in');
+                        if (actions.isEmpty) return 'Đã hoàn thành tác vụ!';
+                        final formattedActions = actions.join(' và ');
+                        return 'Đã $formattedActions thành công!';
+                      }(),
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                       textAlign: TextAlign.center,
                     ),
@@ -710,9 +736,13 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
                     _buildStepRow('2. Đang kết xuất tệp tin $_selectedFormat...', _currentStep > 1, _currentStep == 1, colorScheme),
                     const SizedBox(height: 10),
                     _buildStepRow(
-                      _sendToBuyer || _sendToCustom 
-                          ? '3. Đang chuyển giao email SMTP...' 
-                          : '3. Đang truyền tải tệp tin...', 
+                      () {
+                        final List<String> steps = [];
+                        if (_sendToBuyer || _sendToCustom) steps.add('chuyển giao email SMTP');
+                        if (_addToPrintQueue) steps.add('gửi lệnh tới hàng chờ in');
+                        if (steps.isEmpty) return '3. Đang truyền tải tệp tin...';
+                        return '3. Đang ${steps.join(' và ')}...';
+                      }(),
                       _currentStep > 2, 
                       _currentStep == 2, 
                       colorScheme,

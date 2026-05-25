@@ -810,6 +810,98 @@ class ApiService {
     }
     throw Exception(data['error'] ?? 'Failed to send quotation email');
   }
+
+  // Print queue methods
+  Future<Map<String, dynamic>> createPrintJob({
+    String? invoiceId,
+    String? customerPriceListId,
+    required String printType,
+    int? priorityNum,
+  }) async {
+    final Map<String, dynamic> body = {
+      'printType': printType,
+    };
+    if (invoiceId != null) body['invoiceId'] = invoiceId;
+    if (customerPriceListId != null) body['customerPriceListId'] = customerPriceListId;
+    if (priorityNum != null) body['priorityNum'] = priorityNum;
+
+    final response = await post('/print', body);
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to create print job');
+  }
+
+  Future<List<dynamic>> getPrintJobs({
+    String? status,
+    String? queueType,
+    String? invoiceId,
+    String? customerPriceListId,
+    int? limit,
+    int? offset,
+  }) async {
+    final queryParams = <String, String>{};
+    if (status != null && status.isNotEmpty) queryParams['status'] = status;
+    if (queueType != null && queueType.isNotEmpty) queryParams['queueType'] = queueType;
+    if (invoiceId != null && invoiceId.isNotEmpty) queryParams['invoiceId'] = invoiceId;
+    if (customerPriceListId != null && customerPriceListId.isNotEmpty) {
+      queryParams['customerPriceListId'] = customerPriceListId;
+    }
+    if (limit != null) queryParams['limit'] = limit.toString();
+    if (offset != null) queryParams['offset'] = offset.toString();
+
+    final uri = Uri.parse('$baseUrl/print').replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      final List<dynamic> list = decoded['data'] ?? [];
+      
+      // Helper to safely decode Base64 enums from Go JSON serialization
+      String decodeEnum(dynamic value) {
+        if (value == null) return '';
+        final str = value.toString();
+        try {
+          if (str.endsWith('=') || (str.length % 4 == 0 && RegExp(r'^[A-Za-z0-9+/=]+$').hasMatch(str))) {
+            return utf8.decode(base64.decode(str));
+          }
+        } catch (_) {}
+        return str;
+      }
+
+      for (var job in list) {
+        if (job is Map) {
+          if (job.containsKey('printStatus')) {
+            job['printStatus'] = decodeEnum(job['printStatus']);
+          }
+          if (job.containsKey('printType')) {
+            job['printType'] = decodeEnum(job['printType']);
+          }
+        }
+      }
+      return list;
+    }
+    throw Exception('Failed to load print queue: ${response.body}');
+  }
+
+  Future<Map<String, dynamic>> updatePrintJobStatus(
+    String printJobId,
+    String? status, {
+    int? retryCount,
+    int? priorityNum,
+  }) async {
+    final Map<String, dynamic> body = {};
+    if (status != null) body['status'] = status;
+    if (retryCount != null) body['retryCount'] = retryCount;
+    if (priorityNum != null) body['priorityNum'] = priorityNum;
+
+    final response = await patch('/print/id/$printJobId', body);
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Failed to update print job');
+  }
 }
 
 // TODO: Add pin top items.

@@ -4,6 +4,7 @@ import 'dart:async';
 import '../../services/api_service.dart';
 import '../../services/theme_provider.dart';
 import '../../widgets/editing_invoice_card.dart';
+import '../../main.dart' show routeObserver;
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -12,7 +13,7 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
   final ApiService _apiService = ApiService();
   List<dynamic> _editingInvoices = [];
   bool _isLoadingInvoices = false;
@@ -21,15 +22,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Timer? _refreshTimer;
 
   @override
+  void initState() {
+    super.initState();
+    _fetchEditingInvoices();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     _refreshTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
 
   @override
-  void initState() {
-    super.initState();
+  void didPush() {
+    super.didPush();
+    _startRefreshTimer();
+  }
+
+  @override
+  void didPushNext() {
+    super.didPushNext();
+    _refreshTimer?.cancel();
+  }
+
+  @override
+  void didPopNext() {
+    super.didPopNext();
     _fetchEditingInvoices();
     _startRefreshTimer();
   }
@@ -152,6 +181,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       {'title': 'Quản lý Hóa đơn', 'icon': Icons.description, 'color': Colors.red},
       {'title': 'Bảng báo giá', 'icon': Icons.request_quote, 'color': Colors.teal},
       {'title': 'Quản lý Thiết bị', 'icon': Icons.devices, 'color': Colors.purple},
+      {'title': 'Hàng chờ in', 'icon': Icons.print, 'color': Colors.indigo},
     ];
 
     return Scaffold(
@@ -308,6 +338,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Navigator.pushNamed(context, '/invoice_management').then((_) => _fetchEditingInvoices());
                           } else if (item['title'] == 'Bảng báo giá') {
                             Navigator.pushNamed(context, '/pricelist_management');
+                          } else if (item['title'] == 'Hàng chờ in') {
+                            Navigator.pushNamed(context, '/print_management');
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Chức năng ${item['title']} đang phát triển')),

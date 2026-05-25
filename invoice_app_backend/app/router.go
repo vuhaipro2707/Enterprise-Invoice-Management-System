@@ -5,6 +5,7 @@ import (
 	"invoice_backend/app/invoice"
 	"invoice_backend/app/item"
 	"invoice_backend/app/pricelist"
+	"invoice_backend/app/print"
 	sqlc "invoice_backend/db/sqlc"
 
 	"github.com/gofiber/fiber/v2"
@@ -16,6 +17,7 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	itemHandler := item.NewItemHandler(repo)
 	invoiceHandler := invoice.NewInvoiceHandler(repo)
 	pricelistHandler := pricelist.NewPriceListHandler(repo)
+	printHandler := print.NewPrintHandler(repo)
 
 	authGroup := app.Group("/auth")
 	authGroup.Post("/login", authHandler.Login)
@@ -93,4 +95,10 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	pricelistGroup.Post("/id/:pricelistId/restore", pricelistHandler.RestorePriceList)
 	pricelistGroup.Get("/id/:pricelistId/export", pricelistHandler.ExportPriceList)
 	pricelistGroup.Post("/id/:pricelistId/export-email", pricelistHandler.ExportAndEmailPriceList)
+
+	printGroup := app.Group("/print", auth.JWTMiddleware())
+	printGroup.Post("", printHandler.CreatePrintJob)
+	printGroup.Get("", printHandler.GetPrintJobs)
+	printGroup.Get("/poll", printHandler.PollPrintJob)
+	printGroup.Patch("/id/:printJobId", printHandler.UpdatePrintJobStatus)
 }

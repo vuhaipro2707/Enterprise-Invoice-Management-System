@@ -232,7 +232,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
         _selectedLng != initialLng;
   }
 
-  Future<void> _finishInvoice() async {
+  Future<void> _finishInvoiceWithPrintOption(bool autoPrint, String printType) async {
     setState(() => _isLoading = true);
     try {
       if (_hasUnsavedBuyerEdits()) {
@@ -250,8 +250,20 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
       }
 
       await _apiService.post('/invoice/finish/invoiceId/$_invoiceId', {});
+
+      if (autoPrint) {
+        await _apiService.createPrintJob(
+          invoiceId: _invoiceId!,
+          printType: printType,
+          priorityNum: 0,
+        );
+      }
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã lưu hóa đơn thành công!')));
+        final message = autoPrint
+            ? 'Đã lưu và đưa hóa đơn vào hàng chờ in!'
+            : 'Đã lưu hóa đơn thành công!';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
         Navigator.pop(context, true);
       }
     } catch (e) {
@@ -1020,23 +1032,198 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                   }
                   showDialog(
                     context: context,
-                    builder: (dialogContext) => AlertDialog(
-                      title: const Text('Xác nhận lưu'),
-                      content: const Text('Bạn có chắc chắn muốn hoàn tất và lưu hóa đơn này không?'),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('HỦY')),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary),
-                          onPressed: () {
-                            _pingTimer?.cancel(); // Cancel ping immediately before finishing
-                            setState(() => _isShowingAlert = true); // Block further pings
-                            Navigator.pop(dialogContext);
-                            _finishInvoice();
-                          },
-                          child: const Text('LƯU NGAY'),
-                        ),
-                      ],
-                    ),
+                    builder: (dialogContext) {
+                      bool autoPrint = true;
+                      String printType = 'Triplicate';
+
+                      // Helper to check for existing pending/printing/completed jobs
+                      Future<Map<String, bool>> checkPrintJobStatus() async {
+                        if (_invoiceId == null) return {'Pending': false, 'Printing': false, 'Completed': false};
+                        try {
+                          final jobs = await _apiService.getPrintJobs(invoiceId: _invoiceId);
+                          return {
+                            'Pending': jobs.any((job) => job['printStatus'] == 'Pending'),
+                            'Printing': jobs.any((job) => job['printStatus'] == 'Printing'),
+                            'Completed': jobs.any((job) => job['printStatus'] == 'Completed'),
+                          };
+                        } catch (_) {
+                          return {'Pending': false, 'Printing': false, 'Completed': false};
+                        }
+                      }
+
+                      return StatefulBuilder(
+                        builder: (statefulContext, setDialogState) {
+                          final dialogColorScheme = Theme.of(statefulContext).colorScheme;
+                          return AlertDialog(
+                            title: const Text('Xác nhận lưu'),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Bạn có chắc chắn muốn hoàn tất và lưu hóa đơn này không?'),
+                                FutureBuilder<Map<String, bool>>(
+                                  future: checkPrintJobStatus(),
+                                  builder: (futureContext, snapshot) {
+                                    if (snapshot.connectionState == ConnectionState.waiting) {
+                                      return const Padding(
+                                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                                        child: Row(
+                                          children: [
+                                            SizedBox(
+                                              width: 14,
+                                              height: 14,
+                                              child: CircularProgressIndicator(strokeWidth: 1.5),
+                                            ),
+                                            SizedBox(width: 8),
+                                            Text(
+                                              'Đang kiểm tra hàng chờ in...',
+                                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+                                    
+                                    final statusMap = snapshot.data;
+                                    if (statusMap == null) return const SizedBox.shrink();
+
+                                    final hasPending = statusMap['Pending'] ?? false;
+                                    final hasPrinting = statusMap['Printing'] ?? false;
+                                    final hasCompleted = statusMap['Completed'] ?? false;
+
+                                    if (hasPending || hasPrinting || hasCompleted) {
+                                      String msg = '';
+                                      Color bannerColor = Colors.amber;
+                                      IconData bannerIcon = Icons.warning_amber_rounded;
+
+                                      if (hasPending) {
+                                        msg = 'Lưu ý: Có bản in của hóa đơn này đang chờ xử lý.';
+                                        bannerColor = Colors.orange;
+                                        bannerIcon = Icons.hourglass_empty;
+                                      } else if (hasPrinting) {
+                                        msg = 'Lưu ý: Hóa đơn này đang được tiến hành in.';
+                                        bannerColor = Colors.blue;
+                                        bannerIcon = Icons.print;
+                                      } else if (hasCompleted) {
+                                        msg = 'Thông báo: Hóa đơn này đã được in thành công trước đó.';
+                                        bannerColor = Colors.green;
+                                        bannerIcon = Icons.check_circle_outline;
+                                      }
+
+                                      return Container(
+                                        margin: const EdgeInsets.only(top: 12),
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: bannerColor.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: bannerColor.withValues(alpha: 0.3)),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(bannerIcon, color: bannerColor, size: 20),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                msg,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Theme.of(futureContext).colorScheme.onSurface,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+                                    return const SizedBox.shrink();
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                const Divider(),
+                                const SizedBox(height: 8),
+                                SwitchListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: const Text(
+                                    'Tự động in sau khi lưu',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                  subtitle: const Text(
+                                    'Đưa hóa đơn vào hàng chờ in',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                  value: autoPrint,
+                                  onChanged: (val) {
+                                    setDialogState(() {
+                                      autoPrint = val;
+                                    });
+                                  },
+                                ),
+                                if (autoPrint) ...[
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Chọn liên in:',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: ChoiceChip(
+                                          label: const Center(child: Text('1 bản (Bản gốc)')),
+                                          selected: printType == 'Original',
+                                          onSelected: (selected) {
+                                            if (selected) {
+                                              setDialogState(() {
+                                                printType = 'Original';
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: ChoiceChip(
+                                          label: const Center(child: Text('3 bản (Liên ba)')),
+                                          selected: printType == 'Triplicate',
+                                          onSelected: (selected) {
+                                            if (selected) {
+                                              setDialogState(() {
+                                                printType = 'Triplicate';
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(dialogContext),
+                                child: const Text('HỦY'),
+                              ),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: autoPrint ? Colors.teal : dialogColorScheme.primary,
+                                  foregroundColor: autoPrint ? Colors.white : dialogColorScheme.onPrimary,
+                                ),
+                                onPressed: () {
+                                  _pingTimer?.cancel();
+                                  setState(() => _isShowingAlert = true);
+                                  Navigator.pop(dialogContext);
+                                  _finishInvoiceWithPrintOption(autoPrint, printType);
+                                },
+                                icon: Icon(autoPrint ? Icons.print : Icons.check),
+                                label: Text(autoPrint ? 'LƯU & IN' : 'LƯU NGAY'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
                   );
                 },
                 icon: const Icon(Icons.check_circle_outline),

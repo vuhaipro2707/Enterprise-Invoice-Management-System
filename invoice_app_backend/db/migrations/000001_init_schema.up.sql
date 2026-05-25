@@ -5,7 +5,7 @@ BEGIN;
 DO $$ 
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'print_status_enum') THEN
-        CREATE TYPE print_status_enum AS ENUM ('Pending', 'Printing', 'Completed', 'Failed');
+        CREATE TYPE print_status_enum AS ENUM ('Pending', 'Printing', 'Completed', 'Failed', 'Cancelled');
     END IF;
 END $$;
 
@@ -133,18 +133,6 @@ CREATE TABLE IF NOT EXISTS line_items (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 11. Create PrintQueue table
-CREATE TABLE IF NOT EXISTS print_queue (
-    print_job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    invoice_id UUID REFERENCES invoices(invoice_id) ON DELETE CASCADE,
-    print_status print_status_enum DEFAULT 'Pending',
-    print_type print_type_enum NOT NULL,
-    retry_count INT DEFAULT 0, -- Marks as 'Failed' if retry_count exceeds 3
-    priority_num INT DEFAULT 0, -- Higher number means higher priority
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    printed_at TIMESTAMPTZ
-);
-
 -- 12. Create CustomerPriceLists table
 CREATE TABLE IF NOT EXISTS customer_price_lists (
     customer_price_list_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -165,6 +153,19 @@ CREATE TABLE IF NOT EXISTS customer_item_prices (
     unit_price_custom BIGINT NOT NULL,
     position_key TEXT NOT NULL DEFAULT 'i0000',
     created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 14. Create PrintQueue table
+CREATE TABLE IF NOT EXISTS print_queue (
+    print_job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_id UUID REFERENCES invoices(invoice_id) ON DELETE CASCADE,
+    customer_price_list_id UUID REFERENCES customer_price_lists(customer_price_list_id) ON DELETE CASCADE,
+    print_status print_status_enum DEFAULT 'Pending',
+    print_type print_type_enum NOT NULL,
+    retry_count INT DEFAULT 0,
+    priority_num INT DEFAULT 0, -- Higher number means higher priority
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    printed_at TIMESTAMPTZ
 );
 
 COMMIT;

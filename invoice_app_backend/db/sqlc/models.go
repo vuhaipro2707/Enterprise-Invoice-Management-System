@@ -117,14 +117,15 @@ type LineItem struct {
 }
 
 type PrintQueue struct {
-	PrintJobID  uuid.UUID     `json:"print_job_id"`
-	InvoiceID   uuid.NullUUID `json:"invoice_id"`
-	PrintStatus interface{}   `json:"print_status"`
-	PrintType   interface{}   `json:"print_type"`
-	RetryCount  sql.NullInt32 `json:"retry_count"`
-	PriorityNum sql.NullInt32 `json:"priority_num"`
-	CreatedAt   sql.NullTime  `json:"created_at"`
-	PrintedAt   sql.NullTime  `json:"printed_at"`
+	PrintJobID          uuid.UUID     `json:"print_job_id"`
+	InvoiceID           uuid.NullUUID `json:"invoice_id"`
+	CustomerPriceListID uuid.NullUUID `json:"customer_price_list_id"`
+	PrintStatus         interface{}   `json:"print_status"`
+	PrintType           interface{}   `json:"print_type"`
+	RetryCount          sql.NullInt32 `json:"retry_count"`
+	PriorityNum         sql.NullInt32 `json:"priority_num"`
+	CreatedAt           sql.NullTime  `json:"created_at"`
+	PrintedAt           sql.NullTime  `json:"printed_at"`
 }
 
 type Type struct {
