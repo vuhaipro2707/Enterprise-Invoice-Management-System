@@ -169,7 +169,7 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
     setState(() => _isLoading = true);
     try {
       await _apiService.updatePrintJobStatus(jobId, status, retryCount: retryCount);
-      await _fetchPrintJobs();
+      await _fetchPrintJobs(isAutoRefresh: true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Đã cập nhật trạng thái thành công sang: $status')),
@@ -189,7 +189,7 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
     setState(() => _isLoading = true);
     try {
       await _apiService.updatePrintJobStatus(jobId, null, priorityNum: priorityNum);
-      await _fetchPrintJobs();
+      await _fetchPrintJobs(isAutoRefresh: true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Đã ưu tiên bản in thành công!')),
@@ -216,7 +216,7 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
         priorityNum: 0,
       );
       if (mounted) {
-        await _fetchPrintJobs();
+        await _fetchPrintJobs(isAutoRefresh: true);
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -430,7 +430,7 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => _fetchPrintJobs(),
+            onPressed: () => _fetchPrintJobs(isAutoRefresh: true),
             tooltip: 'Làm mới',
           ),
           IconButton(
@@ -578,7 +578,7 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
                         ),
                       )
                     : RefreshIndicator(
-                        onRefresh: () => _fetchPrintJobs(),
+                        onRefresh: () => _fetchPrintJobs(isAutoRefresh: true),
                         child: isDesktop
                             ? ListView.builder(
                                 physics: const AlwaysScrollableScrollPhysics(),
@@ -619,7 +619,7 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
                                                             ),
                                                           ),
                                                         ).then((_) {
-                                                          _fetchPrintJobs();
+                                                          _fetchPrintJobs(isAutoRefresh: true);
                                                         });
                                                       },
                                                     ),
@@ -708,7 +708,7 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
                                               ),
                                             ),
                                           ).then((_) {
-                                            _fetchPrintJobs();
+                                            _fetchPrintJobs(isAutoRefresh: true);
                                           });
                                         },
                                       ),

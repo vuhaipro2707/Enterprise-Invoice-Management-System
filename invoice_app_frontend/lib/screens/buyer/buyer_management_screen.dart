@@ -23,13 +23,13 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
             icon: const Icon(Icons.delete_sweep_rounded),
             onPressed: () {
               Navigator.pushNamed(context, '/buyer_trash').then((_) {
-                _listKey.currentState?.refresh();
+                _listKey.currentState?.refresh(isQuiet: true);
               });
             },
             tooltip: 'Thùng rác',
           ),
           IconButton(
-            onPressed: () => _listKey.currentState?.refresh(),
+            onPressed: () => _listKey.currentState?.refresh(isQuiet: true),
             icon: const Icon(Icons.refresh),
             tooltip: 'Làm mới dữ liệu',
           ),
@@ -42,7 +42,7 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
             MaterialPageRoute(builder: (builderContext) => const CreateBuyerScreen()),
           );
           if (result == true) {
-            _listKey.currentState?.refresh();
+            _listKey.currentState?.refresh(isQuiet: true);
           }
         },
         tooltip: 'Thêm người mua mới',
@@ -58,7 +58,7 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
             ),
           );
           if (result == true) {
-            _listKey.currentState?.refresh();
+            _listKey.currentState?.refresh(isQuiet: true);
           }
         },
       ),

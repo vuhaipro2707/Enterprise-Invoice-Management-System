@@ -85,16 +85,20 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
     });
   }
 
-  Future<void> _loadInitialData() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadInitialData({bool isQuiet = false}) async {
+    if (!isQuiet) {
+      setState(() => _isLoading = true);
+    }
     try {
       final types = await _apiService.getTypes();
       setState(() {
         _types = types;
       });
-      _offset = 0;
-      _hasMore = true;
-      await _fetchItems();
+      if (!isQuiet) {
+        _offset = 0;
+        _hasMore = true;
+      }
+      await _fetchItems(isQuiet: isQuiet);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -102,12 +106,14 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && !isQuiet) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _fetchItems() async {
-    setState(() => _isLoading = true);
+  Future<void> _fetchItems({bool isQuiet = false}) async {
+    if (!isQuiet) {
+      setState(() => _isLoading = true);
+    }
     try {
       List<dynamic> items;
       if (_searchController.text.isNotEmpty) {
@@ -131,14 +137,18 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
 
         items = await _apiService.getItems(
           typeId: _selectedTypeId,
-          limit: _limit,
+          limit: isQuiet ? (_offset > 0 ? _offset : _limit) : _limit,
           offset: 0,
           sortBy: sortBy,
           sortOrder: sortOrder,
         );
         _isSearching = false;
-        _offset = items.length;
-        _hasMore = items.length == _limit;
+        if (!isQuiet) {
+          _offset = items.length;
+          _hasMore = items.length == _limit;
+        } else {
+          _offset = items.length;
+        }
       }
       setState(() {
         _items = items;
@@ -151,7 +161,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && !isQuiet) setState(() => _isLoading = false);
     }
   }
 
@@ -288,13 +298,13 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
             icon: const Icon(Icons.delete_sweep_rounded),
             onPressed: () {
               Navigator.pushNamed(context, '/item_trash').then((_) {
-                _loadInitialData();
+                _loadInitialData(isQuiet: true);
               });
             },
             tooltip: 'Thùng rác',
           ),
           IconButton(
-            onPressed: _isLoading ? null : _loadInitialData,
+            onPressed: _isLoading ? null : () => _loadInitialData(isQuiet: true),
             icon: const Icon(Icons.refresh),
             tooltip: 'Làm mới dữ liệu',
           ),
@@ -378,7 +388,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                           ),
                         );
                         if (result == true && mounted) {
-                          _fetchItems();
+                          _fetchItems(isQuiet: true);
                         }
                       },
                     ),
@@ -433,7 +443,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                           ),
                         );
                         if (result == true && mounted) {
-                          _loadInitialData();
+                          _loadInitialData(isQuiet: true);
                         }
                       },
                     ),
@@ -531,11 +541,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
               : _items.isEmpty
                 ? const Center(child: Text('Không tìm thấy mặt hàng nào'))
                 : RefreshIndicator(
-                    onRefresh: () async {
-                      _offset = 0;
-                      _hasMore = true;
-                      await _fetchItems();
-                    },
+                    onRefresh: () => _fetchItems(isQuiet: true),
                     child: isDesktop
                         ? ListView.builder(
                             physics: const AlwaysScrollableScrollPhysics(),
@@ -576,7 +582,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                                                     ),
                                                   );
                                                   if (result == true) {
-                                                    _fetchItems();
+                                                    _fetchItems(isQuiet: true);
                                                   }
                                                 },
                                               )
@@ -603,7 +609,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                                 item: _items[index],
                                 types: _types,
                                 onTap: () async {
-                                  final result = await Navigator.push(
+                                   final result = await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (builderContext) => ItemDetailScreen(
@@ -613,7 +619,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                                     ),
                                   );
                                   if (result == true) {
-                                    _fetchItems();
+                                    _fetchItems(isQuiet: true);
                                   }
                                 },
                               );

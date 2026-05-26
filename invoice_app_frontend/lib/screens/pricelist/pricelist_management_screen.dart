@@ -66,7 +66,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> w
   /// Called when a route above this one is popped (user navigated back here).
   @override
   void didPopNext() {
-    _fetchInitialPriceLists();
+    _fetchInitialPriceLists(isQuiet: true);
   }
 
 
@@ -95,18 +95,20 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> w
     });
   }
 
-  Future<void> _fetchInitialPriceLists() async {
+  Future<void> _fetchInitialPriceLists({bool isQuiet = false}) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-      _offset = 0;
-      _hasMore = true;
-      _priceLists = [];
-    });
+    if (!isQuiet) {
+      setState(() {
+        _isLoading = true;
+        _offset = 0;
+        _hasMore = true;
+        _priceLists = [];
+      });
+    }
 
     try {
       final lists = await _apiService.getCustomerPriceLists(
-        limit: _limit,
+        limit: isQuiet ? (_offset > 0 ? _offset : _limit) : _limit,
         offset: 0,
         sortBy: _sortBy,
         sortOrder: _sortOrder,
@@ -119,17 +121,23 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> w
       if (mounted) {
         setState(() {
           _priceLists = lists;
-          _offset = lists.length;
-          _hasMore = lists.length == _limit;
+          if (!isQuiet) {
+            _offset = lists.length;
+            _hasMore = lists.length == _limit;
+          } else {
+            _offset = lists.length;
+          }
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi tải bảng báo giá: $e')),
-        );
+        if (!isQuiet) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi tải bảng báo giá: $e')),
+          );
+        }
       }
     }
   }
@@ -247,7 +255,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> w
         context,
         '/edit_pricelist',
         arguments: pricelistId,
-      ).then((_) => _fetchInitialPriceLists());
+      ).then((_) => _fetchInitialPriceLists(isQuiet: true));
     }
   }
 
@@ -379,7 +387,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> w
               'prefill_id_card': pl['idCardNumber'],
               'prefill_email': pl['email'],
             },
-          ).then((_) => _fetchInitialPriceLists());
+          ).then((_) => _fetchInitialPriceLists(isQuiet: true));
         }
       }
     }
@@ -420,14 +428,14 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> w
             icon: const Icon(Icons.delete_sweep_rounded),
             onPressed: () {
               Navigator.pushNamed(context, '/pricelist_trash').then((_) {
-                _fetchInitialPriceLists();
+                _fetchInitialPriceLists(isQuiet: true);
               });
             },
             tooltip: 'Thùng rác',
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _isLoading ? null : _fetchInitialPriceLists,
+            onPressed: _isLoading ? null : () => _fetchInitialPriceLists(isQuiet: true),
             tooltip: 'Làm mới',
           ),
           TextButton.icon(
@@ -453,7 +461,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> w
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           await Navigator.pushNamed(context, '/create_pricelist');
-          _fetchInitialPriceLists();
+          _fetchInitialPriceLists(isQuiet: true);
         },
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
@@ -556,7 +564,7 @@ class _PriceListManagementScreenState extends State<PriceListManagementScreen> w
                         ),
                       )
                     : RefreshIndicator(
-                        onRefresh: _fetchInitialPriceLists,
+                        onRefresh: () => _fetchInitialPriceLists(isQuiet: true),
                         child: isDesktop
                             ? GridView.builder(
                                 physics: const AlwaysScrollableScrollPhysics(),

@@ -75,7 +75,7 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with 
   /// Called when a route above this one is popped (user navigated back here).
   @override
   void didPopNext() {
-    _fetchInitialInvoices();
+    _fetchInitialInvoices(isQuiet: true);
   }
 
   void _toggleSort() {
@@ -117,18 +117,20 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with 
     });
   }
 
-  Future<void> _fetchInitialInvoices() async {
+  Future<void> _fetchInitialInvoices({bool isQuiet = false}) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-      _offset = 0;
-      _hasMore = true;
-      _invoices = [];
-    });
+    if (!isQuiet) {
+      setState(() {
+        _isLoading = true;
+        _offset = 0;
+        _hasMore = true;
+        _invoices = [];
+      });
+    }
 
     try {
       final invoices = await _apiService.getInvoices(
-        limit: _limit,
+        limit: isQuiet ? (_offset > 0 ? _offset : _limit) : _limit,
         offset: 0,
         sortBy: _sortBy,
         sortOrder: _sortOrder,
@@ -145,17 +147,23 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with 
       if (mounted) {
         setState(() {
           _invoices = invoices;
-          _offset = invoices.length;
-          _hasMore = invoices.length == _limit;
+          if (!isQuiet) {
+            _offset = invoices.length;
+            _hasMore = invoices.length == _limit;
+          } else {
+            _offset = invoices.length;
+          }
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi tải hóa đơn: $e')),
-        );
+        if (!isQuiet) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi tải hóa đơn: $e')),
+          );
+        }
       }
     }
   }
@@ -230,7 +238,7 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with 
           context,
           '/invoice_detail',
           arguments: invoiceId,
-        ).then((_) => _fetchInitialInvoices());
+        ).then((_) => _fetchInitialInvoices(isQuiet: true));
       }
       return;
     }
@@ -279,7 +287,7 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with 
           context,
           '/edit_invoice',
           arguments: invoiceId,
-        ).then((_) => _fetchInitialInvoices());
+        ).then((_) => _fetchInitialInvoices(isQuiet: true));
       }
     } catch (e) {
       if (mounted) {
@@ -380,14 +388,14 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with 
             icon: const Icon(Icons.delete_sweep_rounded),
             onPressed: () {
               Navigator.pushNamed(context, '/invoice_trash').then((_) {
-                _fetchInitialInvoices();
+                _fetchInitialInvoices(isQuiet: true);
               });
             },
             tooltip: 'Thùng rác',
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _isLoading ? null : _fetchInitialInvoices,
+            onPressed: _isLoading ? null : () => _fetchInitialInvoices(isQuiet: true),
             tooltip: 'Làm mới',
           ),
           TextButton.icon(
@@ -413,7 +421,7 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with 
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           await Navigator.pushNamed(context, '/create_invoice');
-          _fetchInitialInvoices();
+          _fetchInitialInvoices(isQuiet: true);
         },
         tooltip: 'Thêm hóa đơn mới',
         child: const Icon(Icons.add),
@@ -596,7 +604,7 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with 
                         ),
                       )
                     : RefreshIndicator(
-                        onRefresh: _fetchInitialInvoices,
+                        onRefresh: () => _fetchInitialInvoices(isQuiet: true),
                         child: isDesktop
                             ? GridView.builder(
                                 physics: const AlwaysScrollableScrollPhysics(),

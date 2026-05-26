@@ -40,10 +40,12 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
   }
 
   // Thêm phương thức để bên ngoài có thể gọi làm mới
-  Future<void> refresh() async {
-    _offset = 0;
-    _hasMore = true;
-    await _fetchBuyers();
+  Future<void> refresh({bool isQuiet = false}) async {
+    if (!isQuiet) {
+      _offset = 0;
+      _hasMore = true;
+    }
+    await _fetchBuyers(isQuiet: isQuiet);
   }
 
   void _onScroll() {
@@ -63,9 +65,11 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
     });
   }
 
-  Future<void> _fetchBuyers() async {
+  Future<void> _fetchBuyers({bool isQuiet = false}) async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    if (!isQuiet) {
+      setState(() => _isLoading = true);
+    }
     try {
       List<dynamic> buyers;
       if (_searchController.text.isNotEmpty) {
@@ -74,12 +78,16 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
         _hasMore = false;
       } else {
         buyers = await _apiService.getBuyers(
-          limit: _limit,
+          limit: isQuiet ? (_offset > 0 ? _offset : _limit) : _limit,
           offset: 0,
         );
         _isSearching = false;
-        _offset = buyers.length;
-        _hasMore = buyers.length == _limit;
+        if (!isQuiet) {
+          _offset = buyers.length;
+          _hasMore = buyers.length == _limit;
+        } else {
+          _offset = buyers.length;
+        }
       }
       if (mounted) {
         setState(() {
@@ -93,7 +101,7 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && !isQuiet) setState(() => _isLoading = false);
     }
   }
 
@@ -165,7 +173,7 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
               : _buyers.isEmpty
                   ? const Center(child: Text('Không tìm thấy người mua nào'))
                   : RefreshIndicator(
-                      onRefresh: _fetchBuyers,
+                      onRefresh: () => _fetchBuyers(isQuiet: true),
                       child: isDesktop
                           ? ListView.builder(
                               physics: const AlwaysScrollableScrollPhysics(),
