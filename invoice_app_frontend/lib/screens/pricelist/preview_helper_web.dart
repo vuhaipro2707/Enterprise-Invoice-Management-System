@@ -96,5 +96,10 @@ void downloadFile(Uint8List bytes, String fileName, String mimeType, String down
   html.document.body?.append(anchor);
   anchor.click();
   anchor.remove();
-  html.Url.revokeObjectUrl(url);
+  
+  // Delay revoking the object URL to allow the browser download manager to process the request
+  Future.delayed(const Duration(seconds: 5), () {
+    html.Url.revokeObjectUrl(url);
+  });
 }
+

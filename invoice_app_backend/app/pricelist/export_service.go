@@ -154,12 +154,26 @@ func GeneratePriceListA4PDF(pl map[string]interface{}) ([]byte, error) {
 
 	// Title Banner
 	pdf.SetFillColor(230, 240, 255)
-	pdf.Rect(15, 15, 180, 25, "F")
+	pdf.Rect(15, 15, 180, 28, "F")
 
-	pdf.SetFont("Roboto", "B", 18)
+	pdf.SetFont("Roboto", "B", 17)
 	pdf.SetTextColor(20, 80, 160)
-	pdf.CellFormat(180, 25, "BẢNG BÁO GIÁ SẢN PHẨM", "", 0, "C", false, 0, "")
-	pdf.Ln(30)
+	pdf.CellFormat(180, 15, "BẢNG BÁO GIÁ SẢN PHẨM", "", 0, "C", false, 0, "")
+	pdf.Ln(14)
+
+	// Company Info on A4 PDF Header
+	compNameA4 := getStringValue(pl["companyName"])
+	if compNameA4 == "" {
+		compNameA4 = "Công ty Hải Minh"
+	}
+	compPhoneA4 := getStringValue(pl["companyPhone"])
+	if compPhoneA4 == "" {
+		compPhoneA4 = "0909090909"
+	}
+	pdf.SetFont("Roboto", "B", 9)
+	pdf.SetTextColor(100, 100, 100)
+	pdf.CellFormat(180, 5, compNameA4+" - Hotline: "+compPhoneA4, "", 0, "C", false, 0, "")
+	pdf.Ln(19)
 
 	// General Information Section
 	description := getStringValue(pl["description"])
@@ -591,12 +605,26 @@ func GeneratePriceListA5PDF(pl map[string]interface{}) ([]byte, error) {
 
 	// Title Banner
 	pdf.SetFillColor(230, 240, 255)
-	pdf.Rect(10, 10, 128, 16, "F")
+	pdf.Rect(10, 10, 128, 18, "F")
 
-	pdf.SetFont("Roboto", "B", 13)
+	pdf.SetFont("Roboto", "B", 12)
 	pdf.SetTextColor(20, 80, 160)
-	pdf.CellFormat(128, 16, "BẢNG BÁO GIÁ SẢN PHẨM", "", 0, "C", false, 0, "")
-	pdf.Ln(20)
+	pdf.CellFormat(128, 10, "BẢNG BÁO GIÁ SẢN PHẨM", "", 0, "C", false, 0, "")
+	pdf.Ln(9)
+
+	// Company Info on A5 PDF Header
+	compNameA5 := getStringValue(pl["companyName"])
+	if compNameA5 == "" {
+		compNameA5 = "Công ty Hải Minh"
+	}
+	compPhoneA5 := getStringValue(pl["companyPhone"])
+	if compPhoneA5 == "" {
+		compPhoneA5 = "0909090909"
+	}
+	pdf.SetFont("Roboto", "B", 7.5)
+	pdf.SetTextColor(100, 100, 100)
+	pdf.CellFormat(128, 4, compNameA5+" - Hotline: "+compPhoneA5, "", 0, "C", false, 0, "")
+	pdf.Ln(13)
 
 	// General Information Section
 	description := getStringValue(pl["description"])

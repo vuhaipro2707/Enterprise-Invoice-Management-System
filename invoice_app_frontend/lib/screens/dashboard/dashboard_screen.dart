@@ -169,6 +169,23 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
     }
   }
 
+  Future<void> _openQRScanner() async {
+    final scannedInvoiceId = await Navigator.pushNamed(context, '/qr_scanner');
+    if (scannedInvoiceId != null && scannedInvoiceId is String && scannedInvoiceId.isNotEmpty) {
+      if (mounted) {
+        Navigator.pushNamed(
+          context,
+          '/invoice_detail',
+          arguments: scannedInvoiceId,
+        ).then((_) {
+          if (mounted) {
+            _fetchEditingInvoices();
+          }
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -182,6 +199,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
       {'title': 'Bảng báo giá', 'icon': Icons.request_quote, 'color': Colors.teal},
       {'title': 'Hàng chờ in', 'icon': Icons.print, 'color': Colors.indigo},
       {'title': 'Quản lý Thiết bị', 'icon': Icons.devices, 'color': Colors.purple},
+      {'title': 'Cấu hình hệ thống', 'icon': Icons.settings, 'color': Colors.blueGrey},
     ];
 
     return Scaffold(
@@ -217,6 +235,11 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            onPressed: _openQRScanner,
+            tooltip: 'Quét mã QR Hóa đơn',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _fetchEditingInvoices,
@@ -340,6 +363,8 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
                             Navigator.pushNamed(context, '/pricelist_management');
                           } else if (item['title'] == 'Hàng chờ in') {
                             Navigator.pushNamed(context, '/print_management');
+                          } else if (item['title'] == 'Cấu hình hệ thống') {
+                            Navigator.pushNamed(context, '/settings');
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Chức năng ${item['title']} đang phát triển')),

@@ -547,6 +547,24 @@ func (h *PriceListHandler) ExportPriceList(c *fiber.Ctx) error {
 
 	plData := flattenGetPriceListByIDRow(row)
 
+	// Fetch company settings dynamically
+	companyName := "Công ty Hải Minh"
+	companyPhone := "0909090909"
+	settings, errSettings := h.Repo.GetGlobalSettings(c.UserContext())
+	if errSettings == nil {
+		var configMap map[string]interface{}
+		if errJson := json.Unmarshal(settings.GlobalSettingsFile, &configMap); errJson == nil {
+			if name, ok := configMap["company_name"].(string); ok && name != "" {
+				companyName = name
+			}
+			if phone, ok := configMap["phone_number"].(string); ok && phone != "" {
+				companyPhone = phone
+			}
+		}
+	}
+	plData["companyName"] = companyName
+	plData["companyPhone"] = companyPhone
+
 	var fileBytes []byte
 	var fileName string
 	var contentType string

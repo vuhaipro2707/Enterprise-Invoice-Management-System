@@ -2,6 +2,7 @@ package app
 
 import (
 	"invoice_backend/app/auth"
+	"invoice_backend/app/globalsettings"
 	"invoice_backend/app/invoice"
 	"invoice_backend/app/item"
 	"invoice_backend/app/pricelist"
@@ -18,6 +19,7 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	invoiceHandler := invoice.NewInvoiceHandler(repo)
 	pricelistHandler := pricelist.NewPriceListHandler(repo)
 	printHandler := print.NewPrintHandler(repo)
+	globalsettingsHandler := globalsettings.NewGlobalSettingsHandler(repo)
 
 	authGroup := app.Group("/auth")
 	authGroup.Post("/login", authHandler.Login)
@@ -101,5 +103,10 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	printGroup.Post("", printHandler.CreatePrintJob)
 	printGroup.Get("", printHandler.GetPrintJobs)
 	printGroup.Get("/poll", printHandler.PollPrintJob)
+	printGroup.Post("/poll-all", printHandler.PollAllQueue)
 	printGroup.Patch("/id/:printJobId", printHandler.UpdatePrintJobStatus)
+
+	settingsGroup := app.Group("/settings", auth.JWTMiddleware())
+	settingsGroup.Get("", globalsettingsHandler.GetSettings)
+	settingsGroup.Patch("", globalsettingsHandler.UpdateSettings)
 }

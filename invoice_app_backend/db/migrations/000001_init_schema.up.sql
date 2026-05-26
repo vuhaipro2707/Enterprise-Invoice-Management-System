@@ -23,7 +23,14 @@ BEGIN
     END IF;
 END $$;
 
--- 2. Create Accounts table
+-- 2. Global Settings table
+CREATE TABLE IF NOT EXISTS global_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    global_settings_file jsonb NOT NULL DEFAULT '{}',
+    is_singleton BOOLEAN DEFAULT TRUE CHECK (is_singleton) UNIQUE
+);
+
+-- 3. Create Accounts table
 CREATE TABLE IF NOT EXISTS accounts (
     account_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username VARCHAR(255) UNIQUE NOT NULL,
@@ -35,13 +42,13 @@ CREATE TABLE IF NOT EXISTS accounts (
     deleted_at TIMESTAMPTZ
 );
 
--- 3. Create Devices table
+-- 4. Create Devices table
 CREATE TABLE IF NOT EXISTS devices (
     device_holding_id VARCHAR(255) PRIMARY KEY,
     device_name VARCHAR(255)
 );
 
--- 4. Create Buyers table
+-- 5. Create Buyers table
 CREATE TABLE IF NOT EXISTS buyers (
     buyer_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     buyer_code VARCHAR(50) UNIQUE NOT NULL,
@@ -59,7 +66,7 @@ CREATE TABLE IF NOT EXISTS buyers (
     deleted_at TIMESTAMPTZ
 );
 
--- 5. Create Types table
+-- 6. Create Types table
 CREATE TABLE IF NOT EXISTS types (
     type_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     type_name VARCHAR(255) UNIQUE NOT NULL,
@@ -69,7 +76,7 @@ CREATE TABLE IF NOT EXISTS types (
     deleted_at TIMESTAMPTZ
 );
 
--- 6. Create Items table
+-- 7. Create Items table
 CREATE TABLE IF NOT EXISTS items (
     item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     item_default_name VARCHAR(255) NOT NULL,
@@ -80,14 +87,14 @@ CREATE TABLE IF NOT EXISTS items (
     deleted_at TIMESTAMPTZ
 );
 
--- 7. Create ItemOtherNames table
+-- 8. Create ItemOtherNames table
 CREATE TABLE IF NOT EXISTS item_other_names (
     item_other_name_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     item_id UUID REFERENCES items(item_id) ON DELETE CASCADE NOT NULL,
     name_string VARCHAR(255) NOT NULL
 );
 
--- 8. Create Units table
+-- 9. Create Units table
 CREATE TABLE IF NOT EXISTS units (
     unit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     unit_name VARCHAR(255) NOT NULL,
@@ -101,7 +108,7 @@ CREATE TABLE IF NOT EXISTS units (
     deleted_at TIMESTAMPTZ
 );
 
--- 9. Create Invoices table
+-- 10. Create Invoices table
 CREATE TABLE IF NOT EXISTS invoices (
     invoice_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     account_id UUID REFERENCES accounts(account_id) ON DELETE SET NULL,
@@ -125,7 +132,7 @@ CREATE TABLE IF NOT EXISTS invoices (
     deleted_at TIMESTAMPTZ
 );
 
--- 10. Create LineItems table
+-- 11. Create LineItems table
 CREATE TABLE IF NOT EXISTS line_items (
     line_item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     invoice_id UUID REFERENCES invoices(invoice_id) ON DELETE CASCADE,

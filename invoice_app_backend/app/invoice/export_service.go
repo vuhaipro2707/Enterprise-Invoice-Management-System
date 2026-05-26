@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jung-kurt/gofpdf/v2"
+	"github.com/skip2/go-qrcode"
 )
 
 // getStringValue safely extracts and dereferences string pointers or standard interfaces to string.
@@ -139,6 +140,24 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 	printableWidth := 148.0 - (2 * marginSide)
 	pdf.SetMargins(marginSide, 6, marginSide)
 	pdf.SetAutoPageBreak(false, 0)
+
+	// Generate QR Code containing ivid:{invoiceId}
+	invoiceID := getStringValue(inv["invoiceId"])
+	qrContent := fmt.Sprintf("ivid:%s", invoiceID)
+	var qrPng []byte
+	var qrErr error
+	if invoiceID != "" {
+		var qr *qrcode.QRCode
+		qr, qrErr = qrcode.New(qrContent, qrcode.Medium)
+		if qrErr == nil {
+			qr.DisableBorder = true
+			qrPng, qrErr = qr.PNG(256)
+		}
+		if qrErr == nil && len(qrPng) > 0 {
+			imgReader := bytes.NewReader(qrPng)
+			pdf.RegisterImageOptionsReader("invoice_qrcode", gofpdf.ImageOptions{ImageType: "PNG", ReadDpi: true}, imgReader)
+		}
+	}
 
 	// Register UTF-8 Roboto fonts
 	pdf.AddUTF8Font("Roboto", "", "fonts/Roboto-Regular.ttf")
@@ -445,15 +464,19 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 
 			customerEndY := pdf.GetY()
 
-			// Right Side: Empty QR Code Box (positioned at startY)
-			qrBoxSize := 16.0
+			// Right Side: QR Code Box (positioned at startY)
+			qrBoxSize := 22.0
 			qrX := startX + printableWidth - qrBoxSize
 			qrY := startY
 
-			// Draw the QR box at startY (since Invoice ID is moved to absolute bottom!)
-			pdf.SetDrawColor(120, 120, 120)
-			pdf.SetLineWidth(0.3)
-			pdf.Rect(qrX, qrY, qrBoxSize, qrBoxSize, "D")
+			if qrErr == nil && len(qrPng) > 0 {
+				pdf.ImageOptions("invoice_qrcode", qrX, qrY, qrBoxSize, qrBoxSize, false, gofpdf.ImageOptions{ImageType: "PNG", ReadDpi: true}, 0, "")
+			} else {
+				// Fallback to empty QR box with border if QR generation failed or missing
+				pdf.SetDrawColor(120, 120, 120)
+				pdf.SetLineWidth(0.3)
+				pdf.Rect(qrX, qrY, qrBoxSize, qrBoxSize, "D")
+			}
 
 			// Calculate dynamic table starting Y position
 			tableStartY := customerEndY
@@ -584,14 +607,16 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 			// Footer section
 			pdf.Ln(1.5)
 
-			pdf.SetFont("Roboto", "B", 14)
-			pdf.CellFormat(printableWidth-60.0, 5.5, "Tổng tiền/tờ:", "", 0, "R", false, 0, "")
-			pdf.CellFormat(60.0, 5.5, formatVND(pData.PageTotal)+" VND", "", 0, "R", false, 0, "")
-			pdf.Ln(5.5)
+			if totalPages > 1 {
+				pdf.SetFont("Roboto", "B", 14)
+				pdf.CellFormat(printableWidth-60.0, 5.5, "Tổng tiền/tờ:", "", 0, "R", false, 0, "")
+				pdf.CellFormat(60.0, 5.5, formatVND(pData.PageTotal)+" VND", "", 0, "R", false, 0, "")
+				pdf.Ln(7.5)
+			}
 
-			pdf.SetFont("Roboto", "B", 14)
-			pdf.CellFormat(printableWidth-60.0, 5.5, "Tổng tiền hoá đơn:", "", 0, "R", false, 0, "")
-			pdf.CellFormat(60.0, 5.5, formatVND(grandTotal)+" VND", "", 0, "R", false, 0, "")
+			pdf.SetFont("Roboto", "B", 17)
+			pdf.CellFormat(printableWidth-60.0, 6.5, "Tổng tiền hoá đơn:", "", 0, "R", false, 0, "")
+			pdf.CellFormat(60.0, 6.5, formatVND(grandTotal)+" VND", "", 0, "R", false, 0, "")
 
 			// Absolute bottom constraints for line divider, Invoice ID, and copy info
 			pdf.SetDrawColor(200, 200, 200)

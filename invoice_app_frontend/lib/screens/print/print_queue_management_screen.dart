@@ -233,6 +233,169 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
     }
   }
 
+  Future<void> _showPollAllDialog() async {
+    bool includePrinting = false;
+    bool completeJobs = true;
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(dialogContext).colorScheme;
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.print_outlined, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              const Text('Poll toàn bộ hàng chờ'),
+            ],
+          ),
+          content: StatefulBuilder(
+            builder: (dialogBuilderContext, setDialogState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Trích xuất đồng loạt các lệnh in trong hàng chờ để xử lý:',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Nguồn trích xuất',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.secondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<bool>(
+                    initialValue: includePrinting,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: false,
+                        child: Text('Chỉ lệnh Chờ in (Pending)'),
+                      ),
+                      DropdownMenuItem(
+                        value: true,
+                        child: Text('Cả Chờ in và Đang in'),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => includePrinting = val);
+                      }
+                    },
+                  ),
+                  const Divider(height: 24),
+                  Text(
+                    'Hành động sau trích xuất',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.secondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    title: const Text('Đánh dấu Hoàn thành'),
+                    subtitle: const Text('Tự động chuyển các lệnh được trích xuất sang trạng thái Completed'),
+                    value: completeJobs,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (val) {
+                      setDialogState(() => completeJobs = val);
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('HỦY'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+              ),
+              child: const Text('XÁC NHẬN POLL'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final results = await _apiService.pollAllQueue(
+        includePrinting: includePrinting,
+        completeJobs: completeJobs,
+      );
+
+      final bytes = results['bytes'] as Uint8List;
+      final jobCount = results['count'] as int;
+
+      if (jobCount > 0 && bytes.isNotEmpty) {
+        final formattedDate = DateTime.now().toLocal().toString().replaceAll(' ', '_').replaceAll(':', '-').split('.').first;
+        final downloadUrl = '${ApiService.baseUrl}/print/poll-all';
+        downloadFile(
+          bytes,
+          'Danh_sach_in_gop_$formattedDate.pdf',
+          'application/pdf',
+          downloadUrl,
+        );
+      }
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _fetchPrintJobs(isAutoRefresh: true);
+        
+        showDialog(
+          context: context,
+          builder: (successDialogContext) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text('Thành công'),
+                ],
+              ),
+              content: Text(
+                'Đã poll thành công và gộp $jobCount lệnh in thành 1 tệp PDF duy nhất để tải về máy.\n'
+                '${completeJobs ? "Tất cả các lệnh này đã được chuyển sang trạng thái Hoàn thành (Completed)." : "Các lệnh in vẫn giữ nguyên trạng thái cũ."}',
+                style: const TextStyle(fontSize: 14),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(successDialogContext),
+                  child: const Text('ĐỒNG Ý'),
+                ),
+              ],
+            );
+          },
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi thực hiện poll hàng chờ: $e')),
+        );
+      }
+    }
+  }
+
   void _clearFilters() {
     setState(() {
       _selectedStatus = null;
@@ -428,6 +591,11 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
       appBar: AppBar(
         title: const Text('Hàng chờ in'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.download_for_offline_outlined),
+            onPressed: _showPollAllDialog,
+            tooltip: 'Poll toàn bộ hàng chờ',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => _fetchPrintJobs(isAutoRefresh: true),
@@ -977,7 +1145,17 @@ class PrintJobPreviewWidgetState extends State<PrintJobPreviewWidget> {
               ElevatedButton.icon(
                 onPressed: () {
                   final fileName = widget.invoiceId != null ? 'Hoa_don.pdf' : 'Bao_gia.pdf';
-                  downloadFile(_pdfBytes!, fileName, 'application/pdf', '');
+                  final String downloadUrl;
+                  if (widget.invoiceId != null) {
+                    final partQuery = widget.printPart != null ? '&part=${widget.printPart}' : '';
+                    downloadUrl = '${ApiService.baseUrl}/invoice/${widget.invoiceId}/export?printType=${widget.printType}$partQuery';
+                  } else if (widget.customerPriceListId != null) {
+                    final pageSizeQuery = widget.pageSize != null ? '&pageSize=${widget.pageSize}' : '';
+                    downloadUrl = '${ApiService.baseUrl}/pricelist/id/${widget.customerPriceListId}/export?format=pdf$pageSizeQuery';
+                  } else {
+                    downloadUrl = '';
+                  }
+                  downloadFile(_pdfBytes!, fileName, 'application/pdf', downloadUrl);
                 },
                 icon: const Icon(Icons.download_rounded, size: 16),
                 label: const Text(

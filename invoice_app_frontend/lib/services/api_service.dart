@@ -917,6 +917,48 @@ class ApiService {
     }
     throw Exception(data['error'] ?? 'Failed to update print job');
   }
+
+  Future<Map<String, dynamic>> pollAllQueue({
+    required bool includePrinting,
+    required bool completeJobs,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/print/poll-all'),
+      headers: _headers,
+      body: jsonEncode({
+        'includePrinting': includePrinting,
+        'completeJobs': completeJobs,
+      }),
+    );
+    if (response.statusCode == 200) {
+      final jobCountHeader = response.headers['x-polled-jobs-count'] ?? response.headers['X-Polled-Jobs-Count'] ?? '0';
+      final int jobCount = int.tryParse(jobCountHeader) ?? 0;
+      return {
+        'bytes': response.bodyBytes,
+        'count': jobCount,
+      };
+    }
+    final decoded = jsonDecode(response.body);
+    throw Exception(decoded['error'] ?? 'Failed to poll print queue');
+  }
+
+  Future<Map<String, dynamic>> getGlobalSettings() async {
+    final response = await get('/settings');
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['error'] ?? 'Failed to load global settings');
+  }
+
+  Future<Map<String, dynamic>> updateGlobalSettings(Map<String, dynamic> config) async {
+    final response = await patch('/settings', config);
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['error'] ?? 'Failed to update global settings');
+  }
 }
 
 // TODO: Add pin top items.

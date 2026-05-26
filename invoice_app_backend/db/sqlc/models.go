@@ -6,6 +6,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 
 	"github.com/google/uuid"
 )
@@ -61,6 +62,12 @@ type CustomerPriceList struct {
 type Device struct {
 	DeviceHoldingID string         `json:"device_holding_id"`
 	DeviceName      sql.NullString `json:"device_name"`
+}
+
+type GlobalSetting struct {
+	ID                 uuid.UUID       `json:"id"`
+	GlobalSettingsFile json.RawMessage `json:"global_settings_file"`
+	IsSingleton        sql.NullBool    `json:"is_singleton"`
 }
 
 type Invoice struct {

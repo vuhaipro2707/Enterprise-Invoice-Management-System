@@ -223,6 +223,36 @@ func (h *PrintHandler) UpdatePrintJobStatus(c *fiber.Ctx) error {
 	})
 }
 
+func (h *PrintHandler) PollAllQueue(c *fiber.Ctx) error {
+	type pollAllRequest struct {
+		IncludePrinting bool `json:"includePrinting"`
+		CompleteJobs    bool `json:"completeJobs"`
+	}
+
+	var req pollAllRequest
+	_ = c.BodyParser(&req)
+
+	includePrinting := req.IncludePrinting || c.QueryBool("includePrinting", false)
+	completeJobs := req.CompleteJobs || c.QueryBool("completeJobs", false)
+
+	pdfBytes, jobCount, err := h.service.PollAllQueue(c.Context(), includePrinting, completeJobs)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.Status(404).JSON(fiber.Map{"error": "No jobs in queue to poll"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	fileName := fmt.Sprintf("Poll_Print_Jobs_%s.pdf", time.Now().Format("20060102_150405"))
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
+	c.Set("Content-Type", "application/pdf")
+	c.Set("Content-Length", fmt.Sprintf("%d", len(pdfBytes)))
+	c.Set("X-Polled-Jobs-Count", fmt.Sprintf("%d", jobCount))
+
+	return c.Send(pdfBytes)
+}
+
+
 func enumToString(val interface{}) string {
 	if val == nil {
 		return ""

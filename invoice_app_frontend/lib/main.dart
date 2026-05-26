@@ -5,6 +5,7 @@ import 'services/api_service.dart';
 import 'services/theme_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/dashboard/qr_scanner_screen.dart';
 import 'screens/settings/device_management_screen.dart';
 import 'screens/items/item_management_screen.dart';
 import 'screens/buyer/buyer_management_screen.dart';
@@ -26,6 +27,7 @@ import 'screens/invoice/invoice_trash_screen.dart';
 import 'screens/pricelist/pricelist_trash_screen.dart';
 import 'screens/pricelist/export_pricelist_screen.dart';
 import 'screens/print/print_queue_management_screen.dart';
+import 'screens/settings/settings_screen.dart';
 
 /// Global RouteObserver to allow screens to detect when they are returned to.
 final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
@@ -195,6 +197,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/dashboard': (context) => const DashboardScreen(),
+        '/qr_scanner': (context) => const QRScannerScreen(),
         '/device_management': (context) => const DeviceManagementScreen(),
         '/item_management': (context) => const ItemManagementScreen(),
         '/buyer_management': (context) => const BuyerManagementScreen(),
@@ -216,6 +219,7 @@ class MyApp extends StatelessWidget {
         '/pricelist_trash': (context) => const PricelistTrashScreen(),
         '/export_pricelist': (context) => const ExportPriceListScreen(),
         '/print_management': (context) => const PrintQueueManagementScreen(),
+        '/settings': (context) => const SettingsScreen(),
       },
     );
   }

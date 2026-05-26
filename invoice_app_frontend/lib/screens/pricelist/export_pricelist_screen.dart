@@ -39,6 +39,9 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
   String _execError = '';
   bool _execSuccess = false;
 
+  // Global settings default mail suggestion
+  String? _defaultMailSuggestion;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -82,6 +85,17 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
         final buyer = await _apiService.getBuyerByCode(buyerCode);
         _buyerProfile = buyer;
         // Do NOT auto-enable _sendToBuyer; user must opt in manually
+      }
+
+      // 3. Fetch global settings for default mail suggestion
+      try {
+        final settings = await _apiService.getGlobalSettings();
+        final fileData = settings['global_settings_file'];
+        if (fileData is Map<String, dynamic>) {
+          _defaultMailSuggestion = fileData['default_mail']?.toString();
+        }
+      } catch (e) {
+        debugPrint('Lỗi tải gợi ý email mặc định: $e');
       }
     } catch (e) {
       debugPrint('Lỗi tải thông tin chi tiết: $e');
@@ -321,6 +335,24 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
               },
             ),
           ),
+          if (_defaultMailSuggestion != null && _defaultMailSuggestion!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ActionChip(
+                avatar: const Icon(Icons.tips_and_updates_outlined, size: 14),
+                label: Text(
+                  'Gợi ý: $_defaultMailSuggestion',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                onPressed: () {
+                  setState(() {
+                    _customEmailController.text = _defaultMailSuggestion!;
+                  });
+                },
+              ),
+            ),
+          ],
         ],
         const SizedBox(height: 12),
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"encoding/json"
 	"log"
 	"os"
 
@@ -87,6 +88,26 @@ func main() {
 		fmt.Printf("✅ Admin đã được tạo: %+v\n", admin)
 	}
 
+	// 3.5 Khởi tạo Global Settings nếu chưa tồn tại (Idempotent)
+	defaultMail := getEnv("DEFAULT_MAIL", "vuhaipro2707@gmail.com")
+	companyName := getEnv("COMPANY_NAME", "Công ty Hải Minh")
+	phoneNumber := getEnv("PHONE_NUMBER", "0909090909")
+
+	settingsMap := map[string]interface{}{
+		"default_mail": defaultMail,
+		"company_name": companyName,
+		"phone_number": phoneNumber,
+	}
+	settingsBytes, err := json.Marshal(settingsMap)
+	if err == nil {
+		_, initErr := repo.InsertGlobalSettings(ctx, json.RawMessage(settingsBytes))
+		if initErr == nil {
+			fmt.Println("✅ Khởi tạo Global Settings thành công hoặc đã tồn tại.")
+		} else {
+			fmt.Println("⚠️ Lỗi khởi tạo Global Settings:", initErr)
+		}
+	}
+
 	app := fiber.New()
 
 	// 4. Setup CORS Middleware
@@ -94,6 +115,7 @@ func main() {
 		c.Set("Access-Control-Allow-Origin", "*")
 		c.Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS")
 		c.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Device-Holding-ID")
+		c.Set("Access-Control-Expose-Headers", "X-Polled-Jobs-Count")
 		
 		if c.Method() == "OPTIONS" {
 			return c.SendStatus(204)
