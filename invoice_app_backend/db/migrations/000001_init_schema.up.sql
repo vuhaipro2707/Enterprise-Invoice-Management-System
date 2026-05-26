@@ -16,6 +16,13 @@ BEGIN
     END IF;
 END $$;
 
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'print_part_enum') THEN
+        CREATE TYPE print_part_enum AS ENUM ('A', 'B', 'C', 'Default');
+    END IF;
+END $$;
+
 -- 2. Create Accounts table
 CREATE TABLE IF NOT EXISTS accounts (
     account_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -162,6 +169,7 @@ CREATE TABLE IF NOT EXISTS print_queue (
     customer_price_list_id UUID REFERENCES customer_price_lists(customer_price_list_id) ON DELETE CASCADE,
     print_status print_status_enum DEFAULT 'Pending',
     print_type print_type_enum NOT NULL,
+    print_part print_part_enum, -- Just for printType = 'Original' and invoicePrinting
     retry_count INT DEFAULT 0,
     priority_num INT DEFAULT 0, -- Higher number means higher priority
     created_at TIMESTAMPTZ DEFAULT NOW(),

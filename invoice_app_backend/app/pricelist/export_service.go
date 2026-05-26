@@ -129,8 +129,16 @@ func formatVND(amount int) string {
 	return strings.Join(parts, ".")
 }
 
-// GeneratePriceListPDF builds a highly styled UTF-8 PDF document of the price list.
-func GeneratePriceListPDF(pl map[string]interface{}) ([]byte, error) {
+// GeneratePriceListPDF builds a highly styled UTF-8 PDF document of the price list in either A4 or A5 format.
+func GeneratePriceListPDF(pl map[string]interface{}, pageSize string) ([]byte, error) {
+	if pageSize == "A5" {
+		return GeneratePriceListA5PDF(pl)
+	}
+	return GeneratePriceListA4PDF(pl)
+}
+
+// GeneratePriceListA4PDF builds a highly styled UTF-8 A4 PDF document of the price list.
+func GeneratePriceListA4PDF(pl map[string]interface{}) ([]byte, error) {
 	if err := ensureFontsExist(); err != nil {
 		return nil, fmt.Errorf("failed to download or load Vietnamese fonts: %w", err)
 	}
@@ -156,45 +164,61 @@ func GeneratePriceListPDF(pl map[string]interface{}) ([]byte, error) {
 	// General Information Section
 	description := getStringValue(pl["description"])
 	buyerName := "Khách lẻ"
-	if nameVal := getStringValue(pl["buyerName"]); nameVal != "" {
+	if nameVal := getStringValue(pl["buyerName"]); nameVal != "" && nameVal != "N/A" {
 		buyerName = nameVal
 	}
 
-	phone := "N/A"
-	if phoneVal := getStringValue(pl["phoneNumber"]); phoneVal != "" {
+	phone := ""
+	if phoneVal := getStringValue(pl["phoneNumber"]); phoneVal != "" && phoneVal != "N/A" {
 		phone = phoneVal
 	}
-	address := "N/A"
-	if addrVal := getStringValue(pl["address"]); addrVal != "" {
+	address := ""
+	if addrVal := getStringValue(pl["address"]); addrVal != "" && addrVal != "N/A" {
 		address = addrVal
 	}
 
 	pdf.SetTextColor(50, 50, 50)
 
 	// Details layout
-	pdf.SetFont("Roboto", "B", 10)
-	pdf.CellFormat(35, 6, "Tên báo giá:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Roboto", "", 10)
-	pdf.CellFormat(145, 6, description, "", 0, "L", false, 0, "")
-	pdf.Ln(7)
+	if description != "" {
+		pdf.SetFont("Roboto", "B", 10)
+		pdf.CellFormat(35, 6, "Tên báo giá:", "", 0, "L", false, 0, "")
+		pdf.SetFont("Roboto", "", 10)
+		pdf.SetLeftMargin(50)
+		pdf.MultiCell(145, 6, description, "", "L", false)
+		pdf.SetLeftMargin(15)
+		pdf.Ln(1)
+	}
 
-	pdf.SetFont("Roboto", "B", 10)
-	pdf.CellFormat(35, 6, "Khách hàng:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Roboto", "", 10)
-	pdf.CellFormat(145, 6, buyerName, "", 0, "L", false, 0, "")
-	pdf.Ln(7)
+	if buyerName != "" {
+		pdf.SetFont("Roboto", "B", 10)
+		pdf.CellFormat(35, 6, "Khách hàng:", "", 0, "L", false, 0, "")
+		pdf.SetFont("Roboto", "", 10)
+		pdf.SetLeftMargin(50)
+		pdf.MultiCell(145, 6, buyerName, "", "L", false)
+		pdf.SetLeftMargin(15)
+		pdf.Ln(1)
+	}
 
-	pdf.SetFont("Roboto", "B", 10)
-	pdf.CellFormat(35, 6, "Điện thoại:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Roboto", "", 10)
-	pdf.CellFormat(145, 6, phone, "", 0, "L", false, 0, "")
-	pdf.Ln(7)
+	if address != "" {
+		pdf.SetFont("Roboto", "B", 10)
+		pdf.CellFormat(35, 6, "Địa chỉ:", "", 0, "L", false, 0, "")
+		pdf.SetFont("Roboto", "", 10)
+		pdf.SetLeftMargin(50)
+		pdf.MultiCell(145, 6, address, "", "L", false)
+		pdf.SetLeftMargin(15)
+		pdf.Ln(1)
+	}
 
-	pdf.SetFont("Roboto", "B", 10)
-	pdf.CellFormat(35, 6, "Địa chỉ:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Roboto", "", 10)
-	pdf.CellFormat(145, 6, address, "", 0, "L", false, 0, "")
-	pdf.Ln(7)
+	if phone != "" {
+		pdf.SetFont("Roboto", "B", 10)
+		pdf.CellFormat(35, 6, "Điện thoại:", "", 0, "L", false, 0, "")
+		pdf.SetFont("Roboto", "", 10)
+		pdf.SetLeftMargin(50)
+		pdf.MultiCell(145, 6, phone, "", "L", false)
+		pdf.SetLeftMargin(15)
+		pdf.Ln(1)
+	}
 
 	pdf.SetFont("Roboto", "B", 10)
 	pdf.CellFormat(35, 6, "Ngày xuất:", "", 0, "L", false, 0, "")
@@ -544,6 +568,239 @@ func GeneratePriceListExcel(pl map[string]interface{}) ([]byte, error) {
 
 	var buf bytes.Buffer
 	err = f.Write(&buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// GeneratePriceListA5PDF builds a highly styled UTF-8 A5 PDF document of the price list.
+func GeneratePriceListA5PDF(pl map[string]interface{}) ([]byte, error) {
+	if err := ensureFontsExist(); err != nil {
+		return nil, fmt.Errorf("failed to download or load Vietnamese fonts: %w", err)
+	}
+
+	pdf := gofpdf.New("P", "mm", "A5", "")
+	pdf.SetMargins(10, 10, 10)
+
+	// Register UTF-8 Roboto fonts
+	pdf.AddUTF8Font("Roboto", "", "fonts/Roboto-Regular.ttf")
+	pdf.AddUTF8Font("Roboto", "B", "fonts/Roboto-Bold.ttf")
+
+	pdf.AddPage()
+
+	// Title Banner
+	pdf.SetFillColor(230, 240, 255)
+	pdf.Rect(10, 10, 128, 16, "F")
+
+	pdf.SetFont("Roboto", "B", 13)
+	pdf.SetTextColor(20, 80, 160)
+	pdf.CellFormat(128, 16, "BẢNG BÁO GIÁ SẢN PHẨM", "", 0, "C", false, 0, "")
+	pdf.Ln(20)
+
+	// General Information Section
+	description := getStringValue(pl["description"])
+	buyerName := "Khách lẻ"
+	if nameVal := getStringValue(pl["buyerName"]); nameVal != "" && nameVal != "N/A" {
+		buyerName = nameVal
+	}
+
+	phone := ""
+	if phoneVal := getStringValue(pl["phoneNumber"]); phoneVal != "" && phoneVal != "N/A" {
+		phone = phoneVal
+	}
+	address := ""
+	if addrVal := getStringValue(pl["address"]); addrVal != "" && addrVal != "N/A" {
+		address = addrVal
+	}
+
+	pdf.SetTextColor(50, 50, 50)
+
+	// Details layout (Roboto 8.5pt)
+	if description != "" {
+		pdf.SetFont("Roboto", "B", 8.5)
+		pdf.CellFormat(25, 4.5, "Tên báo giá:", "", 0, "L", false, 0, "")
+		pdf.SetFont("Roboto", "", 8.5)
+		pdf.SetLeftMargin(35)
+		pdf.MultiCell(103, 4.5, description, "", "L", false)
+		pdf.SetLeftMargin(10)
+		pdf.Ln(0.8)
+	}
+
+	if buyerName != "" {
+		pdf.SetFont("Roboto", "B", 8.5)
+		pdf.CellFormat(25, 4.5, "Khách hàng:", "", 0, "L", false, 0, "")
+		pdf.SetFont("Roboto", "", 8.5)
+		pdf.SetLeftMargin(35)
+		pdf.MultiCell(103, 4.5, buyerName, "", "L", false)
+		pdf.SetLeftMargin(10)
+		pdf.Ln(0.8)
+	}
+
+	if address != "" {
+		pdf.SetFont("Roboto", "B", 8.5)
+		pdf.CellFormat(25, 4.5, "Địa chỉ:", "", 0, "L", false, 0, "")
+		pdf.SetFont("Roboto", "", 8.5)
+		pdf.SetLeftMargin(35)
+		pdf.MultiCell(103, 4.5, address, "", "L", false)
+		pdf.SetLeftMargin(10)
+		pdf.Ln(0.8)
+	}
+
+	if phone != "" {
+		pdf.SetFont("Roboto", "B", 8.5)
+		pdf.CellFormat(25, 4.5, "Điện thoại:", "", 0, "L", false, 0, "")
+		pdf.SetFont("Roboto", "", 8.5)
+		pdf.SetLeftMargin(35)
+		pdf.MultiCell(103, 4.5, phone, "", "L", false)
+		pdf.SetLeftMargin(10)
+		pdf.Ln(0.8)
+	}
+
+	pdf.SetFont("Roboto", "B", 8.5)
+	pdf.CellFormat(25, 4.5, "Ngày xuất:", "", 0, "L", false, 0, "")
+	pdf.SetFont("Roboto", "", 8.5)
+	pdf.SetLeftMargin(35)
+	pdf.MultiCell(103, 4.5, time.Now().Format("02/01/2006 15:04"), "", "L", false)
+	pdf.SetLeftMargin(10)
+	pdf.Ln(3.5)
+
+	// Items Table Columns Width for A5 (Total width = 128mm)
+	wSTT := 8.0
+	wName := 65.0
+	wUnit := 25.0
+	wPrice := 30.0
+
+	// Items Table Header
+	pdf.SetFillColor(30, 100, 200)
+	pdf.SetTextColor(255, 255, 255)
+	pdf.SetFont("Roboto", "B", 8.5)
+
+	pdf.CellFormat(wSTT, 6, "STT", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(wName, 6, "Tên mặt hàng", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(wUnit, 6, "Đơn vị", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(wPrice, 6, "Đơn giá (VND)", "1", 0, "C", true, 0, "")
+	pdf.Ln(6)
+
+	// Items Table Body
+	pdf.SetTextColor(50, 50, 50)
+	pdf.SetFont("Roboto", "", 8.0)
+
+	items, ok := pl["itemPrices"].([]interface{})
+	if ok && len(items) > 0 {
+		for i, rawItm := range items {
+			itm, ok := rawItm.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			itemName := "Mặt hàng không tên"
+			if itm["itemDefaultName"] != nil {
+				itemName = fmt.Sprintf("%v", itm["itemDefaultName"])
+			}
+			unitName := "Cái"
+			if itm["unitName"] != nil {
+				unitName = fmt.Sprintf("%v", itm["unitName"])
+			}
+			price := 0
+			if p, ok := itm["unitPriceCustom"].(float64); ok {
+				price = int(p)
+			} else if p, ok := itm["unitPriceCustom"].(int); ok {
+				price = p
+			}
+
+			// SplitText wrapping calculation (UTF-8 safe)
+			lines := pdf.SplitText(itemName, wName)
+			numLines := len(lines)
+			if numLines < 1 {
+				numLines = 1
+			}
+
+			// Compact line spacing (4.5mm) for high-fidelity rendering
+			lineSpacing := 4.5
+			actualTextHeight := float64(numLines) * lineSpacing
+			rowHeight := actualTextHeight + 3.0 // padding
+			if rowHeight < 7.0 {
+				rowHeight = 7.0
+			}
+
+			// Check if we need to start a new page
+			if pdf.GetY()+rowHeight > 195 {
+				pdf.AddPage()
+
+				// Redraw table headers on the new page
+				pdf.SetFillColor(30, 100, 200)
+				pdf.SetTextColor(255, 255, 255)
+				pdf.SetFont("Roboto", "B", 8.5)
+
+				pdf.CellFormat(wSTT, 6, "STT", "1", 0, "C", true, 0, "")
+				pdf.CellFormat(wName, 6, "Tên mặt hàng", "1", 0, "L", true, 0, "")
+				pdf.CellFormat(wUnit, 6, "Đơn vị", "1", 0, "C", true, 0, "")
+				pdf.CellFormat(wPrice, 6, "Đơn giá (VND)", "1", 0, "C", true, 0, "")
+				pdf.Ln(6)
+
+				// Restore body text color and font
+				pdf.SetTextColor(50, 50, 50)
+				pdf.SetFont("Roboto", "", 8.0)
+			}
+
+			// Get current position
+			x := pdf.GetX()
+			y := pdf.GetY()
+
+			// Zebra shading
+			if i%2 == 1 {
+				pdf.SetFillColor(245, 248, 255)
+			} else {
+				pdf.SetFillColor(255, 255, 255)
+			}
+
+			// Calculate centered vertical offset
+			verticalOffset := (rowHeight - actualTextHeight) / 2.0
+			if verticalOffset < 0.2 {
+				verticalOffset = 0.2
+			}
+
+			// 1. STT
+			pdf.CellFormat(wSTT, rowHeight, fmt.Sprintf("%d", i+1), "1", 0, "C", true, 0, "")
+
+			// 2. Item Name outer box and centered text
+			pdf.SetXY(x+wSTT, y)
+			pdf.CellFormat(wName, rowHeight, "", "1", 0, "L", true, 0, "")
+
+			pdf.SetXY(x+wSTT, y+verticalOffset)
+			pdf.MultiCell(wName, lineSpacing, itemName, "", "L", false)
+
+			// 3. Unit Name
+			pdf.SetXY(x+wSTT+wName, y)
+			pdf.CellFormat(wUnit, rowHeight, unitName, "1", 0, "C", true, 0, "")
+
+			// 4. Price
+			pdf.CellFormat(wPrice, rowHeight, formatVND(price), "1", 0, "C", true, 0, "")
+
+			// Move to the next row starting position
+			pdf.SetXY(x, y+rowHeight)
+		}
+	} else {
+		pdf.CellFormat(128, 6, "Không có mặt hàng nào trong báo giá", "1", 0, "C", false, 0, "")
+		pdf.Ln(6)
+	}
+
+	// Check if there is enough space for footnotes on the current page
+	if pdf.GetY() > 185 {
+		pdf.AddPage()
+	}
+	pdf.Ln(6)
+
+	// Note Footer (Roboto 7.5pt)
+	pdf.SetFont("Roboto", "B", 7.5)
+	pdf.SetTextColor(120, 120, 120)
+	pdf.CellFormat(128, 4.5, "* Báo giá trên đã bao gồm các khoản thuế phí liên quan.", "", 0, "L", false, 0, "")
+	pdf.Ln(4.5)
+	pdf.CellFormat(128, 4.5, "* Xin chân thành cảm ơn Sự tin tưởng hợp tác của Quý khách hàng!", "", 0, "L", false, 0, "")
+
+	var buf bytes.Buffer
+	err := pdf.Output(&buf)
 	if err != nil {
 		return nil, err
 	}

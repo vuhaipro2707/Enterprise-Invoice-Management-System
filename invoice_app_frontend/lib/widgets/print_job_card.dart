@@ -6,6 +6,7 @@ class PrintJobCard extends StatelessWidget {
   final Function(String jobId, String status, {int? retryCount}) onUpdateStatus;
   final Function(String jobId, int priority) onUpdatePriority;
   final Function(Map<String, dynamic> job) onRecreateJob;
+  final VoidCallback? onTap;
 
   const PrintJobCard({
     super.key,
@@ -13,6 +14,7 @@ class PrintJobCard extends StatelessWidget {
     required this.onUpdateStatus,
     required this.onUpdatePriority,
     required this.onRecreateJob,
+    this.onTap,
   });
 
   String _formatDateTime(dynamic timestampStr) {
@@ -74,22 +76,41 @@ class PrintJobCard extends StatelessWidget {
     final String? priceListBuyer = job['priceListBuyerName']?.toString();
 
     final bool isInvoice = job['invoiceId'] != null;
+    final String printPart = job['printPart']?.toString() ?? 'Default';
+    final String copyLabel;
+    if (isInvoice) {
+      if (printType == 'Original') {
+        if (printPart == 'A') {
+          copyLabel = 'Liên A';
+        } else if (printPart == 'B') {
+          copyLabel = 'Liên B';
+        } else if (printPart == 'C') {
+          copyLabel = 'Liên C';
+        } else {
+          copyLabel = 'Bản gốc';
+        }
+      } else if (printType == 'Triplicate') {
+        copyLabel = 'Liên 3';
+      } else {
+        copyLabel = 'Báo giá';
+      }
+    } else {
+      copyLabel = 'Báo giá';
+    }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          )
-        ],
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.2)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      clipBehavior: Clip.antiAlias,
+      color: colorScheme.surfaceContainerLow,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -265,7 +286,7 @@ class PrintJobCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '${printType == 'Original' ? "1 bản" : "3 bản"}  •  ${_formatDateTime(job['createdAt'])}',
+                  '$copyLabel  •  ${_formatDateTime(job['createdAt'])}',
                   style: TextStyle(
                     fontSize: 11,
                     color: colorScheme.onSurfaceVariant,
@@ -274,7 +295,7 @@ class PrintJobCard extends StatelessWidget {
               ],
             ),
             // Row 4: Actions (Rendered conditionally below metadata)
-            if (status == 'Failed' || status == 'Pending' || status == 'Cancelled') ...[
+            if (status == 'Failed' || status == 'Pending' || status == 'Cancelled' || status == 'Completed') ...[
               const SizedBox(height: 8),
               const Divider(height: 1, thickness: 0.5),
               const SizedBox(height: 6),
@@ -294,7 +315,7 @@ class PrintJobCard extends StatelessWidget {
                         textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                       ),
                     ),
-                  if (status == 'Cancelled')
+                  if (status == 'Cancelled' || status == 'Completed')
                     TextButton.icon(
                       onPressed: () => onRecreateJob(job),
                       icon: const Icon(Icons.autorenew_rounded, size: 14),
@@ -342,6 +363,7 @@ class PrintJobCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

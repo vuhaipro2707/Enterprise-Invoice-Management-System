@@ -288,141 +288,242 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       }
     }
 
-    final bool? confirm = await showDialog<bool>(
+    bool checkA = true;
+    bool checkB = true;
+    bool checkC = true;
+    bool checkDefault = false;
+
+    final List<String>? selectedParts = await showDialog<List<String>>(
       context: context,
       builder: (dialogContext) {
+        final colorScheme = Theme.of(dialogContext).colorScheme;
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.print, color: Colors.teal),
-              SizedBox(width: 8),
-              Text('In hóa đơn'),
+              Icon(Icons.print, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              const Text('Tùy chọn in ấn'),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Bạn có chắc chắn muốn đưa hóa đơn này vào hàng chờ in không?',
-              ),
-              FutureBuilder<Map<String, bool>>(
-                future: checkPrintJobStatus(),
-                builder: (futureContext, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 1.5),
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Đang kiểm tra hàng chờ in...',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  
-                  final statusMap = snapshot.data;
-                  if (statusMap == null) return const SizedBox.shrink();
-
-                  final hasPending = statusMap['Pending'] ?? false;
-                  final hasPrinting = statusMap['Printing'] ?? false;
-                  final hasCompleted = statusMap['Completed'] ?? false;
-
-                  if (hasPending || hasPrinting || hasCompleted) {
-                    String msg = '';
-                    Color bannerColor = Colors.amber;
-                    IconData bannerIcon = Icons.warning_amber_rounded;
-
-                    if (hasPending) {
-                      msg = 'Lưu ý: Có bản in của hóa đơn này đang chờ xử lý.';
-                      bannerColor = Colors.orange;
-                      bannerIcon = Icons.hourglass_empty;
-                    } else if (hasPrinting) {
-                      msg = 'Lưu ý: Hóa đơn này đang được tiến hành in.';
-                      bannerColor = Colors.blue;
-                      bannerIcon = Icons.print;
-                    } else if (hasCompleted) {
-                      msg = 'Thông báo: Hóa đơn này đã được in thành công trước đó.';
-                      bannerColor = Colors.green;
-                      bannerIcon = Icons.check_circle_outline;
-                    }
-
-                    return Container(
-                      margin: const EdgeInsets.only(top: 12),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: bannerColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: bannerColor.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(bannerIcon, color: bannerColor, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              msg,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(futureContext).colorScheme.onSurface,
-                                fontWeight: FontWeight.w600,
+          content: StatefulBuilder(
+            builder: (builderContext, setDialogState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Chọn các liên cần in (sẽ tạo các lệnh in tương ứng trong hàng chờ):',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    title: const Text('Liên A (Bản gốc)'),
+                    value: checkA,
+                    activeColor: colorScheme.primary,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (val) {
+                      setDialogState(() {
+                        checkA = val ?? false;
+                        if (checkA) {
+                          checkDefault = false;
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Liên B (Giao khách)'),
+                    value: checkB,
+                    activeColor: colorScheme.primary,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (val) {
+                      setDialogState(() {
+                        checkB = val ?? false;
+                        if (checkB) {
+                          checkDefault = false;
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Liên C (Lưu nội bộ)'),
+                    value: checkC,
+                    activeColor: colorScheme.primary,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (val) {
+                      setDialogState(() {
+                        checkC = val ?? false;
+                        if (checkC) {
+                          checkDefault = false;
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Không liên (Mặc định)'),
+                    value: checkDefault,
+                    activeColor: colorScheme.primary,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (val) {
+                      setDialogState(() {
+                        checkDefault = val ?? false;
+                        if (checkDefault) {
+                          checkA = false;
+                          checkB = false;
+                          checkC = false;
+                        }
+                      });
+                    },
+                  ),
+                  FutureBuilder<Map<String, bool>>(
+                    future: checkPrintJobStatus(),
+                    builder: (futureContext, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 1.5),
                               ),
-                            ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Đang kiểm tra hàng chờ in...',
+                                style: TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-              ),
-            ],
+                        );
+                      }
+                      
+                      final statusMap = snapshot.data;
+                      if (statusMap == null) return const SizedBox.shrink();
+
+                      final hasPending = statusMap['Pending'] ?? false;
+                      final hasPrinting = statusMap['Printing'] ?? false;
+                      final hasCompleted = statusMap['Completed'] ?? false;
+
+                      if (hasPending || hasPrinting || hasCompleted) {
+                        String msg = '';
+                        Color bannerColor = Colors.amber;
+                        IconData bannerIcon = Icons.warning_amber_rounded;
+
+                        if (hasPending) {
+                          msg = 'Lưu ý: Có bản in của hóa đơn này đang chờ xử lý.';
+                          bannerColor = Colors.orange;
+                          bannerIcon = Icons.hourglass_empty;
+                        } else if (hasPrinting) {
+                          msg = 'Lưu ý: Hóa đơn này đang được tiến hành in.';
+                          bannerColor = Colors.blue;
+                          bannerIcon = Icons.print;
+                        } else if (hasCompleted) {
+                          msg = 'Thông báo: Hóa đơn này đã được in thành công trước đó.';
+                          bannerColor = Colors.green;
+                          bannerIcon = Icons.check_circle_outline;
+                        }
+
+                        return Container(
+                          margin: const EdgeInsets.only(top: 12),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: bannerColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: bannerColor.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(bannerIcon, color: bannerColor, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  msg,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colorScheme.onSurface,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ],
+              );
+            },
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('HỦY'),
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false), // false means 1 copy
-              child: const Text('IN 1 BẢN (GỐC)'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true), // true means 3 copies
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('IN 3 BẢN (LIÊN BA)'),
+            StatefulBuilder(
+              builder: (builderContext, setActionState) {
+                final bool hasSelection = checkA || checkB || checkC || checkDefault;
+                return ElevatedButton(
+                  onPressed: hasSelection
+                      ? () {
+                          final List<String> list = [];
+                          if (checkA) list.add('A');
+                          if (checkB) list.add('B');
+                          if (checkC) list.add('C');
+                          if (checkDefault) list.add('Default');
+                          Navigator.pop(dialogContext, list);
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                  ),
+                  child: const Text('XÁC NHẬN IN'),
+                );
+              },
             ),
           ],
         );
       },
     );
 
-    if (confirm == null) return;
-
-    final String printType = confirm ? 'Triplicate' : 'Original';
+    if (selectedParts == null || selectedParts.isEmpty) return;
 
     setState(() => _isLoading = true);
     try {
-      await _apiService.createPrintJob(
-        invoiceId: _invoiceId!,
-        printType: printType,
-        priorityNum: 0,
-      );
+      final bool isTriplicate = selectedParts.contains('A') &&
+          selectedParts.contains('B') &&
+          selectedParts.contains('C') &&
+          selectedParts.length == 3;
+
+      if (isTriplicate) {
+        await _apiService.createPrintJob(
+          invoiceId: _invoiceId!,
+          printType: 'Triplicate',
+          printPart: null,
+          priorityNum: 0,
+        );
+      } else {
+        for (final String part in selectedParts) {
+          await _apiService.createPrintJob(
+            invoiceId: _invoiceId!,
+            printType: 'Original',
+            printPart: part == 'Default' ? null : part,
+            priorityNum: 0,
+          );
+        }
+      }
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã đưa hóa đơn vào hàng chờ in thành công!')),
+          SnackBar(
+            content: Text(
+              isTriplicate
+                  ? 'Đã gửi lệnh in Liên 3 vào hàng chờ thành công!'
+                  : 'Đã gửi các lệnh in vào hàng chờ thành công!'
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -769,12 +870,21 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(8),
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
                             decoration: BoxDecoration(
                               color: colorScheme.primaryContainer.withValues(alpha: 0.4),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Icon(Icons.shopping_bag, color: colorScheme.primary),
+                            child: Text(
+                              '${index + 1}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: colorScheme.primary,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(

@@ -72,6 +72,7 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	invoiceGroup.Post("/takeTurn/invoiceId/:invoiceId", invoiceHandler.TakeTurn)
 	invoiceGroup.Get("/ping/invoiceId/:invoiceId", invoiceHandler.PingInvoice)
 	invoiceGroup.Get("/id/:invoiceId", invoiceHandler.GetInvoiceWithLines)
+	invoiceGroup.Get("/id/:invoiceId/export", invoiceHandler.ExportInvoice)
 	invoiceGroup.Post("/lock/invoiceId/:invoiceId", invoiceHandler.LockInvoice)
 	invoiceGroup.Post("/clone", invoiceHandler.CloneInvoice)
 

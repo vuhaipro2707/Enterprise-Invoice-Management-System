@@ -30,10 +30,10 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with 
   // Search & Filter state
   bool _showEditing = true;
   bool _showSaved = true;
-  bool _showLocked = false;
-  String? _sortBy = 'updated_at'; // 'updated_at' or 'created_at'
+  bool _showLocked = true;
+  String? _sortBy = 'created_at'; // 'updated_at' or 'created_at'
   String? _sortOrder = 'desc';   // 'desc' or 'asc'
-  SortState _sortState = SortState.updatedAtDesc;
+  SortState _sortState = SortState.createdAtDesc;
   
   // Selected filter details
   Map<String, dynamic>? _selectedBuyer;

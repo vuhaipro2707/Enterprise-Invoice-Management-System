@@ -1352,16 +1352,16 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
         final lastItem = lineItems.last;
         final lastId = lastItem['lineItemId']?.toString();
         setState(() => _highlightedLineItemId = lastId);
-        await Future.delayed(const Duration(milliseconds: 150));
+        await Future.delayed(const Duration(milliseconds: 300));
         if (mounted && _scrollController.hasClients) {
           await _scrollController.animateTo(
             _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOut,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOutCubic,
           );
         }
         // Auto-clear highlight after animation
-        await Future.delayed(const Duration(milliseconds: 1400));
+        await Future.delayed(const Duration(milliseconds: 1300));
         if (mounted) setState(() => _highlightedLineItemId = null);
       }
     }
@@ -1400,15 +1400,15 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
               .where((id) => id.isNotEmpty)
               .toSet();
           setState(() => _highlightedLineItemIds = addedIds);
-          await Future.delayed(const Duration(milliseconds: 150));
+          await Future.delayed(const Duration(milliseconds: 300));
           if (mounted && _scrollController.hasClients) {
             await _scrollController.animateTo(
               _scrollController.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 400),
-              curve: Curves.easeOut,
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOutCubic,
             );
           }
-          await Future.delayed(const Duration(milliseconds: 1400));
+          await Future.delayed(const Duration(milliseconds: 1300));
           if (mounted) setState(() => _highlightedLineItemIds = {});
         }
       } catch (e) {

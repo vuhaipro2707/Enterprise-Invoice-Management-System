@@ -3,12 +3,14 @@ INSERT INTO print_queue (
     invoice_id,
     customer_price_list_id,
     print_type,
+    print_part,
     priority_num,
     print_status
 ) VALUES (
     sqlc.narg('invoice_id')::uuid,
     sqlc.narg('customer_price_list_id')::uuid,
     sqlc.arg('print_type')::print_type_enum,
+    sqlc.narg('print_part')::print_part_enum,
     COALESCE(sqlc.narg('priority_num')::integer, 0),
     'Pending'
 ) RETURNING *;
@@ -20,6 +22,7 @@ SELECT
     pq.customer_price_list_id,
     pq.print_status,
     pq.print_type,
+    pq.print_part,
     pq.retry_count,
     pq.priority_num,
     pq.created_at,

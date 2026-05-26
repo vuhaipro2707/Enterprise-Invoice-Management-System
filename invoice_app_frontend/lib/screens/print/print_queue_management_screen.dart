@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../widgets/print_job_card.dart';
+import '../pricelist/preview_helper.dart';
+import 'print_job_detail_screen.dart';
 
 class PrintQueueManagementScreen extends StatefulWidget {
   const PrintQueueManagementScreen({super.key});
@@ -209,6 +212,7 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
         invoiceId: job['invoiceId']?.toString(),
         customerPriceListId: job['customerPriceListId']?.toString(),
         printType: job['printType']?.toString() ?? 'Original',
+        printPart: job['printPart']?.toString(),
         priorityNum: 0,
       );
       if (mounted) {
@@ -603,6 +607,21 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
                                                       onUpdateStatus: _updateJobStatus,
                                                       onUpdatePriority: _updateJobPriority,
                                                       onRecreateJob: _recreatePrintJob,
+                                                      onTap: () {
+                                                        Navigator.push(
+                                                          context,
+                                                          MaterialPageRoute(
+                                                            builder: (context) => PrintJobDetailScreen(
+                                                              job: job,
+                                                              onUpdateStatus: _updateJobStatus,
+                                                              onUpdatePriority: _updateJobPriority,
+                                                              onRecreateJob: _recreatePrintJob,
+                                                            ),
+                                                          ),
+                                                        ).then((_) {
+                                                          _fetchPrintJobs();
+                                                        });
+                                                      },
                                                     ),
                                                   ),
                                                   if (jobIndex < _jobs.length - 1 && colIndex < 2)
@@ -677,6 +696,21 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
                                         onUpdateStatus: _updateJobStatus,
                                         onUpdatePriority: _updateJobPriority,
                                         onRecreateJob: _recreatePrintJob,
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => PrintJobDetailScreen(
+                                                job: job,
+                                                onUpdateStatus: _updateJobStatus,
+                                                onUpdatePriority: _updateJobPriority,
+                                                onRecreateJob: _recreatePrintJob,
+                                              ),
+                                            ),
+                                          ).then((_) {
+                                            _fetchPrintJobs();
+                                          });
+                                        },
                                       ),
                                       if (index < _jobs.length - 1) ...[
                                         const SizedBox(height: 8),
@@ -710,6 +744,269 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
             ),
         ],
       ),
+    );
+  }
+
+
+}
+
+class PrintJobPreviewWidget extends StatefulWidget {
+  final String? invoiceId;
+  final String? customerPriceListId;
+  final String printType;
+  final String? printPart;
+  final String titleText;
+  final ApiService apiService;
+  final bool hidePreview;
+  final bool showCloseButton;
+  final VoidCallback? onPrintAction;
+  final String? pageSize;
+
+  const PrintJobPreviewWidget({
+    super.key,
+    required this.invoiceId,
+    required this.customerPriceListId,
+    required this.printType,
+    this.printPart,
+    required this.titleText,
+    required this.apiService,
+    this.hidePreview = false,
+    this.showCloseButton = true,
+    this.onPrintAction,
+    this.pageSize,
+  });
+
+  @override
+  State<PrintJobPreviewWidget> createState() => PrintJobPreviewWidgetState();
+}
+
+class PrintJobPreviewWidgetState extends State<PrintJobPreviewWidget> {
+  bool _isLoading = true;
+  Uint8List? _pdfBytes;
+  String? _pdfViewId;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPdf();
+  }
+
+  Future<void> _loadPdf() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      Uint8List bytes;
+      if (widget.invoiceId != null) {
+        final res = await widget.apiService.exportInvoice(
+          widget.invoiceId!,
+          widget.printType,
+          printPart: widget.printPart,
+        );
+        bytes = res as Uint8List;
+      } else if (widget.customerPriceListId != null) {
+        final res = await widget.apiService.exportPriceList(
+          widget.customerPriceListId!,
+          'pdf',
+          pageSize: widget.pageSize,
+        );
+        bytes = res as Uint8List;
+      } else {
+        throw Exception('Không xác định được nguồn in.');
+      }
+
+      if (mounted) {
+        setState(() {
+          _pdfBytes = bytes;
+          _pdfViewId = registerPdfPreview(bytes);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                widget.titleText,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+        const Divider(),
+        const SizedBox(height: 12),
+        Expanded(
+          child: _isLoading
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Đang tải bản xem trước PDF từ máy chủ...',
+                        style: TextStyle(color: colorScheme.outline, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                )
+              : _errorMessage != null
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline_rounded, size: 48, color: colorScheme.error),
+                          const SizedBox(height: 16),
+                          Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: _loadPdf,
+                            icon: const Icon(Icons.refresh, size: 16),
+                            label: const Text('Thử lại'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : widget.hidePreview
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.hourglass_bottom_rounded,
+                                size: 48,
+                                color: colorScheme.primary.withValues(alpha: 0.5),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Đang mở tùy chọn in...',
+                                style: TextStyle(color: colorScheme.outline, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        )
+                      : buildPreviewWidget(
+                          context,
+                          _pdfBytes!,
+                          'pdf',
+                          viewId: _pdfViewId,
+                        ),
+        ),
+        const SizedBox(height: 16),
+        const Divider(),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (_pdfBytes != null) ...[
+              if (widget.invoiceId != null || widget.customerPriceListId != null)
+                ElevatedButton.icon(
+                  onPressed: () {
+                    if (widget.invoiceId != null) {
+                      Navigator.pushNamed(context, '/invoice_detail', arguments: widget.invoiceId);
+                    } else if (widget.customerPriceListId != null) {
+                      Navigator.pushNamed(context, '/edit_pricelist', arguments: widget.customerPriceListId);
+                    }
+                  },
+                  icon: Icon(
+                    widget.invoiceId != null ? Icons.receipt_long_rounded : Icons.request_quote_rounded,
+                    size: 16,
+                  ),
+                  label: Text(
+                    widget.invoiceId != null ? 'MỞ HÓA ĐƠN' : 'MỞ BÁO GIÁ',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              if (widget.onPrintAction != null)
+                ElevatedButton.icon(
+                  onPressed: widget.onPrintAction,
+                  icon: const Icon(Icons.print_outlined, size: 16),
+                  label: const Text(
+                    'IN LẠI',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  final fileName = widget.invoiceId != null ? 'Hoa_don.pdf' : 'Bao_gia.pdf';
+                  downloadFile(_pdfBytes!, fileName, 'application/pdf', '');
+                },
+                icon: const Icon(Icons.download_rounded, size: 16),
+                label: const Text(
+                  'LƯU VỀ MÁY',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+            if (widget.showCloseButton)
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text(
+                  'ĐÓNG',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

@@ -18,7 +18,7 @@ func NewPrintService(repo *sqlc.Queries) *PrintService {
 	}
 }
 
-func (s *PrintService) CreatePrintJob(ctx context.Context, invoiceID, customerPriceListID *uuid.UUID, printType string, priority *int32) (sqlc.PrintQueue, error) {
+func (s *PrintService) CreatePrintJob(ctx context.Context, invoiceID, customerPriceListID *uuid.UUID, printType string, printPart *string, priority *int32) (sqlc.PrintQueue, error) {
 	var invID uuid.NullUUID
 	if invoiceID != nil {
 		invID = uuid.NullUUID{UUID: *invoiceID, Valid: true}
@@ -33,10 +33,16 @@ func (s *PrintService) CreatePrintJob(ctx context.Context, invoiceID, customerPr
 		prio = sql.NullInt32{Int32: *priority, Valid: true}
 	}
 
+	var pPart interface{}
+	if printPart != nil && *printPart != "" {
+		pPart = *printPart
+	}
+
 	arg := sqlc.CreatePrintJobParams{
 		InvoiceID:           invID,
 		CustomerPriceListID: cplID,
 		PrintType:           printType,
+		PrintPart:           pPart,
 		PriorityNum:         prio,
 	}
 

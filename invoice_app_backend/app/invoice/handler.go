@@ -2236,3 +2236,67 @@ func (h *InvoiceHandler) CloneInvoice(c *fiber.Ctx) error {
 		"data":    flattenInvoice(invoice),
 	})
 }
+
+func (h *InvoiceHandler) ExportInvoice(c *fiber.Ctx) error {
+	invoiceIDStr := c.Params("invoiceId")
+	if invoiceIDStr == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing path parameter: invoiceId"})
+	}
+
+	invoiceID, err := uuid.Parse(invoiceIDStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid invoice ID format"})
+	}
+
+	printType := c.Query("printType", "Original")
+	if printType != "Original" && printType != "Triplicate" {
+		printType = "Original"
+	}
+	printPart := c.Query("printPart", "Default")
+
+	invoice, err := h.service.GetInvoiceWithLines(context.Background(), invoiceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.Status(404).JSON(fiber.Map{"error": "Invoice not found"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to get invoice: %v", err)})
+	}
+
+	var lineItems []interface{}
+	if invoice.LineItems != nil {
+		json.Unmarshal(invoice.LineItems, &lineItems)
+	}
+
+	invData := map[string]interface{}{
+		"invoiceId":            invoice.InvoiceID.String(),
+		"invoiceCode":          invoice.InvoiceCode,
+		"totalAmount":          invoice.TotalAmount,
+		"buyerNameSnapshot":    "",
+		"addressSnapshot":      "",
+		"phoneNumberSnapshot":  "",
+		"lineItems":            lineItems,
+	}
+
+	if invoice.BuyerNameSnapshot.Valid {
+		invData["buyerNameSnapshot"] = invoice.BuyerNameSnapshot.String
+	}
+	if invoice.AddressSnapshot.Valid {
+		invData["addressSnapshot"] = invoice.AddressSnapshot.String
+	}
+	if invoice.PhoneNumberSnapshot.Valid {
+		invData["phoneNumberSnapshot"] = invoice.PhoneNumberSnapshot.String
+	}
+
+	fileBytes, err := GenerateInvoicePDF(invData, printType, printPart)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to generate PDF: %v", err)})
+	}
+
+	fileName := fmt.Sprintf("Hoa_don_%s.pdf", invoice.InvoiceCode)
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
+	c.Set("Content-Type", "application/pdf")
+	c.Set("Content-Length", fmt.Sprintf("%d", len(fileBytes)))
+
+	return c.Send(fileBytes)
+}
+

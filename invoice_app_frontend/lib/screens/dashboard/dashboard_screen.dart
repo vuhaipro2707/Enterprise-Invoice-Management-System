@@ -180,8 +180,8 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
       {'title': 'Quản lý Người mua', 'icon': Icons.people, 'color': Colors.green},
       {'title': 'Quản lý Hóa đơn', 'icon': Icons.description, 'color': Colors.red},
       {'title': 'Bảng báo giá', 'icon': Icons.request_quote, 'color': Colors.teal},
-      {'title': 'Quản lý Thiết bị', 'icon': Icons.devices, 'color': Colors.purple},
       {'title': 'Hàng chờ in', 'icon': Icons.print, 'color': Colors.indigo},
+      {'title': 'Quản lý Thiết bị', 'icon': Icons.devices, 'color': Colors.purple},
     ];
 
     return Scaffold(

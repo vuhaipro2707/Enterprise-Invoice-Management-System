@@ -17,21 +17,24 @@ INSERT INTO print_queue (
     invoice_id,
     customer_price_list_id,
     print_type,
+    print_part,
     priority_num,
     print_status
 ) VALUES (
     $1::uuid,
     $2::uuid,
     $3::print_type_enum,
-    COALESCE($4::integer, 0),
+    $4::print_part_enum,
+    COALESCE($5::integer, 0),
     'Pending'
-) RETURNING print_job_id, invoice_id, customer_price_list_id, print_status, print_type, retry_count, priority_num, created_at, printed_at
+) RETURNING print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at
 `
 
 type CreatePrintJobParams struct {
 	InvoiceID           uuid.NullUUID `json:"invoice_id"`
 	CustomerPriceListID uuid.NullUUID `json:"customer_price_list_id"`
 	PrintType           interface{}   `json:"print_type"`
+	PrintPart           interface{}   `json:"print_part"`
 	PriorityNum         sql.NullInt32 `json:"priority_num"`
 }
 
@@ -40,6 +43,7 @@ func (q *Queries) CreatePrintJob(ctx context.Context, arg CreatePrintJobParams) 
 		arg.InvoiceID,
 		arg.CustomerPriceListID,
 		arg.PrintType,
+		arg.PrintPart,
 		arg.PriorityNum,
 	)
 	var i PrintQueue
@@ -49,6 +53,7 @@ func (q *Queries) CreatePrintJob(ctx context.Context, arg CreatePrintJobParams) 
 		&i.CustomerPriceListID,
 		&i.PrintStatus,
 		&i.PrintType,
+		&i.PrintPart,
 		&i.RetryCount,
 		&i.PriorityNum,
 		&i.CreatedAt,
@@ -64,6 +69,7 @@ SELECT
     pq.customer_price_list_id,
     pq.print_status,
     pq.print_type,
+    pq.print_part,
     pq.retry_count,
     pq.priority_num,
     pq.created_at,
@@ -119,6 +125,7 @@ type GetPrintJobsRow struct {
 	CustomerPriceListID  uuid.NullUUID  `json:"customer_price_list_id"`
 	PrintStatus          interface{}    `json:"print_status"`
 	PrintType            interface{}    `json:"print_type"`
+	PrintPart            interface{}    `json:"print_part"`
 	RetryCount           sql.NullInt32  `json:"retry_count"`
 	PriorityNum          sql.NullInt32  `json:"priority_num"`
 	CreatedAt            sql.NullTime   `json:"created_at"`
@@ -151,6 +158,7 @@ func (q *Queries) GetPrintJobs(ctx context.Context, arg GetPrintJobsParams) ([]G
 			&i.CustomerPriceListID,
 			&i.PrintStatus,
 			&i.PrintType,
+			&i.PrintPart,
 			&i.RetryCount,
 			&i.PriorityNum,
 			&i.CreatedAt,
@@ -174,7 +182,7 @@ func (q *Queries) GetPrintJobs(ctx context.Context, arg GetPrintJobsParams) ([]G
 }
 
 const pollPrintJob = `-- name: PollPrintJob :one
-SELECT print_job_id, invoice_id, customer_price_list_id, print_status, print_type, retry_count, priority_num, created_at, printed_at FROM print_queue
+SELECT print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at FROM print_queue
 WHERE print_status = 'Pending'
 ORDER BY priority_num DESC, created_at ASC
 LIMIT 1
@@ -189,6 +197,7 @@ func (q *Queries) PollPrintJob(ctx context.Context) (PrintQueue, error) {
 		&i.CustomerPriceListID,
 		&i.PrintStatus,
 		&i.PrintType,
+		&i.PrintPart,
 		&i.RetryCount,
 		&i.PriorityNum,
 		&i.CreatedAt,
@@ -205,7 +214,7 @@ SET
     priority_num = COALESCE($3::integer, priority_num),
     printed_at = CASE WHEN $1::print_status_enum = 'Completed' THEN NOW() ELSE printed_at END
 WHERE print_job_id = $4::uuid
-RETURNING print_job_id, invoice_id, customer_price_list_id, print_status, print_type, retry_count, priority_num, created_at, printed_at
+RETURNING print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at
 `
 
 type UpdatePrintJobStatusParams struct {
@@ -229,6 +238,7 @@ func (q *Queries) UpdatePrintJobStatus(ctx context.Context, arg UpdatePrintJobSt
 		&i.CustomerPriceListID,
 		&i.PrintStatus,
 		&i.PrintType,
+		&i.PrintPart,
 		&i.RetryCount,
 		&i.PriorityNum,
 		&i.CreatedAt,

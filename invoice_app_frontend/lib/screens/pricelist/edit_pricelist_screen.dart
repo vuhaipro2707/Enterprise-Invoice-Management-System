@@ -502,15 +502,15 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
 
                     // Scroll to bottom and show highlight after dialog closes
                     if (isNewItem) {
-                      Future.delayed(const Duration(milliseconds: 200), () async {
+                      Future.delayed(const Duration(milliseconds: 300), () async {
                         if (mounted && _scrollController.hasClients) {
                           await _scrollController.animateTo(
                             _scrollController.position.maxScrollExtent,
-                            duration: const Duration(milliseconds: 400),
-                            curve: Curves.easeOut,
+                            duration: const Duration(milliseconds: 500),
+                            curve: Curves.easeOutCubic,
                           );
                         }
-                        await Future.delayed(const Duration(milliseconds: 1400));
+                        await Future.delayed(const Duration(milliseconds: 1300));
                         if (mounted) setState(() => _highlightedItemKey = null);
                       });
                     }

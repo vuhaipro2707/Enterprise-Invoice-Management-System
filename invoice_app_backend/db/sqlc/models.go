@@ -122,6 +122,7 @@ type PrintQueue struct {
 	CustomerPriceListID uuid.NullUUID `json:"customer_price_list_id"`
 	PrintStatus         interface{}   `json:"print_status"`
 	PrintType           interface{}   `json:"print_type"`
+	PrintPart           interface{}   `json:"print_part"`
 	RetryCount          sql.NullInt32 `json:"retry_count"`
 	PriorityNum         sql.NullInt32 `json:"priority_num"`
 	CreatedAt           sql.NullTime  `json:"created_at"`

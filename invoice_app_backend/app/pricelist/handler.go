@@ -534,6 +534,8 @@ func (h *PriceListHandler) ExportPriceList(c *fiber.Ctx) error {
 
 	format := c.Query("format", "pdf")
 	format = strings.ToLower(format)
+	pageSize := c.Query("pageSize", "A4")
+	pageSize = strings.ToUpper(pageSize)
 
 	row, err := h.service.GetPriceListByID(c.UserContext(), id)
 	if err != nil {
@@ -558,7 +560,7 @@ func (h *PriceListHandler) ExportPriceList(c *fiber.Ctx) error {
 		fileName = fmt.Sprintf("Bao_gia_%s.xlsx", cleanDescription)
 		contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 	} else {
-		fileBytes, err = GeneratePriceListPDF(plData)
+		fileBytes, err = GeneratePriceListPDF(plData, pageSize)
 		fileName = fmt.Sprintf("Bao_gia_%s.pdf", cleanDescription)
 		contentType = "application/pdf"
 	}
@@ -620,7 +622,7 @@ func (h *PriceListHandler) ExportAndEmailPriceList(c *fiber.Ctx) error {
 		fileBytes, err = GeneratePriceListExcel(plData)
 		fileName = fmt.Sprintf("Bao_gia_%s.xlsx", cleanDescription)
 	} else {
-		fileBytes, err = GeneratePriceListPDF(plData)
+		fileBytes, err = GeneratePriceListPDF(plData, "A4")
 		fileName = fmt.Sprintf("Bao_gia_%s.pdf", cleanDescription)
 	}
 

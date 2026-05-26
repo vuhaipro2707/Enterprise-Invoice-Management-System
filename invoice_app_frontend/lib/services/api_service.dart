@@ -791,12 +791,22 @@ class ApiService {
     throw Exception(data['error'] ?? 'Failed to change order');
   }
 
-  Future<dynamic> exportPriceList(String id, String format) async {
-    final response = await get('/pricelist/id/$id/export?format=$format');
+  Future<dynamic> exportPriceList(String id, String format, {String? pageSize}) async {
+    final String query = pageSize != null ? 'format=$format&pageSize=$pageSize' : 'format=$format';
+    final response = await get('/pricelist/id/$id/export?$query');
     if (response.statusCode == 200) {
       return response.bodyBytes;
     }
     throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to export price list');
+  }
+
+  Future<dynamic> exportInvoice(String id, String printType, {String? printPart}) async {
+    final String query = printPart != null ? 'printType=$printType&printPart=$printPart' : 'printType=$printType';
+    final response = await get('/invoice/id/$id/export?$query');
+    if (response.statusCode == 200) {
+      return response.bodyBytes;
+    }
+    throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to export invoice');
   }
 
   Future<Map<String, dynamic>> exportAndEmailPriceList(String id, String email, String format) async {
@@ -816,6 +826,7 @@ class ApiService {
     String? invoiceId,
     String? customerPriceListId,
     required String printType,
+    String? printPart,
     int? priorityNum,
   }) async {
     final Map<String, dynamic> body = {
@@ -823,6 +834,7 @@ class ApiService {
     };
     if (invoiceId != null) body['invoiceId'] = invoiceId;
     if (customerPriceListId != null) body['customerPriceListId'] = customerPriceListId;
+    if (printPart != null) body['printPart'] = printPart;
     if (priorityNum != null) body['priorityNum'] = priorityNum;
 
     final response = await post('/print', body);
@@ -876,6 +888,9 @@ class ApiService {
           }
           if (job.containsKey('printType')) {
             job['printType'] = decodeEnum(job['printType']);
+          }
+          if (job.containsKey('printPart')) {
+            job['printPart'] = decodeEnum(job['printPart']);
           }
         }
       }

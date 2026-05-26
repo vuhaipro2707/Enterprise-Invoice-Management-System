@@ -28,20 +28,21 @@ func (h *PrintHandler) CreatePrintJob(c *fiber.Ctx) error {
 		InvoiceID           *string `json:"invoiceId"`
 		CustomerPriceListID *string `json:"customerPriceListId"`
 		PrintType           string  `json:"printType"`
+		PrintPart           *string `json:"printPart"`
 		PriorityNum         *int32  `json:"priorityNum"`
 	}
 
 	var req createPrintJobRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{
-			"error": "Invalid JSON body. Required keys: printType, invoiceId or customerPriceListId. Optional: priorityNum",
+			"error": "Invalid JSON body. Required keys: printType, invoiceId or customerPriceListId. Optional: priorityNum, printPart",
 		})
 	}
 
 	// Validation
 	if req.PrintType == "" || (req.InvoiceID == nil && req.CustomerPriceListID == nil) {
 		return c.Status(400).JSON(fiber.Map{
-			"error": "Missing required keys: printType, invoiceId or customerPriceListId, priorityNum(optional)",
+			"error": "Missing required keys: printType, invoiceId or customerPriceListId, priorityNum(optional), printPart(optional)",
 		})
 	}
 
@@ -75,7 +76,22 @@ func (h *PrintHandler) CreatePrintJob(c *fiber.Ctx) error {
 		cplID = &id
 	}
 
-	job, err := h.service.CreatePrintJob(c.Context(), invID, cplID, req.PrintType, req.PriorityNum)
+	var pPart *string
+	if invID != nil && req.PrintType == "Original" {
+		if req.PrintPart == nil || *req.PrintPart == "" {
+			defaultPart := "Default"
+			pPart = &defaultPart
+		} else {
+			pPart = req.PrintPart
+			if *pPart != "A" && *pPart != "B" && *pPart != "C" && *pPart != "Default" {
+				return c.Status(400).JSON(fiber.Map{
+					"error": "Invalid printPart value. Must be 'A', 'B', 'C', or 'Default'",
+				})
+			}
+		}
+	}
+
+	job, err := h.service.CreatePrintJob(c.Context(), invID, cplID, req.PrintType, pPart, req.PriorityNum)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -248,6 +264,7 @@ func flattenPrintJob(job sqlc.PrintQueue) fiber.Map {
 		"customerPriceListId": cplID,
 		"printStatus":         enumToString(job.PrintStatus),
 		"printType":           enumToString(job.PrintType),
+		"printPart":           enumToString(job.PrintPart),
 		"retryCount":          job.RetryCount.Int32,
 		"priorityNum":         job.PriorityNum.Int32,
 		"createdAt":            createdAt,
@@ -299,6 +316,7 @@ func flattenPrintJobsRow(row sqlc.GetPrintJobsRow) fiber.Map {
 		"customerPriceListId":  cplID,
 		"printStatus":          enumToString(row.PrintStatus),
 		"printType":            enumToString(row.PrintType),
+		"printPart":            enumToString(row.PrintPart),
 		"retryCount":           row.RetryCount.Int32,
 		"priorityNum":          row.PriorityNum.Int32,
 		"createdAt":             createdAt,

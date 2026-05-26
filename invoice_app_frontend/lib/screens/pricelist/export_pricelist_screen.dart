@@ -118,7 +118,7 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
     });
 
     try {
-      final bytes = await _apiService.exportPriceList(pricelistId, _selectedFormat);
+      final bytes = await _apiService.exportPriceList(pricelistId, _selectedFormat, pageSize: 'A4');
       if (mounted) {
         setState(() {
           final typedBytes = bytes as Uint8List;
@@ -188,7 +188,7 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
 
       // Save locally if selected
       if (_saveLocally) {
-        final bytes = _previewBytes ?? await _apiService.exportPriceList(pricelistId, _selectedFormat);
+        final bytes = _previewBytes ?? await _apiService.exportPriceList(pricelistId, _selectedFormat, pageSize: 'A4');
         final description = _priceList?['description'] ?? 'Bao_gia';
         final cleanDescription = description.replaceAll(' ', '_');
         
@@ -245,13 +245,131 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
     }
   }
 
+  Widget _buildSettingsPanel(BuildContext context, ColorScheme colorScheme, bool isDesktop) {
+    final buyerName = _priceList?['buyerName'] ?? 'Khách lẻ';
+    final buyerEmail = _buyerProfile?['email']?.toString() ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader('ĐỊNH DẠNG XUẤT FILE', colorScheme),
+        const SizedBox(height: 12),
+        _buildFormatSelector(colorScheme),
+        const SizedBox(height: 24),
+        
+        _buildSectionHeader('TÁC VỤ THỰC HIỆN', colorScheme),
+        const SizedBox(height: 12),
+        
+        // Save locally option
+        _buildActionCheckbox(
+          title: 'Lưu trực tiếp về máy',
+          subtitle: 'Tải tệp tin $_selectedFormat xuống thiết bị',
+          icon: Icons.download_for_offline_rounded,
+          value: _saveLocally,
+          onChanged: (val) => setState(() => _saveLocally = val ?? false),
+          colorScheme: colorScheme,
+        ),
+        const SizedBox(height: 12),
+
+        // Send to buyer option
+        _buildActionCheckbox(
+          title: 'Gửi email cho khách hàng',
+          subtitle: buyerEmail.isNotEmpty 
+              ? 'Tới: $buyerEmail' 
+              : 'Khách hàng $buyerName chưa cập nhật email',
+          icon: Icons.contact_mail_rounded,
+          value: _sendToBuyer,
+          enabled: buyerEmail.isNotEmpty,
+          onChanged: (val) => setState(() => _sendToBuyer = val ?? false),
+          colorScheme: colorScheme,
+        ),
+        const SizedBox(height: 12),
+
+        // Send to custom email option
+        _buildActionCheckbox(
+          title: 'Gửi tới email tùy chỉnh khác',
+          subtitle: 'Nhập địa chỉ hòm thư bất kỳ',
+          icon: Icons.alternate_email_rounded,
+          value: _sendToCustom,
+          onChanged: (val) => setState(() => _sendToCustom = val ?? false),
+          colorScheme: colorScheme,
+        ),
+        if (_sendToCustom) ...[
+          const SizedBox(height: 12),
+          Form(
+            key: _emailFormKey,
+            child: TextFormField(
+              controller: _customEmailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: 'Địa chỉ email nhận *',
+                prefixIcon: const Icon(Icons.email_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Vui lòng nhập địa chỉ email';
+                }
+                final emailRegex = RegExp(
+                    r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
+                if (!emailRegex.hasMatch(value.trim())) {
+                  return 'Định dạng email không hợp lệ';
+                }
+                return null;
+              },
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+
+        // Add to print queue option
+        _buildActionCheckbox(
+          title: 'Đưa vào hàng chờ in',
+          subtitle: 'In một bản duy nhất',
+          icon: Icons.print_rounded,
+          value: _addToPrintQueue,
+          onChanged: (val) => setState(() => _addToPrintQueue = val ?? false),
+          colorScheme: colorScheme,
+        ),
+
+        const SizedBox(height: 32),
+        
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton(
+            onPressed: _handleExecution,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 2,
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.flash_on_rounded),
+                SizedBox(width: 8),
+                Text(
+                  'TIẾN HÀNH THỰC HIỆN',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDesktop = MediaQuery.of(context).size.width > 920;
-
-    final buyerName = _priceList?['buyerName'] ?? 'Khách lẻ';
-    final buyerEmail = _buyerProfile?['email']?.toString() ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -261,155 +379,74 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Stack(
               children: [
-                Row(
-                  children: [
-                    // Settings Panel (Left Column)
-                    Expanded(
-                      flex: isDesktop ? 4 : 10,
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildSectionHeader('ĐỊNH DẠNG XUẤT FILE', colorScheme),
-                            const SizedBox(height: 12),
-                            _buildFormatSelector(colorScheme),
-                            const SizedBox(height: 24),
-                            
-                            _buildSectionHeader('TÁC VỤ THỰC HIỆN', colorScheme),
-                            const SizedBox(height: 12),
-                            
-                            // Save locally option
-                            _buildActionCheckbox(
-                              title: 'Lưu trực tiếp về máy',
-                              subtitle: 'Tải tệp tin $_selectedFormat xuống thiết bị',
-                              icon: Icons.download_for_offline_rounded,
-                              value: _saveLocally,
-                              onChanged: (val) => setState(() => _saveLocally = val ?? false),
-                              colorScheme: colorScheme,
+                isDesktop
+                    ? Row(
+                        children: [
+                          // Settings Panel (Left Column)
+                          Expanded(
+                            flex: 4,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(20.0),
+                              child: _buildSettingsPanel(context, colorScheme, true),
                             ),
-                            const SizedBox(height: 12),
-
-                            // Send to buyer option
-                            _buildActionCheckbox(
-                              title: 'Gửi email cho khách hàng',
-                              subtitle: buyerEmail.isNotEmpty 
-                                  ? 'Tới: $buyerEmail' 
-                                  : 'Khách hàng $buyerName chưa cập nhật email',
-                              icon: Icons.contact_mail_rounded,
-                              value: _sendToBuyer,
-                              enabled: buyerEmail.isNotEmpty,
-                              onChanged: (val) => setState(() => _sendToBuyer = val ?? false),
-                              colorScheme: colorScheme,
+                          ),
+                          
+                          // Live Document Preview Panel (Right Column - Desktop Only)
+                          Expanded(
+                            flex: 6,
+                            child: Container(
+                              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.15),
+                              padding: const EdgeInsets.all(32.0),
+                              alignment: Alignment.center,
+                              child: _buildDocumentPreview(colorScheme),
                             ),
-                            const SizedBox(height: 12),
-
-                            // Send to custom email option
-                            _buildActionCheckbox(
-                              title: 'Gửi tới email tùy chỉnh khác',
-                              subtitle: 'Nhập địa chỉ hòm thư bất kỳ',
-                              icon: Icons.alternate_email_rounded,
-                              value: _sendToCustom,
-                              onChanged: (val) => setState(() => _sendToCustom = val ?? false),
-                              colorScheme: colorScheme,
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Add to print queue option
-                            _buildActionCheckbox(
-                              title: 'Đưa vào hàng chờ in',
-                              subtitle: 'In một bản duy nhất',
-                              icon: Icons.print_rounded,
-                              value: _addToPrintQueue,
-                              onChanged: (val) => setState(() => _addToPrintQueue = val ?? false),
-                              colorScheme: colorScheme,
-                            ),
-                            
-                            if (_sendToCustom) ...[
-                              const SizedBox(height: 12),
-                              Form(
-                                key: _emailFormKey,
-                                child: TextFormField(
-                                  controller: _customEmailController,
-                                  keyboardType: TextInputType.emailAddress,
-                                  decoration: InputDecoration(
-                                    labelText: 'Địa chỉ email nhận *',
-                                    prefixIcon: const Icon(Icons.email_outlined),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Vui lòng nhập địa chỉ email';
-                                    }
-                                    final emailRegex = RegExp(
-                                        r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
-                                    if (!emailRegex.hasMatch(value.trim())) {
-                                      return 'Định dạng email không hợp lệ';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                            ],
-
-                            const SizedBox(height: 32),
-                            
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed: _handleExecution,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: colorScheme.primary,
-                                  foregroundColor: colorScheme.onPrimary,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  elevation: 2,
-                                ),
-                                child: const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.flash_on_rounded),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'TIẾN HÀNH THỰC HIỆN',
-                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            
-                            if (!isDesktop) ...[
-                              const SizedBox(height: 40),
-                              _buildSectionHeader('BẢN XEM TRƯỚC TÀI LIỆU', colorScheme),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                height: 400,
-                                child: _buildDocumentPreview(colorScheme),
-                              ),
-                            ]
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    // Live Document Preview Panel (Right Column - Desktop Only)
-                    if (isDesktop)
-                      Expanded(
-                        flex: 6,
-                        child: Container(
-                          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.15),
-                          padding: const EdgeInsets.all(32.0),
-                          alignment: Alignment.center,
-                          child: _buildDocumentPreview(colorScheme),
-                        ),
+                          )
+                        ],
                       )
-                  ],
-                ),
+                    : Column(
+                        children: [
+                          // In mobile, PDF preview takes up the top part (Expanded)
+                          Expanded(
+                            child: Container(
+                              color: colorScheme.surfaceContainerLowest,
+                              padding: const EdgeInsets.all(12.0),
+                              child: _buildDocumentPreview(colorScheme),
+                            ),
+                          ),
+                          // Metadata / Settings collapsible panel at the bottom
+                          Container(
+                            decoration: BoxDecoration(
+                              color: colorScheme.surface,
+                              border: Border(
+                                top: BorderSide(
+                                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                                ),
+                              ),
+                            ),
+                            child: ExpansionTile(
+                              initiallyExpanded: true,
+                              title: Text(
+                                'Cấu hình & Tác vụ xuất',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                              children: [
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxHeight: MediaQuery.of(context).size.height * 0.45,
+                                  ),
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: _buildSettingsPanel(context, colorScheme, false),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                 
                 // Premium Progress step-by-step loading overlay
                 if (_isExecuting) _buildProgressOverlay(colorScheme),
@@ -608,8 +645,9 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
       );
     }
 
+    Widget content;
     if (_isFrameLoading) {
-      return Center(
+      content = Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -622,36 +660,95 @@ class _ExportPriceListScreenState extends State<ExportPriceListScreen> {
           ],
         ),
       );
-    }
-    
-    if (_previewBytes != null) {
-      return buildPreviewWidget(
-        context,
-        _previewBytes!,
-        _selectedFormat,
-        viewId: _selectedFormat == 'pdf' ? _pdfViewId : null,
+    } else if (_previewBytes != null) {
+      content = ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: buildPreviewWidget(
+          context,
+          _previewBytes!,
+          _selectedFormat,
+          viewId: _selectedFormat == 'pdf' ? _pdfViewId : null,
+        ),
+      );
+    } else {
+      content = Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 48, color: colorScheme.error),
+            const SizedBox(height: 16),
+            const Text(
+              'Không thể tải bản xem trước trực tiếp',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              onPressed: _loadPreviewBytes,
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Tải lại bản xem trước'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.secondaryContainer,
+                foregroundColor: colorScheme.onSecondaryContainer,
+                elevation: 0,
+              ),
+            ),
+          ],
+        ),
       );
     }
-    
-    return Center(
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.1)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      color: colorScheme.surface,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.warning_amber_rounded, size: 48, color: colorScheme.error),
-          const SizedBox(height: 16),
-          const Text(
-            'Không thể tải bản xem trước trực tiếp',
-            style: TextStyle(fontWeight: FontWeight.bold),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            color: colorScheme.surfaceContainer,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      _selectedFormat == 'pdf' ? Icons.picture_as_pdf_rounded : Icons.table_chart_rounded,
+                      size: 18,
+                      color: _selectedFormat == 'pdf' ? Colors.redAccent : Colors.green,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _selectedFormat == 'pdf' ? 'BẢN XEM TRƯỚC PDF (A4)' : 'BẢN XEM TRƯỚC EXCEL (.xlsx)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+                if (!_isFrameLoading && _previewBytes != null)
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 18),
+                    onPressed: _loadPreviewBytes,
+                    tooltip: 'Tải lại',
+                    style: IconButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      minimumSize: Size.zero,
+                    ),
+                  ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          ElevatedButton.icon(
-            onPressed: _loadPreviewBytes,
-            icon: const Icon(Icons.refresh, size: 16),
-            label: const Text('Tải lại bản xem trước'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colorScheme.secondaryContainer,
-              foregroundColor: colorScheme.onSecondaryContainer,
-              elevation: 0,
+          Expanded(
+            child: Container(
+              color: colorScheme.surfaceContainerLowest,
+              child: content,
             ),
           ),
         ],

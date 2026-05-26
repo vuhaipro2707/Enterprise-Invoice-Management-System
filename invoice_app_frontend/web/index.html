@@ -31,6 +31,12 @@
 
   <title>invoice_app_frontend</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- PDF.js CDN for pdfx web support -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js";
+  </script>
 </head>
 <body>
   <!--
