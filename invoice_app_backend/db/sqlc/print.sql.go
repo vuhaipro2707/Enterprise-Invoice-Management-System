@@ -62,6 +62,31 @@ func (q *Queries) CreatePrintJob(ctx context.Context, arg CreatePrintJobParams) 
 	return i, err
 }
 
+const getLatestPrintingJob = `-- name: GetLatestPrintingJob :one
+SELECT print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at FROM print_queue
+WHERE print_status = 'Printing'
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestPrintingJob(ctx context.Context) (PrintQueue, error) {
+	row := q.db.QueryRowContext(ctx, getLatestPrintingJob)
+	var i PrintQueue
+	err := row.Scan(
+		&i.PrintJobID,
+		&i.InvoiceID,
+		&i.CustomerPriceListID,
+		&i.PrintStatus,
+		&i.PrintType,
+		&i.PrintPart,
+		&i.RetryCount,
+		&i.PriorityNum,
+		&i.CreatedAt,
+		&i.PrintedAt,
+	)
+	return i, err
+}
+
 const getPrintJobs = `-- name: GetPrintJobs :many
 SELECT 
     pq.print_job_id,

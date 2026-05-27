@@ -20,6 +20,7 @@ import (
 	router "invoice_backend/app"
 	"invoice_backend/app/backup"
 	"invoice_backend/app/dbconn"
+	"invoice_backend/app/print"
 
 	sqlc "invoice_backend/db/sqlc"
 
@@ -34,26 +35,29 @@ func getEnv(key, fallback string) string {
 }
 
 func main() {
-	// 1. Load Env ngay lập tức khi vào App
+	// 1. Load Environment Variables on Startup
 	err := godotenv.Load(".env")
 	if err != nil {
 		dir, _ := os.Getwd()
-		fmt.Printf("Lỗi: Không tìm thấy file .env tại: %s/%s\n", dir, ".env")
+		fmt.Printf("Error: .env file not found at: %s/%s\n", dir, ".env")
 	} else {
-		fmt.Println("Đã load thành công file .env")
+		fmt.Println("Successfully loaded .env file")
 	}
 
-	// 2. Đọc biến (Nên dùng os.Getenv trực tiếp cho gọn nếu đã có hàm fallback)
-	dbHost := getEnv("POSTGRES_HOST", "localhost")
+	// 2. Read Environment Variables
+	dbHost := "localhost"
+	if os.Getenv("APP_ENV") == "production" {
+		dbHost = getEnv("POSTGRES_HOST", "localhost")
+	}
 	dbPort := getEnv("POSTGRES_PORT", "5432")
 	dbUser := getEnv("POSTGRES_USER", "admin")
 	dbPass := getEnv("POSTGRES_PASSWORD", "123")
-	dbName := getEnv("POSTGRES_NAME", "invoice_management")
+	dbName := getEnv("POSTGRES_DB", "invoice_management")
 	appPort := getEnv("PORT", "8080")
 
-	// 3. Setup DB Connection (Để sau khi đã có thông tin từ Env)
-	fmt.Println("Đang kết nối tới DB tại:", dbHost)
-	fmt.Println("App chuẩn bị chạy ở Port:", appPort)
+	// 3. Setup DB Connection
+	fmt.Println("Connecting to Database at:", dbHost)
+	fmt.Println("App is preparing to run on Port:", appPort)
 
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPass, dbHost, dbPort, dbName)
 
@@ -64,35 +68,42 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Thiết lập db cho connection sharing để có thể bắt đầu transactions trong services
+	// Setup DB connection sharing for starting transactions in services
 	dbconn.DB = db
 
 	repo := sqlc.New(db)
 
 	ctx := context.Background()
 
-	// Hash password cho admin
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
+	// 3. Initialize Admin Account if not exists (Idempotent)
+	_, err = repo.GetAccountByUsername(ctx, "admin")
 	if err != nil {
-		log.Fatal("Lỗi hash password:", err)
-	}
+		if err == sql.ErrNoRows {
+			adminPassword := getEnv("ADMIN_PASSWORD", "admin")
+			hashedPassword, hashErr := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+			if hashErr != nil {
+				log.Fatal("Error hashing password for Admin:", hashErr)
+			}
 
-	admin, err := repo.CreateAccount(ctx, sqlc.CreateAccountParams{
-		Username: "admin",
-		Name:     "Admin Hệ Thống",
-		Password: string(hashedPassword),
-	})
-
-	admin, err = repo.GetAccountByUsername(ctx, "admin")
-
-	if err == nil {
-		fmt.Println("ℹ️ Admin đã tồn tại, bỏ qua bước khởi tạo.")
+			_, err = repo.CreateAccount(ctx, sqlc.CreateAccountParams{
+				Username: "admin",
+				Name:     "System Admin",
+				Password: string(hashedPassword),
+			})
+			if err != nil {
+				log.Println("⚠️ Error initializing Admin account:", err)
+			} else {
+				fmt.Println("✅ Admin account initialized successfully!")
+			}
+		} else {
+			log.Println("⚠️ Error checking Admin account:", err)
+		}
 	} else {
-		fmt.Printf("✅ Admin đã được tạo: %+v\n", admin)
+		fmt.Println("ℹ️ Admin account already exists, skipping initialization.")
 	}
 
-	// 3.5 Khởi tạo Global Settings nếu chưa tồn tại (Idempotent)
-	defaultMail := getEnv("DEFAULT_MAIL", "vuhaipro2707@gmail.com")
+	// 3.5 Initialize Global Settings if not exists (Idempotent)
+	defaultMail := getEnv("DEFAULT_MAIL", "FromHaideptraiWithLove@gmail.com")
 	companyName := getEnv("COMPANY_NAME", "Công ty Hải Minh")
 	phoneNumber := getEnv("PHONE_NUMBER", "0909090909")
 
@@ -106,11 +117,11 @@ func main() {
 		_, initErr := repo.InsertGlobalSettings(ctx, json.RawMessage(settingsBytes))
 		switch initErr {
 		case nil:
-			fmt.Println("✅ Khởi tạo Global Settings thành công.")
+			fmt.Println("✅ Global Settings initialized successfully.")
 		case sql.ErrNoRows:
-			fmt.Println("✅ Global Settings đã tồn tại, bỏ qua bước khởi tạo.")
+			fmt.Println("✅ Global Settings already exist, skipping initialization.")
 		default:
-			fmt.Println("⚠️ Lỗi khởi tạo Global Settings:", initErr)
+			fmt.Println("⚠️ Error initializing Global Settings:", initErr)
 		}
 	}
 
@@ -133,7 +144,7 @@ func main() {
 
 	app.Get("/ping", func(c *fiber.Ctx) error {
 		return c.Status(200).JSON(fiber.Map{
-			"message": "Backend Go đã sẵn sàng!",
+			"message": "Go Backend is ready!",
 			"db_info": fiber.Map{
 				"host": dbHost,
 				"port": dbPort,
@@ -143,36 +154,41 @@ func main() {
 		})
 	})
 
-	// 4. Setup Routes sau khi đã có Repo
+	// 4. Setup Routes after Repo is initialized
 	router.SetupRoutes(app, repo)
 
-	// --- CẤU HÌNH CRONJOB BACKUP ---
+	// --- CONFIGURE BACKUP CRONJOB ---
 	backupService := backup.NewBackupService(repo)
 	c := cron.New()
 	_, cronErr := c.AddFunc("*/10 * * * *", func() {
 		_ = backupService.RunBackupTask(context.Background())
 	})
 	if cronErr != nil {
-		log.Printf("❌ Lỗi cấu hình Cron: %v\n", cronErr)
+		log.Printf("❌ Cron configuration error: %v\n", cronErr)
 	} else {
 		c.Start()
-		fmt.Println("⏰ Đã kích hoạt CronJob tự động backup lên Google Drive (mỗi 10 phút)")
+		fmt.Println("⏰ Automatic database backup CronJob activated (every 10 minutes)")
 	}
 
-	// 5. Chạy App với Port đã lấy từ Env
+	// --- START BACKGROUND PRINT QUEUE MONITOR DAEMON ---
+	printService := print.NewPrintService(repo)
+	printDaemon := print.NewPrintDaemon(printService, "./printing_folder")
+	printDaemon.SyncAndStart(context.Background())
+
+	// 5. Start Application on specified Port
 	log.Fatal(app.Listen(":" + appPort))
 }
 
 func runDBMigration(migrationURL string, dbURL string) {
 	m, err := migrate.New(migrationURL, dbURL)
 	if err != nil {
-		log.Fatal("Không thể khởi tạo migration:", err)
+		log.Fatal("Could not initialize migrations:", err)
 	}
 
-	// Lệnh Up này sẽ tự động so sánh version
+	// Up command automatically compares versions and runs missing migrations
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		log.Fatal("Lỗi khi chạy migration up:", err)
+		log.Fatal("Error running migrations up:", err)
 	}
 
-	log.Println("Database migration hoàn tất (hoặc không có thay đổi)!")
+	log.Println("Database migration completed (or no change detected)!")
 }

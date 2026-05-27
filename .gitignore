@@ -22,6 +22,7 @@ nginx/ssl/*.pem
 nginx/ssl/*.crt
 nginx/ssl/*.key
 nginx/nginx.conf
+nginx/letsencrypt/
 invoice_app_backend/backups/
 .agents/
 invoice_app_backend/debug_lines.txt

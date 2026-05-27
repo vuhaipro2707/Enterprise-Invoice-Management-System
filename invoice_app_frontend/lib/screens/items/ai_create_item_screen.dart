@@ -117,7 +117,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
         _aiResponse = suggestions;
         
         // Parse segments & do not select by default (user will select explicitly)
-        final segments = suggestions['name_segments'] as List<dynamic>? ?? [];
+        final segments = suggestions['nameSegments'] as List<dynamic>? ?? [];
         for (int i = 0; i < segments.length; i++) {
           final seg = segments[i];
           if (seg['type'] == 'options') {
@@ -126,7 +126,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
         }
 
         // Initialize price controllers for conditional units
-        final condUnits = suggestions['conditional_units'] as Map<String, dynamic>? ?? {};
+        final condUnits = suggestions['conditionalUnits'] as Map<String, dynamic>? ?? {};
         condUnits.forEach((optionName, unitsList) {
           _priceControllers[optionName] = {};
           _priceFocusNodes[optionName] = {};
@@ -137,7 +137,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
 
           for (var u in list) {
             final uName = u['unitName'] as String;
-            final suggestionPrice = u['price_suggestion'] as int? ?? 0;
+            final suggestionPrice = u['priceSuggestion'] as int? ?? 0;
             final controller = TextEditingController(
               text: _currencyFormatter.format(suggestionPrice),
             );
@@ -235,7 +235,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
 
   List<Map<String, dynamic>> _generateCombinations() {
     if (_aiResponse == null) return [];
-    final segments = _aiResponse!['name_segments'] as List<dynamic>? ?? [];
+    final segments = _aiResponse!['nameSegments'] as List<dynamic>? ?? [];
 
     List<List<String>> segmentVariants = [];
     List<String> segmentQuyCachOptions = [];
@@ -251,7 +251,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
           return [];
         }
         segmentVariants.add(selected);
-        if (seg['id'] == 'quy_cach') {
+        if (seg['id'] == 'specification') {
           segmentQuyCachOptions = selected;
         }
       }
@@ -285,8 +285,8 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
       }
 
       List<Map<String, dynamic>> unitsPayload = [];
-      if (matchedQuyCach != null && _aiResponse!['conditional_units'] != null) {
-        final rawUnits = _aiResponse!['conditional_units'][matchedQuyCach] as List<dynamic>?;
+      if (matchedQuyCach != null && _aiResponse!['conditionalUnits'] != null) {
+        final rawUnits = _aiResponse!['conditionalUnits'][matchedQuyCach] as List<dynamic>?;
         if (rawUnits != null) {
           for (var ru in rawUnits) {
             final uName = ru['unitName'] as String;
@@ -308,7 +308,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
           }
         }
       } else {
-        final baseUnitName = _aiResponse!['base_unit_name'] as String? ?? 'Cái';
+        final baseUnitName = _aiResponse!['baseUnitName'] as String? ?? 'Cái';
         unitsPayload.add({
           'unitName': baseUnitName,
           'ratio': 1,
@@ -932,7 +932,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
   }
 
   Widget _buildOptionsConfigurator() {
-    final segments = _aiResponse!['name_segments'] as List<dynamic>? ?? [];
+    final segments = _aiResponse!['nameSegments'] as List<dynamic>? ?? [];
     final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
@@ -962,7 +962,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
         }
 
         final title = seg['title'] as String? ?? 'Tùy chọn';
-        final isQuyCach = seg['id'] == 'quy_cach';
+        final isQuyCach = seg['id'] == 'specification';
         final options = List<String>.from(seg['options'] ?? []);
         final selected = _selectedOptions[segIdx] ?? [];
 
@@ -1037,11 +1037,11 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
   Widget _buildPriceEditors() {
     final colorScheme = Theme.of(context).colorScheme;
 
-    // Find the quy_cach segment
-    final segments = _aiResponse!['name_segments'] as List<dynamic>? ?? [];
+    // Find the specification segment
+    final segments = _aiResponse!['nameSegments'] as List<dynamic>? ?? [];
     int quyCachIdx = -1;
     for (int i = 0; i < segments.length; i++) {
-      if (segments[i]['id'] == 'quy_cach') {
+      if (segments[i]['id'] == 'specification') {
         quyCachIdx = i;
         break;
       }
@@ -1079,7 +1079,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
           final controllersMap = _priceControllers[qcOption];
           if (controllersMap == null) return const SizedBox.shrink();
 
-          final condUnits = _aiResponse!['conditional_units']?[qcOption] as List<dynamic>? ?? [];
+          final condUnits = _aiResponse!['conditionalUnits']?[qcOption] as List<dynamic>? ?? [];
 
           return Card(
             elevation: 0,

@@ -144,33 +144,6 @@ echo "✅ pubspec.yaml uploaded."
 
 echo ""
 
-# ─── CONFIG FRONTEND .ENV FOR PRODUCTION ──────────────────────────────────────
-echo "Configuring invoice_app_frontend/.env for production build with api.$DOMAIN..."
-ENV_FILE="./invoice_app_frontend/.env"
-KEY="API_URL"
-VALUE="https://api.$DOMAIN:${DEPLOY_HTTPS_PORT:-27443}"
-
-if [ -f "$ENV_FILE" ]; then
-    TEMP_FILE="${ENV_FILE}.tmp"
-    FOUND=0
-    rm -f "$TEMP_FILE"
-    
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        if [[ "$line" =~ ^${KEY}= ]]; then
-            echo "${KEY}=${VALUE}" >> "$TEMP_FILE"
-            FOUND=1
-        else
-            echo "$line" >> "$TEMP_FILE"
-        fi
-    done < "$ENV_FILE"
-    
-    if [ $FOUND -eq 0 ]; then
-        echo "${KEY}=${VALUE}" >> "$TEMP_FILE"
-    fi
-    mv "$TEMP_FILE" "$ENV_FILE"
-else
-    echo "${KEY}=${VALUE}" > "$ENV_FILE"
-fi
 
 # ─── FLUTTER BUILD & UPLOAD ───────────────────────────────────────────────────
 REMOTE_SERVER="$REMOTE_SERVER" REMOTE_PATH="$REMOTE_PATH" bash ./build_flutter.sh
@@ -201,6 +174,14 @@ ssh "$REMOTE_SERVER" "mkdir -p $REMOTE_PATH/nginx"
 scp ./nginx/nginx.conf.template "$REMOTE_SERVER:$REMOTE_PATH/nginx/nginx.conf.template"
 if [ $? -ne 0 ]; then
     echo "❌ ERROR: Failed to upload nginx.conf.template."
+    exit 1
+fi
+
+echo "Uploading certbot configurations..."
+ssh "$REMOTE_SERVER" "mkdir -p $REMOTE_PATH/certbot"
+rsync -avz --delete "./certbot/" "$REMOTE_SERVER:$REMOTE_PATH/certbot/"
+if [ $? -ne 0 ]; then
+    echo "❌ ERROR: Failed to upload certbot configurations."
     exit 1
 fi
 echo "✅ Configuration files uploaded."

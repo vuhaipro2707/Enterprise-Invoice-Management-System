@@ -23,46 +23,42 @@ else
 fi
 echo ""
 
-# --- Flutter Web ---
-BUILD_WEB=true
-if [ -d "$WEB_BUILD_DIR" ]; then
-    read -p "Flutter Web build already exists. Rebuild? (y/N): " REBUILD_WEB
-    if [[ ! "$REBUILD_WEB" =~ ^[Yy]$ ]]; then
-        BUILD_WEB=false
-        echo "⏭  Skipping Flutter Web build."
-    fi
+# --- Clean & Build confirmation ---
+read -p "Clean build cache and rebuild everything? (y/N): " CONFIRM_BUILD
+echo ""
+
+if [[ ! "$CONFIRM_BUILD" =~ ^[Yy]$ ]]; then
+    echo "⏭  Skipping build and upload."
+    exit 0
 fi
 
-if [ "$BUILD_WEB" = true ]; then
-    echo "Building Flutter Web..."
-    (cd "$FRONTEND_DIR" && flutter build web --release)
-    if [ $? -ne 0 ]; then
-        echo "❌ ERROR: Flutter Web build failed."
-        exit 1
-    fi
-    echo "✅ Flutter Web build done."
+echo "🧹 Cleaning Flutter build cache..."
+(cd "$FRONTEND_DIR" && flutter clean && flutter pub get)
+if [ $? -ne 0 ]; then
+    echo "❌ ERROR: Flutter clean/pub get failed."
+    exit 1
 fi
+echo "✅ Clean complete."
+echo ""
+
+# --- Flutter Web ---
+echo "Building Flutter Web..."
+(cd "$FRONTEND_DIR" && flutter build web --release)
+if [ $? -ne 0 ]; then
+    echo "❌ ERROR: Flutter Web build failed."
+    exit 1
+fi
+echo "✅ Flutter Web build done."
 echo ""
 
 # --- Flutter APK ---
-BUILD_APK=true
-if [ -f "$APK_BUILD_PATH" ]; then
-    read -p "Flutter APK already exists. Rebuild? (y/N): " REBUILD_APK
-    if [[ ! "$REBUILD_APK" =~ ^[Yy]$ ]]; then
-        BUILD_APK=false
-        echo "⏭  Skipping Flutter APK build."
-    fi
+echo "Building Flutter APK (release)..."
+(cd "$FRONTEND_DIR" && flutter build apk --release)
+if [ $? -ne 0 ]; then
+    echo "❌ ERROR: Flutter APK build failed."
+    exit 1
 fi
-
-if [ "$BUILD_APK" = true ]; then
-    echo "Building Flutter APK (release)..."
-    (cd "$FRONTEND_DIR" && flutter build apk --release)
-    if [ $? -ne 0 ]; then
-        echo "❌ ERROR: Flutter APK build failed."
-        exit 1
-    fi
-    echo "✅ Flutter APK build done."
-fi
+echo "✅ Flutter APK build done."
 echo ""
 
 if [ "$UPLOAD" = true ]; then
@@ -79,8 +75,8 @@ if [ "$UPLOAD" = true ]; then
 
     # --- Upload APK ---
     echo "Uploading Flutter APK to server..."
-    ssh "$REMOTE_SERVER" "mkdir -p $REMOTE_PATH/invoice_app_frontend/build/app/outputs/apk/release"
-    scp "$APK_BUILD_PATH" "$REMOTE_SERVER:$REMOTE_PATH/invoice_app_frontend/build/app/outputs/apk/release/app-release.apk"
+    ssh "$REMOTE_SERVER" "mkdir -p $REMOTE_PATH/invoice_app_frontend/build/app/outputs/flutter-apk"
+    scp "$APK_BUILD_PATH" "$REMOTE_SERVER:$REMOTE_PATH/invoice_app_frontend/build/app/outputs/flutter-apk/app-release.apk"
     if [ $? -ne 0 ]; then
         echo "❌ ERROR: Failed to upload Flutter APK."
         exit 1

@@ -12,7 +12,7 @@ services:
       # Named volume for safe persistent PostgreSQL storage
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d invoice_management"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d invoice_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -34,7 +34,7 @@ services:
 
   # 3. Backend Go (Internal)
   backend:
-    image: haideptrai2707/invoice_app_backend:v1
+    image: invoice_app_backend:latest
     container_name: invoice_backend
     restart: always
     depends_on:
@@ -47,10 +47,12 @@ services:
       - "8090"
     volumes:
       # Mount for release apk
-      - ./invoice_app_frontend/pubspec.yaml:/invoice_app_frontend/pubspec.yaml:ro
-      - ./invoice_app_frontend/build/app/outputs/apk/release/app-release.apk:/invoice_app_frontend/build/app/outputs/apk/release/app-release.apk:ro
+      - ./invoice_app_frontend/pubspec.yaml:/root/invoice_app_frontend/pubspec.yaml:ro
+      - ./invoice_app_frontend/build/app/outputs/flutter-apk/app-release.apk:/root/invoice_app_frontend/build/app/outputs/apk/release/app-release.apk:ro
       # Mount backup folder
       - ./invoice_app_backend/backups:/root/backups
+      # Mount printing folder
+      - ${PRINT_FOLDER_PATH}:/root/printing_folder
 
   # 4. Frontend Web (Forward public)
   gateway:
@@ -68,6 +70,28 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - backend
+
+  # 5. Certbot - DNS Challenge Auto Renewal (Cloudflare)
+  certbot:
+    build:
+      context: ./certbot
+      dockerfile: Dockerfile
+    container_name: invoice_certbot
+    restart: unless-stopped
+    environment:
+      - DOMAIN=${DOMAIN}
+      - CERTBOT_EMAIL=${CERTBOT_EMAIL}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+    volumes:
+      # Certbot persistent data (certs, accounts, etc.) mounted directly to host directory for easy monitoring
+      - ./nginx/letsencrypt:/etc/letsencrypt
+      # Shared with nginx — certbot writes fullchain.pem & privkey.pem here
+      - ./nginx/ssl:/etc/nginx/ssl
+      # Docker socket to send reload signal to nginx container
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    depends_on:
+      - gateway
 
 volumes:
   pgadmin_data:

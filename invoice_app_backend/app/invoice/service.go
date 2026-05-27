@@ -154,8 +154,17 @@ func (s *InvoiceService) GetNextBuyerCodeInternal(ctx context.Context) string {
 	return fmt.Sprintf("KH-%03d", num+1)
 }
 
+func getHCMTimeLocation() *time.Location {
+	loc, err := time.LoadLocation("Asia/Ho_Chi_Minh")
+	if err != nil {
+		// Fallback to UTC+7 FixedZone if tzdata is not available
+		return time.FixedZone("Asia/Ho_Chi_Minh", 7*60*60)
+	}
+	return loc
+}
+
 func (s *InvoiceService) GetNextInvoiceCodeInternal(ctx context.Context) string {
-	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+	loc := getHCMTimeLocation()
 	now := time.Now().In(loc)
 	prefix := fmt.Sprintf("INV-%02d%02d%02d-", now.Year()%100, now.Month(), now.Day())
 	pattern := prefix + "%"

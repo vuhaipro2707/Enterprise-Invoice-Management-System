@@ -77,3 +77,9 @@ SET
     printed_at = CASE WHEN sqlc.narg('print_status')::print_status_enum = 'Completed' THEN NOW() ELSE printed_at END
 WHERE print_job_id = sqlc.arg('print_job_id')::uuid
 RETURNING *;
+
+-- name: GetLatestPrintingJob :one
+SELECT * FROM print_queue
+WHERE print_status = 'Printing'
+ORDER BY created_at DESC
+LIMIT 1;

@@ -1,12 +1,12 @@
 # Stage 1: Build
-FROM golang:1.22-alpine AS builder
+FROM golang:alpine AS builder
 WORKDIR /app
 COPY . .
 RUN go build -o main .
 
 # Stage 2: Run
 FROM alpine:latest
-RUN apk add --no-cache postgresql16-client
+RUN apk add --no-cache postgresql16-client tzdata
 WORKDIR /root/
 COPY --from=builder /app/main .
 COPY --from=builder /app/db/migrations ./db/migrations

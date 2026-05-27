@@ -110,7 +110,7 @@ func (h *InvoiceHandler) CreateInvoice(c *fiber.Ctx) error {
 		}
 	}
 
-	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+	loc := getHCMTimeLocation()
 	prefix := fmt.Sprintf("INV-%02d%02d%02d-", time.Now().In(loc).Year()%100, time.Now().In(loc).Month(), time.Now().In(loc).Day())
 	if strings.HasPrefix(req.InvoiceCode, prefix) {
 		next := h.service.GetNextInvoiceCodeInternal(context.Background())
@@ -1250,7 +1250,7 @@ func (h *InvoiceHandler) PatchInvoice(c *fiber.Ctx) error {
 	if raw, ok := body["invoiceCode"]; ok {
 		var val string
 		json.Unmarshal(raw, &val)
-		loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+		loc := getHCMTimeLocation()
 		prefix := fmt.Sprintf("INV-%02d%02d%02d-", time.Now().In(loc).Year()%100, time.Now().In(loc).Month(), time.Now().In(loc).Day())
 		if strings.HasPrefix(val, prefix) {
 			next := h.service.GetNextInvoiceCodeInternal(context.Background())

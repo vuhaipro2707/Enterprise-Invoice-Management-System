@@ -17,7 +17,7 @@ func NewReleaseService() *ReleaseService {
 func (s *ReleaseService) GetVersion() (string, error) {
 	// If running in production container, use the exact production volume mount path
 	if os.Getenv("APP_ENV") == "production" {
-		prodPath := "/invoice_app_frontend/pubspec.yaml"
+		prodPath := "./invoice_app_frontend/pubspec.yaml"
 		return s.parseVersion(prodPath)
 	}
 
@@ -72,7 +72,7 @@ func (s *ReleaseService) parseVersion(filePath string) (string, error) {
 func (s *ReleaseService) GetApkPath() (string, error) {
 	// If running in production container, use the exact production volume mount path
 	if os.Getenv("APP_ENV") == "production" {
-		prodPath := "/invoice_app_frontend/build/app/outputs/apk/release/app-release.apk"
+		prodPath := "./invoice_app_frontend/build/app/outputs/apk/release/app-release.apk"
 		if _, err := os.Stat(prodPath); err == nil {
 			return prodPath, nil
 		}

@@ -31,23 +31,26 @@ func (s *BackupService) RunBackupTask(ctx context.Context) error {
 	log.Println("⏱️ Starting automatic database backup process...")
 
 	// 1. Get database settings and Cloudflare R2 configurations from environment
-	dbHost := os.Getenv("DB_HOST")
-	if dbHost == "" {
-		dbHost = "localhost"
+	dbHost := "localhost"
+	if os.Getenv("APP_ENV") == "production" {
+		dbHost = os.Getenv("POSTGRES_HOST")
+		if dbHost == "" {
+			dbHost = "localhost"
+		}
 	}
-	dbPort := os.Getenv("DB_PORT")
+	dbPort := os.Getenv("POSTGRES_PORT")
 	if dbPort == "" {
 		dbPort = "5432"
 	}
-	dbUser := os.Getenv("DB_USER")
+	dbUser := os.Getenv("POSTGRES_USER")
 	if dbUser == "" {
 		dbUser = "admin"
 	}
-	dbPass := os.Getenv("DB_PASSWORD")
+	dbPass := os.Getenv("POSTGRES_PASSWORD")
 	if dbPass == "" {
 		dbPass = "123"
 	}
-	dbName := os.Getenv("DB_NAME")
+	dbName := os.Getenv("POSTGRES_DB")
 	if dbName == "" {
 		dbName = "invoice_db"
 	}
@@ -85,7 +88,7 @@ func (s *BackupService) RunBackupTask(ctx context.Context) error {
 		}
 	} else {
 		log.Println("ℹ️ pg_dump not found in host PATH. Attempting fallback via Docker container (invoice_db_dev)...")
-		
+
 		// Create the local file to stream docker output into
 		f, err := os.Create(filePath)
 		if err != nil {

@@ -185,6 +185,57 @@ chmod +x cd_ssh.sh
 
 ---
 
+## 💻 Local Production Deployment (For testing on the current machine)
+If you want to run the full production environment (Docker Compose, Nginx Gateway, Production SSL) directly on your local machine:
+
+### Step 1: Run the Setup Script
+Initialize directory structures and populate Nginx templates:
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+### Step 2: Build Flutter Assets Locally
+Compile the production Flutter Web assets and release Android APK:
+```bash
+chmod +x build_flutter.sh
+./build_flutter.sh
+```
+
+
+### Step 3: Build the Backend Docker Image Locally
+Build the Go backend image locally so it is registered in your local docker daemon:
+```bash
+cd invoice_app_backend
+docker build -t invoice_app_backend:latest .
+cd ..
+```
+
+### Step 4: Configure `docker-compose.prod.yml`
+Open [docker-compose.prod.yml](file:///Users/thanhhai/Documents/LocalSrc/Invoice_App/docker-compose.prod.yml) and modify the Go `backend` service `image` to use your locally compiled image:
+```yaml
+  backend:
+    # Change from:
+    # image: haideptrai2707/invoice_app_backend:v1
+    # To:
+    image: invoice_app_backend:latest
+```
+
+Ensure your root `.env` is configured (including `PRINT_FOLDER_PATH` and `DOMAIN`), then start the containers.
+
+**Standard start:**
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**Rebuild from scratch (No cache):**
+If you have modified code (such as the custom Certbot Dockerfile) and want to clean up existing containers and force a rebuild:
+```bash
+docker compose -f docker-compose.prod.yml down && docker compose -f docker-compose.prod.yml build --no-cache && docker compose -f docker-compose.prod.yml up -d
+```
+
+---
+
 ## 💾 Automated Database Backups (Cloudflare R2 Cronjob)
 * The Go backend starts an asynchronous cron job runner at bootstrap. It is scheduled to dump the database **every 10 minutes** (`*/10 * * * *`).
 * The job connects to the PostgreSQL container, compiles a gzip compressed `.sql` archive, uploads it securely to **Cloudflare R2** via an S3-compatible channel, and cleans up local temporary files immediately.
