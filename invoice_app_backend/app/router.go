@@ -7,6 +7,8 @@ import (
 	"invoice_backend/app/item"
 	"invoice_backend/app/pricelist"
 	"invoice_backend/app/print"
+	"invoice_backend/app/release"
+	"invoice_backend/app/backup"
 	sqlc "invoice_backend/db/sqlc"
 
 	"github.com/gofiber/fiber/v2"
@@ -20,6 +22,12 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	pricelistHandler := pricelist.NewPriceListHandler(repo)
 	printHandler := print.NewPrintHandler(repo)
 	globalsettingsHandler := globalsettings.NewGlobalSettingsHandler(repo)
+	releaseHandler := release.NewReleaseHandler(repo)
+	backupHandler := backup.NewBackupHandler(repo)
+
+	releaseGroup := app.Group("/release")
+	releaseGroup.Get("/version", releaseHandler.GetVersion)
+	releaseGroup.Get("/download", releaseHandler.DownloadApk)
 
 	authGroup := app.Group("/auth")
 	authGroup.Post("/login", authHandler.Login)
@@ -109,4 +117,7 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	settingsGroup := app.Group("/settings", auth.JWTMiddleware())
 	settingsGroup.Get("", globalsettingsHandler.GetSettings)
 	settingsGroup.Patch("", globalsettingsHandler.UpdateSettings)
+
+	// Public Trigger Backup Route
+	app.Get("/api/trigger-backup", backupHandler.TriggerBackup)
 }

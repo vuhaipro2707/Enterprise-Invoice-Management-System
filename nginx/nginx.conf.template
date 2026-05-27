@@ -1,30 +1,102 @@
-server {
-    listen 80;
-    server_name localhost;
-    return 301 DOMAIN_PLACEHOLDER; # Tự động chuyển HTTP sang HTTPS
-}
-
+# =========================================================================
+# 1. BACKEND API SERVER BLOCK (PUBLIC ACCESS VIA api.domain.com)
+# =========================================================================
 server {
     listen 443 ssl;
-    server_name localhost;
+    # The setup.sh script will automatically replace DOMAIN_PLACEHOLDER with your actual domain
+    server_name api.DOMAIN_PLACEHOLDER; 
 
-    # Đường dẫn tới file Cert (Sẽ mount từ ngoài vào Docker)
-    ssl_certificate /etc/nginx/ssl/live/DOMAIN_PLACEHOLDER/fullchain.pem;
-    ssl_certificate_key /etc/nginx/ssl/live/DOMAIN_PLACEHOLDER/privkey.pem;
+    # Cloudflare SSL Certificate paths inside the container (mounted from the host)
+    ssl_certificate     /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
 
-    # 1. Điều hướng cho Frontend
+    # SSL Security optimization (Recommended for Cloudflare SSL Strict mode)
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # Reverse Proxy to forward requests to the Go Fiber Backend Container
     location / {
-        root /usr/share/nginx/html;
-        index index.html;
-        try_files $uri $uri/ /index.html;
-    }
+        # --- CORS Configuration for Production ---
+        if ($request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' '*';
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
+            add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Device-Holding-ID';
+            add_header 'Access-Control-Expose-Headers' 'X-Polled-Jobs-Count';
+            add_header 'Access-Control-Max-Age' 1728000;
+            add_header 'Content-Type' 'text/plain; charset=utf-8';
+            add_header 'Content-Length' 0;
+            return 204;
+        }
 
-    # 2. Điều hướng cho Backend Go (API Gateway)
-    location /api/ {
-        proxy_pass http://backend:8080; # Tên service 'backend' trong docker-compose.yml
+        add_header 'Access-Control-Allow-Origin' '*' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Device-Holding-ID' always;
+        add_header 'Access-Control-Expose-Headers' 'X-Polled-Jobs-Count' always;
+
+        proxy_pass http://invoice_backend:8090; 
+        
+        # Essential headers for Go Fiber to capture the client's real IP address
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Increase timeout in case the backend takes longer to process invoices
+        proxy_connect_timeout       90;
+        proxy_send_timeout          90;
+        proxy_read_timeout          90;
     }
+}
+
+# =========================================================================
+# 2. FRONTEND FLUTTER WEB SERVER BLOCK (PUBLIC ACCESS VIA domain.com & www.domain.com)
+# =========================================================================
+server {
+    listen 80;
+    listen 443 ssl;
+    # Catch both www and non-www requests to serve the Flutter Web Frontend
+    server_name DOMAIN_PLACEHOLDER www.DOMAIN_PLACEHOLDER;
+
+    # SSL Certificate paths inside the container (mounted from the host)
+    ssl_certificate     /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+
+    # SSL Security optimization
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # Root directory for Flutter Web static files (mounted via docker-compose)
+    root /usr/share/nginx/html;
+    index index.html index.htm;
+
+    location / {
+        # Router fix for Flutter Web Single Page Application (Prevents 404 on F5/Refresh)
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Reverse proxy to access the internal pgAdmin dashboard (Securely LAN-restricted!)
+    location /pgadmin/ {
+        # --- LOCAL IP RESTRICTION (LAN ONLY) ---
+        allow 192.168.1.0/24;
+        allow 127.0.0.1;
+        deny all;
+
+        # Proxy to pgadmin container (Standard port is 80)
+        proxy_pass http://pgadmin_dev:80/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Essential headers for pgAdmin path prefixing
+        proxy_set_header X-Script-Name /pgadmin;
+        proxy_redirect off;
+    }
+
+    # Enable Gzip compression to make browsers load heavy Flutter JS files much faster
+    gzip on;
+    gzip_static on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_proxied any;
+    gzip_min_length 1000;
 }

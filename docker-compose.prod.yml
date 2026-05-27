@@ -1,49 +1,74 @@
 services:
-  # 1. Database (Không Forward public)
+  # 1. Database (No Forward public)
   db:
     image: postgres:16-alpine
     container_name: invoice_db
     restart: always
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: 123
-      POSTGRES_DB: invoice_management
-    ports:
-      - "5432:5432"
+    env_file:
+      - ./invoice_app_backend/.env
+    expose:
+      - "5432"
     volumes:
-      # Lưu dữ liệu vào thư mục 'postgres_data' ngay cạnh file này
-      - ./postgres_data:/var/lib/postgresql/data
-    healthcheck: # Đảm bảo DB sẵn sàng trước khi Backend chạy
+      # Named volume for safe persistent PostgreSQL storage
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d invoice_management"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # 2. Backend Go (Internal)
+  # 2. Admin pgadmin4 (No Forward public)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_dev
+    restart: always
+    depends_on:
+      - db
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    expose:
+      - "8888"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  # 3. Backend Go (Internal)
   backend:
-    build: haideptrai2707/invoice_app_backend:v1
+    image: haideptrai2707/invoice_app_backend:v1
     container_name: invoice_backend
     restart: always
     depends_on:
       - db
     env_file:
       - ./invoice_app_backend/.env
+    environment:
+      - APP_ENV=production
     expose:
       - "8090"
+    volumes:
+      # Mount for release apk
+      - ./invoice_app_frontend/pubspec.yaml:/invoice_app_frontend/pubspec.yaml:ro
+      - ./invoice_app_frontend/build/app/outputs/apk/release/app-release.apk:/invoice_app_frontend/build/app/outputs/apk/release/app-release.apk:ro
+      # Mount backup folder
+      - ./invoice_app_backend/backups:/root/backups
 
-  # 3. Frontend Web (Forward public)
-  gateway: # Đây chính là con Nginx làm Gateway
+  # 4. Frontend Web (Forward public)
+  gateway:
     image: nginx:alpine
     container_name: invoice_gateway
     ports:
-      - "80:80"
-      - "443:443"
+      - "${DEPLOY_HTTP_PORT:-27080}:80"
+      - "${DEPLOY_HTTPS_PORT:-27443}:443"
     volumes:
-      # Mount code frontend đã build sẵn và file cấu hình Nginx
-      - ./invoice_app_frontend/build/web:/usr/share/nginx/html
-      # Mount file cấu hình Nginx
+      # Mount front-end built web
+      - ./invoice_app_frontend/build/web:/usr/share/nginx/html:ro
+      # Mount Nginx config
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # Mount chứng chỉ SSL
+      # Mount SSL certificate
       - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - backend
+
+volumes:
+  pgadmin_data:
+  postgres_data:

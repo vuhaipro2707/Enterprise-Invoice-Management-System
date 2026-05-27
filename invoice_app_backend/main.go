@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 
@@ -18,9 +18,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	router "invoice_backend/app"
+	"invoice_backend/app/backup"
 	"invoice_backend/app/dbconn"
 
 	sqlc "invoice_backend/db/sqlc"
+
+	"github.com/robfig/cron/v3"
 )
 
 func getEnv(key, fallback string) string {
@@ -41,11 +44,11 @@ func main() {
 	}
 
 	// 2. Đọc biến (Nên dùng os.Getenv trực tiếp cho gọn nếu đã có hàm fallback)
-	dbHost := getEnv("DB_HOST", "localhost")
-	dbPort := getEnv("DB_PORT", "5432")
-	dbUser := getEnv("DB_USER", "admin")
-	dbPass := getEnv("DB_PASSWORD", "123")
-	dbName := getEnv("DB_NAME", "invoice_management")
+	dbHost := getEnv("POSTGRES_HOST", "localhost")
+	dbPort := getEnv("POSTGRES_PORT", "5432")
+	dbUser := getEnv("POSTGRES_USER", "admin")
+	dbPass := getEnv("POSTGRES_PASSWORD", "123")
+	dbName := getEnv("POSTGRES_NAME", "invoice_management")
 	appPort := getEnv("PORT", "8080")
 
 	// 3. Setup DB Connection (Để sau khi đã có thông tin từ Env)
@@ -101,27 +104,32 @@ func main() {
 	settingsBytes, err := json.Marshal(settingsMap)
 	if err == nil {
 		_, initErr := repo.InsertGlobalSettings(ctx, json.RawMessage(settingsBytes))
-		if initErr == nil {
-			fmt.Println("✅ Khởi tạo Global Settings thành công hoặc đã tồn tại.")
-		} else {
+		switch initErr {
+		case nil:
+			fmt.Println("✅ Khởi tạo Global Settings thành công.")
+		case sql.ErrNoRows:
+			fmt.Println("✅ Global Settings đã tồn tại, bỏ qua bước khởi tạo.")
+		default:
 			fmt.Println("⚠️ Lỗi khởi tạo Global Settings:", initErr)
 		}
 	}
 
 	app := fiber.New()
 
-	// 4. Setup CORS Middleware
-	app.Use(func(c *fiber.Ctx) error {
-		c.Set("Access-Control-Allow-Origin", "*")
-		c.Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS")
-		c.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Device-Holding-ID")
-		c.Set("Access-Control-Expose-Headers", "X-Polled-Jobs-Count")
-		
-		if c.Method() == "OPTIONS" {
-			return c.SendStatus(204)
-		}
-		return c.Next()
-	})
+	// 4. Setup CORS Middleware (Only for local development. In production, Nginx handles CORS)
+	if os.Getenv("APP_ENV") != "production" {
+		app.Use(func(c *fiber.Ctx) error {
+			c.Set("Access-Control-Allow-Origin", "*")
+			c.Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS")
+			c.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Device-Holding-ID")
+			c.Set("Access-Control-Expose-Headers", "X-Polled-Jobs-Count")
+
+			if c.Method() == "OPTIONS" {
+				return c.SendStatus(204)
+			}
+			return c.Next()
+		})
+	}
 
 	app.Get("/ping", func(c *fiber.Ctx) error {
 		return c.Status(200).JSON(fiber.Map{
@@ -137,6 +145,19 @@ func main() {
 
 	// 4. Setup Routes sau khi đã có Repo
 	router.SetupRoutes(app, repo)
+
+	// --- CẤU HÌNH CRONJOB BACKUP ---
+	backupService := backup.NewBackupService(repo)
+	c := cron.New()
+	_, cronErr := c.AddFunc("*/10 * * * *", func() {
+		_ = backupService.RunBackupTask(context.Background())
+	})
+	if cronErr != nil {
+		log.Printf("❌ Lỗi cấu hình Cron: %v\n", cronErr)
+	} else {
+		c.Start()
+		fmt.Println("⏰ Đã kích hoạt CronJob tự động backup lên Google Drive (mỗi 10 phút)")
+	}
 
 	// 5. Chạy App với Port đã lấy từ Env
 	log.Fatal(app.Listen(":" + appPort))

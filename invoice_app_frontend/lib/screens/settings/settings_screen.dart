@@ -240,7 +240,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     helperText:
-                                        'Tên công ty hiển thị trên báo giá và hóa đơn.',
+                                        'Tên công ty hiển thị trên báo giá.',
                                   ),
                                   validator: (value) {
                                     if (value == null || value.trim().isEmpty) {
@@ -262,7 +262,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     helperText:
-                                        'Số điện thoại hiển thị trên báo giá và hóa đơn.',
+                                        'Số điện thoại hiển thị trên báo giá.',
                                   ),
                                   validator: (value) {
                                     if (value == null || value.trim().isEmpty) {
@@ -284,7 +284,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     helperText:
-                                        'Hòm thư nhận kết xuất gộp hoặc bản in gộp mặc định.',
+                                        'Gợi ý nhanh cho email gửi báo giá.',
                                   ),
                                   validator: (value) {
                                     if (value == null || value.trim().isEmpty) {

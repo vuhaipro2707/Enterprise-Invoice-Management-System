@@ -9,8 +9,23 @@
 *.log
 *.tmp
 
-# Environment variables
+# Environment variables and secrets
 .env
+.env.*
+*.env
+**/*.env
+**/*.env.*
+**/.*.env
+nginx/ssl/
+nginx/ssl/*
+nginx/ssl/*.pem
+nginx/ssl/*.crt
+nginx/ssl/*.key
+nginx/nginx.conf
+invoice_app_backend/backups/
+.agents/
+invoice_app_backend/debug_lines.txt
+invoice_app_backend/prompt
 
 # Build artifacts and temporary files
 tmp/

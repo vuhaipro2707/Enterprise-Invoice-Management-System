@@ -5,13 +5,23 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiService {
   static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:8090';
+    if (!kDebugMode) {
+      final envUrl = dotenv.env['API_URL'];
+      if (envUrl != null && envUrl.isNotEmpty) {
+        return envUrl;
+      }
     }
-    return Platform.isAndroid ? 'http://10.0.2.2:8090' : 'http://localhost:8090';
+
+    // Local development phase
+    final port = dotenv.env['BACKEND_PORT'] ?? '8090';
+    if (kIsWeb) {
+      return 'http://localhost:$port';
+    }
+    return Platform.isAndroid ? 'http://10.0.2.2:$port' : 'http://localhost:$port';
   }
   static final ApiService _instance = ApiService._internal();
 
@@ -958,6 +968,56 @@ class ApiService {
       return data as Map<String, dynamic>;
     }
     throw Exception(data['error'] ?? 'Failed to update global settings');
+  }
+
+  // Release & Update Methods
+  Future<Map<String, dynamic>> getLatestVersion() async {
+    final response = await get('/release/version');
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return data as Map<String, dynamic>;
+    }
+    throw Exception(data['error'] ?? 'Failed to load latest app version');
+  }
+
+  Future<String> downloadApk(
+    String savePath,
+    void Function(double progress) onProgress,
+  ) async {
+    final client = http.Client();
+    try {
+      final request = http.Request('GET', Uri.parse('$baseUrl/release/download'));
+      _headers.forEach((key, value) {
+        request.headers[key] = value;
+      });
+
+      final response = await client.send(request);
+      if (response.statusCode != 200) {
+        throw Exception('Server returned status code: ${response.statusCode}');
+      }
+
+      final contentLength = response.contentLength ?? 0;
+      final file = File(savePath);
+      final sink = file.openWrite();
+
+      var receivedBytes = 0;
+      await response.stream.forEach((chunk) {
+        sink.add(chunk);
+        receivedBytes += chunk.length;
+        if (contentLength > 0) {
+          final progress = receivedBytes / contentLength;
+          onProgress(progress);
+        } else {
+          onProgress(-1);
+        }
+      });
+
+      await sink.flush();
+      await sink.close();
+      return savePath;
+    } finally {
+      client.close();
+    }
   }
 }
 

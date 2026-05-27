@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart';
 import 'services/api_service.dart';
 import 'services/theme_provider.dart';
 import 'screens/auth/login_screen.dart';
@@ -42,6 +45,21 @@ Future<void> main() async {
   }
 
   await ApiService().init();
+
+  // Proactively clean up any temporary update APK installers from previous installations to save user storage space
+  try {
+    if (!kIsWeb) {
+      final tempDir = await getTemporaryDirectory();
+      final apkFile = File('${tempDir.path}/app-release.apk');
+      if (await apkFile.exists()) {
+        await apkFile.delete();
+        debugPrint('🧹 Đã dọn dẹp file cài đặt APK tạm thời thành công!');
+      }
+    }
+  } catch (e) {
+    debugPrint('Lỗi khi dọn dẹp APK: $e');
+  }
+
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
