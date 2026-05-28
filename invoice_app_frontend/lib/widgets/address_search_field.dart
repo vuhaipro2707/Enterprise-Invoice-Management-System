@@ -8,7 +8,7 @@ import '../../services/api_service.dart';
 
 class AddressSearchField extends StatefulWidget {
   final TextEditingController controller;
-  final Function(double lat, double lng) onLocationSelected;
+  final Function(double? lat, double? lng) onLocationSelected;
   final String? initialAddress;
   final double? initialLat;
   final double? initialLng;
@@ -41,6 +41,37 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
   void initState() {
     super.initState();
     _lastBaseAddress = widget.initialAddress ?? widget.controller.text;
+    widget.controller.addListener(_onTextChanged);
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onTextChanged() {
+    if (mounted) {
+      if (_lastBaseAddress != null && (widget.initialLat != null || widget.initialLng != null)) {
+        final currentText = widget.controller.text;
+        final dist = _getEditDistance(currentText, _lastBaseAddress!);
+        if (dist > 3) {
+          widget.onLocationSelected(null, null);
+        }
+      }
+      setState(() {});
+    }
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      // Delay to let keyboard animation complete fully and viewport adapt (500ms)
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted && _focusNode.hasFocus) {
+          Scrollable.ensureVisible(
+            context,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            alignment: 0.0, // Scroll to the very top
+          );
+        }
+      });
+    }
   }
 
   @override
@@ -50,6 +81,10 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
       setState(() {
         _lastBaseAddress = widget.initialAddress;
       });
+    }
+    if (widget.controller != oldWidget.controller) {
+      oldWidget.controller.removeListener(_onTextChanged);
+      widget.controller.addListener(_onTextChanged);
     }
   }
 
@@ -80,6 +115,8 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
 
   @override
   void dispose() {
+    widget.controller.removeListener(_onTextChanged);
+    _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
     super.dispose();
   }
@@ -472,12 +509,23 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
                     controller: controller,
                     focusNode: focusNode,
                     enabled: !widget.readOnly && !_isGeocoding,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Địa chỉ',
-                      prefixIcon: Icon(Icons.location_on),
-                      border: OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.location_on),
+                      border: const OutlineInputBorder(),
+                      suffixIcon: (controller.text.isNotEmpty && !widget.readOnly && !_isGeocoding)
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded),
+                              onPressed: () {
+                                controller.clear();
+                                widget.onLocationSelected(null, null);
+                              },
+                            )
+                          : null,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
+                    keyboardType: TextInputType.text,
+                    textInputAction: TextInputAction.done,
                   );
                 },
                 suggestionsCallback: (search) async {
@@ -536,6 +584,11 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
                   setState(() {
                     _lastBaseAddress = selectedAddress; // Reset base address baseline
                   });
+                  
+                  // Dismiss keyboard on selection
+                  _focusNode.unfocus();
+                  FocusScope.of(context).unfocus();
+
                   final placeId = prediction['place_id'];
                   final details = await _apiService.googlePlaceDetails(
                     placeId,

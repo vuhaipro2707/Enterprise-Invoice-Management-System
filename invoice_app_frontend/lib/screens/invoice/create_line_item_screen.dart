@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../services/currency_formatter.dart';
+import '../../widgets/unit_autocomplete_field.dart';
 
 
 class CreateLineItemScreen extends StatefulWidget {
@@ -24,48 +25,7 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
   bool _isSaving = false;
   // Tracks the pre-filled unit name for Autocomplete's initialValue / key
   String _unitInitialValue = '';
-
-  // Common Vietnamese unit suggestions
-  static const List<String> _unitSuggestions = [
-    'Thùng', 'Túi', 'Hộp', 'Chai', 'Két',
-    'Cái', 'Lon', 'Gói', 'Bao', 'Bình',
-    'Lít', 'Kg', 'Gram', 'Mét', 'Cuộn',
-    'Tấm', 'Đôi', 'Bộ', 'Chiếc', 'Viên',
-  ];
-
-  /// Normalize a string: lowercase + strip Vietnamese diacritics.
-  static String _unaccent(String s) {
-    const map = {
-      // Latin basic
-      'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a',
-      'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
-      'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i',
-      'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
-      'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
-      'ý': 'y', 'ÿ': 'y',
-      // Vietnamese ă-family
-      'ă': 'a', 'ắ': 'a', 'ặ': 'a', 'ẳ': 'a', 'ẵ': 'a',
-      // Vietnamese â-family
-      'ấ': 'a', 'ầ': 'a', 'ẫ': 'a', 'ậ': 'a',
-      // Vietnamese đ
-      'đ': 'd',
-      // Vietnamese e-family
-      'ẹ': 'e', 'ẻ': 'e', 'ẽ': 'e',
-      'ế': 'e', 'ề': 'e', 'ệ': 'e', 'ể': 'e', 'ễ': 'e',
-      // Vietnamese i-family
-      'ị': 'i', 'ỉ': 'i', 'ĩ': 'i',
-      // Vietnamese o-family
-      'ọ': 'o', 'ỏ': 'o',
-      'ố': 'o', 'ồ': 'o', 'ổ': 'o', 'ỗ': 'o', 'ộ': 'o',
-      'ớ': 'o', 'ờ': 'o', 'ở': 'o', 'ỡ': 'o', 'ợ': 'o',
-      // Vietnamese u-family
-      'ụ': 'u', 'ủ': 'u', 'ũ': 'u',
-      'ứ': 'u', 'ừ': 'u', 'ự': 'u', 'ử': 'u', 'ữ': 'u',
-      // Vietnamese y-family
-      'ỵ': 'y', 'ỷ': 'y', 'ỹ': 'y',
-    };
-    return s.toLowerCase().split('').map((c) => map[c] ?? c).join();
-  }
+  bool _isManualInputExpanded = false;
 
   String? _currentInvoiceId;
   Map<String, dynamic>? _currentExistingLineItem;
@@ -93,6 +53,7 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
           _quantityController.text = (item['quantity'] ?? 0).toString();
           _priceController.text = NumberFormat.decimalPattern('vi_VN').format(item['unitPriceCustom'] ?? 0);
           _selectedUnitId = item['unitId'];
+          _isManualInputExpanded = true;
         }
       } else {
         _currentInvoiceId = widget.invoiceId;
@@ -111,13 +72,25 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
   void _openSearch() async {
     final result = await Navigator.pushNamed(context, '/line_item_search');
 
+    if (!mounted) return;
+
     if (result != null && result is Map<String, dynamic>) {
       setState(() {
         _selectedItem = result;
         _itemNameController.text = result['itemDefaultName'] ?? '';
         _availableUnits = result['units'] as List? ?? [];
+        _isManualInputExpanded = true;
         if (_availableUnits.isNotEmpty) {
-          _onUnitSelected(_availableUnits[0]);
+          Map<String, dynamic> largestRatioUnit = Map<String, dynamic>.from(_availableUnits[0]);
+          num maxRatio = largestRatioUnit['ratio'] ?? 0;
+          for (var u in _availableUnits) {
+            final num r = u['ratio'] ?? 0;
+            if (r > maxRatio) {
+              maxRatio = r;
+              largestRatioUnit = Map<String, dynamic>.from(u);
+            }
+          }
+          _onUnitSelected(largestRatioUnit);
         } else {
           _unitNameController.clear();
           _priceController.clear();
@@ -137,8 +110,12 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
       _priceController.text = NumberFormat.decimalPattern('vi_VN').format(rawPrice);
     });
     
-    // Auto focus quantity field after unit selection
-    _quantityFocusNode.requestFocus();
+    // Auto focus quantity field after unit selection (waiting for transition animation to complete)
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (mounted) {
+        _quantityFocusNode.requestFocus();
+      }
+    });
   }
 
   @override
@@ -152,151 +129,219 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // SECTION 1: CHỌN SẢN PHẨM TỪ DANH SÁCH (KHUYẾN KHÍCH)
             InkWell(
               onTap: _openSearch,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.all(16),
+              borderRadius: BorderRadius.circular(16),
+              child: Ink(
                 decoration: BoxDecoration(
-                  border: Border.all(color: colorScheme.outline.withValues(alpha: 0.5)),
-                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    colors: [
+                      colorScheme.primary,
+                      colorScheme.secondary,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.primary.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.search, color: colorScheme.primary),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _selectedItem == null ? 'Bấm để tìm kiếm sản phẩm...' : _itemNameController.text,
-                        style: TextStyle(
-                          color: _selectedItem == null ? colorScheme.outline : colorScheme.onSurface,
-                          fontSize: 16,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: colorScheme.onPrimary.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.inventory_2_rounded,
+                          color: colorScheme.onPrimary,
+                          size: 28,
                         ),
                       ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _selectedItem == null ? 'CHỌN SẢN PHẨM' : 'THAY ĐỔI SẢN PHẨM',
+                              style: TextStyle(
+                                color: colorScheme.onPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _selectedItem == null
+                                  ? 'Tìm kiếm nhanh theo tên, mã sản phẩm...'
+                                  : _itemNameController.text,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: colorScheme.onPrimary.withValues(alpha: 0.8),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        color: colorScheme.onPrimary,
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 20),
+            
+            // SECTION 2: NHẬP THỦ CÔNG (COLLAPSED BY DEFAULT)
+            InkWell(
+              onTap: () {
+                setState(() {
+                  _isManualInputExpanded = !_isManualInputExpanded;
+                });
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                decoration: BoxDecoration(
+                  color: _isManualInputExpanded
+                      ? colorScheme.primary.withValues(alpha: 0.05)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _isManualInputExpanded
+                        ? colorScheme.primary.withValues(alpha: 0.2)
+                        : colorScheme.outlineVariant,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.edit_note_rounded,
+                          color: _isManualInputExpanded ? colorScheme.primary : colorScheme.outline,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Nhập thông tin sản phẩm thủ công',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: _isManualInputExpanded ? colorScheme.primary : colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
                     ),
-                    if (_selectedItem != null) const Icon(Icons.edit, size: 18),
+                    Icon(
+                      _isManualInputExpanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: _isManualInputExpanded ? colorScheme.primary : colorScheme.outline,
+                    ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-            if (_selectedItem != null) ...[
-              Text('Chọn đơn vị tính:', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: _availableUnits.map((unit) {
-                  final isSelected = _selectedUnitId == unit['unitId'];
-                  return ChoiceChip(
-                    label: Text('${unit['unitName']} (${NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(unit['unitPriceDefault'])})'),
-                    selected: isSelected,
-                    onSelected: (val) {
-                      if (val) _onUnitSelected(unit);
-                    },
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 20),
-            ],
-            Text('Thông tin chi tiết (Tùy chỉnh nếu cần)',
-                style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _itemNameController,
-              decoration: const InputDecoration(
-                labelText: 'Tên sản phẩm *',
-                border: OutlineInputBorder(),
-                hintText: 'Nhập tên hoặc chọn sản phẩm',
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Unit name field with autocomplete suggestions
-            Autocomplete<String>(
-              // Key forces a rebuild (with new initialValue) when a unit chip is selected
-              key: ValueKey(_unitInitialValue),
-              initialValue: TextEditingValue(text: _unitInitialValue),
-              optionsBuilder: (TextEditingValue textEditingValue) {
-                if (textEditingValue.text.isEmpty) return const Iterable.empty();
-                final query = _unaccent(textEditingValue.text);
-                return _unitSuggestions.where(
-                  (unit) => _unaccent(unit).contains(query),
-                );
-              },
-              onSelected: (String selection) {
-                setState(() {
-                  _unitNameController.text = selection;
-                  _unitInitialValue = selection;
-                });
-              },
-              fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
-                return TextField(
-                  controller: textController,
-                  focusNode: focusNode,
-                  decoration: const InputDecoration(
-                    labelText: 'Đơn vị tính *',
-                    border: OutlineInputBorder(),
-                    hintText: 'Cái, Thùng, Lon...',
-                    suffixIcon: Icon(Icons.expand_more),
-                  ),
-                  // Keep external controller in sync so _save() reads correctly
-                  onChanged: (value) => _unitNameController.text = value,
-                  onSubmitted: (_) => onFieldSubmitted(),
-                );
-              },
-              optionsViewBuilder: (context, onSelected, options) {
-                return Align(
-                  alignment: Alignment.topLeft,
-                  child: Material(
-                    elevation: 4,
-                    borderRadius: BorderRadius.circular(12),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 220),
-                      child: ListView.builder(
-                        padding: EdgeInsets.zero,
-                        shrinkWrap: true,
-                        itemCount: options.length,
-                        itemBuilder: (context, index) {
-                          final option = options.elementAt(index);
-                          return ListTile(
-                            dense: true,
-                            leading: const Icon(Icons.straighten_rounded, size: 18),
-                            title: Text(option),
-                            onTap: () => onSelected(option),
+            
+            // Expandable manual inputs list
+            AnimatedCrossFade(
+              firstChild: const SizedBox.shrink(),
+              secondChild: Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_selectedItem != null) ...[
+                      Text('Chọn đơn vị tính:', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: _availableUnits.map((unit) {
+                          final isSelected = _selectedUnitId == unit['unitId'];
+                          return ChoiceChip(
+                            label: Text('${unit['unitName']} (${NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(unit['unitPriceDefault'])})'),
+                            selected: isSelected,
+                            onSelected: (val) {
+                              if (val) _onUnitSelected(unit);
+                            },
                           );
-                        },
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    TextField(
+                      controller: _itemNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Tên sản phẩm *',
+                        border: OutlineInputBorder(),
+                        hintText: 'Nhập tên hoặc chọn sản phẩm',
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _quantityController,
-                    focusNode: _quantityFocusNode,
-                    decoration: const InputDecoration(
-                      labelText: 'Số lượng *',
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 12),
+                    // Unit name field with autocomplete suggestions widget
+                    UnitAutocompleteField(
+                      controller: _unitNameController,
+                      initialValue: _unitInitialValue,
+                      onSelected: (selection) {
+                        setState(() {
+                          _unitInitialValue = selection;
+                        });
+                      },
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _priceController,
-                    decoration: const InputDecoration(
-                      labelText: 'Đơn giá *',
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _quantityController,
+                            focusNode: _quantityFocusNode,
+                            decoration: const InputDecoration(
+                              labelText: 'Số lượng *',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _priceController,
+                            decoration: const InputDecoration(
+                              labelText: 'Đơn giá *',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [CurrencyInputFormatter()],
+                          ),
+                        ),
+                      ],
                     ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [CurrencyInputFormatter()],
-                  ),
+                  ],
                 ),
-              ],
+              ),
+              crossFadeState: _isManualInputExpanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 300),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -326,6 +371,9 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
     final priceText = _priceController.text.trim();
 
     if (itemName.isEmpty || unitName.isEmpty || quantityText.isEmpty || priceText.isEmpty) {
+      setState(() {
+        _isManualInputExpanded = true;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng điền đầy đủ các thông tin bắt buộc (*)')),
       );

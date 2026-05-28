@@ -257,6 +257,23 @@ func GeneratePriceListA4PDF(pl map[string]interface{}) ([]byte, error) {
 
 	items, ok := pl["itemPrices"].([]interface{})
 	if ok && len(items) > 0 {
+		// DEBUG WRITE FILE
+		var debugBuf bytes.Buffer
+		debugBuf.WriteString(fmt.Sprintf("PageSize: A4, wName: 95.0, totalItems: %d\n", len(items)))
+		for idx, rawItm := range items {
+			itm, _ := rawItm.(map[string]interface{})
+			name := "Mặt hàng không tên"
+			if itm != nil && itm["itemDefaultName"] != nil {
+				name = fmt.Sprintf("%v", itm["itemDefaultName"])
+			}
+			lines := pdf.SplitText(name, 95.0)
+			debugBuf.WriteString(fmt.Sprintf("Item %d: %q, len(lines): %d\n", idx+1, name, len(lines)))
+			for lineIdx, l := range lines {
+				debugBuf.WriteString(fmt.Sprintf("  Line %d: %q\n", lineIdx+1, l))
+			}
+		}
+		_ = os.WriteFile("debug_lines.txt", debugBuf.Bytes(), 0644)
+
 		for i, rawItm := range items {
 			itm, ok := rawItm.(map[string]interface{})
 			if !ok {
@@ -278,13 +295,20 @@ func GeneratePriceListA4PDF(pl map[string]interface{}) ([]byte, error) {
 				price = p
 			}
 
-			// Compute dynamic wrapped height for the row based on text length
-			lines := pdf.SplitLines([]byte(itemName), 95)
-			lineHeight := 5.0
-			if len(lines) == 1 {
-				lineHeight = 8.0
+			// SplitText wrapping calculation (UTF-8 safe)
+			lines := pdf.SplitText(itemName, 95.0)
+			numLines := len(lines)
+			if numLines < 1 {
+				numLines = 1
 			}
-			rowHeight := float64(len(lines)) * lineHeight
+
+			// Compact line spacing (5.0mm) for high-fidelity rendering
+			lineSpacing := 5.0
+			actualTextHeight := float64(numLines) * lineSpacing
+			rowHeight := actualTextHeight + 3.0 // padding
+			if rowHeight < 8.0 {
+				rowHeight = 8.0
+			}
 
 			// Check if we need to start a new page to prevent awkward page splits
 			if pdf.GetY()+rowHeight > 275 {
@@ -317,12 +341,21 @@ func GeneratePriceListA4PDF(pl map[string]interface{}) ([]byte, error) {
 				pdf.SetFillColor(255, 255, 255)
 			}
 
+			// Calculate vertical centered offset
+			verticalOffset := (rowHeight - actualTextHeight) / 2.0
+			if verticalOffset < 0.2 {
+				verticalOffset = 0.2
+			}
+
 			// 1. STT
 			pdf.CellFormat(15, rowHeight, fmt.Sprintf("%d", i+1), "1", 0, "C", true, 0, "")
 
-			// 2. Item Name (wrapping)
+			// 2. Item Name outer box and wrapped text
 			pdf.SetXY(x+15, y)
-			pdf.MultiCell(95, lineHeight, itemName, "1", "L", true)
+			pdf.CellFormat(95, rowHeight, "", "1", 0, "L", true, 0, "")
+
+			pdf.SetXY(x+15, y+verticalOffset)
+			pdf.MultiCell(95, lineSpacing, itemName, "", "L", false)
 
 			// 3. Unit Name
 			pdf.SetXY(x+15+95, y)
@@ -716,6 +749,23 @@ func GeneratePriceListA5PDF(pl map[string]interface{}) ([]byte, error) {
 
 	items, ok := pl["itemPrices"].([]interface{})
 	if ok && len(items) > 0 {
+		// DEBUG WRITE FILE
+		var debugBuf bytes.Buffer
+		debugBuf.WriteString(fmt.Sprintf("PageSize: A5, wName: 65.0, totalItems: %d\n", len(items)))
+		for idx, rawItm := range items {
+			itm, _ := rawItm.(map[string]interface{})
+			name := "Mặt hàng không tên"
+			if itm != nil && itm["itemDefaultName"] != nil {
+				name = fmt.Sprintf("%v", itm["itemDefaultName"])
+			}
+			lines := pdf.SplitText(name, 65.0)
+			debugBuf.WriteString(fmt.Sprintf("Item %d: %q, len(lines): %d\n", idx+1, name, len(lines)))
+			for lineIdx, l := range lines {
+				debugBuf.WriteString(fmt.Sprintf("  Line %d: %q\n", lineIdx+1, l))
+			}
+		}
+		_ = os.WriteFile("debug_lines.txt", debugBuf.Bytes(), 0644)
+
 		for i, rawItm := range items {
 			itm, ok := rawItm.(map[string]interface{})
 			if !ok {

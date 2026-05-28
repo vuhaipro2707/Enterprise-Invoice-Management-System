@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/currency_formatter.dart';
+import 'unit_autocomplete_field.dart';
 
 class UnitsSection extends StatefulWidget {
   final List<Map<String, dynamic>> units;
@@ -332,22 +333,29 @@ class _UnitsSectionState extends State<UnitsSection> {
                     children: [
                       Expanded(
                         flex: 3,
-                        child: TextFormField(
-                          controller: _getNameController(unit),
-                          enabled: !widget.readOnly,
-                          decoration: const InputDecoration(
-                            labelText: 'Tên đơn vị *',
-                            hintText: 'VD: Hộp, Thùng',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                          validator: (value) => (value == null || value.isEmpty)
-                              ? 'Nhập tên'
-                              : null,
-                          onChanged: (val) {
-                            setState(() {});
-                          },
-                        ),
+                        child: widget.readOnly
+                            ? TextFormField(
+                                controller: _getNameController(unit),
+                                enabled: false,
+                                decoration: const InputDecoration(
+                                  labelText: 'Tên đơn vị *',
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                              )
+                            : UnitAutocompleteField(
+                                controller: _getNameController(unit),
+                                labelText: 'Tên đơn vị *',
+                                hintText: 'VD: Hộp, Thùng',
+                                initialValue: _getNameController(unit).text,
+                                isDense: true,
+                                validator: (value) => (value == null || value.isEmpty)
+                                    ? 'Nhập tên'
+                                    : null,
+                                onSelected: (val) {
+                                  setState(() {});
+                                },
+                              ),
                       ),
                       const SizedBox(width: 12),
                       if (!isBase) ...[

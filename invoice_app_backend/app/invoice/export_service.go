@@ -61,6 +61,54 @@ func removeDiacritics(str string) string {
 	return coverted
 }
 
+// splitAddressNumber splits a street address into the initial number part (e.g., "26", "26/4", "Số 26") and the remaining text.
+func splitAddressNumber(addr string) (string, string) {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return "", ""
+	}
+
+	firstSpace := strings.Index(addr, " ")
+	if firstSpace == -1 {
+		if containsDigit(addr) {
+			return addr, ""
+		}
+		return "", addr
+	}
+
+	firstWord := addr[:firstSpace]
+	if containsDigit(firstWord) {
+		return firstWord, addr[firstSpace+1:]
+	}
+
+	// Check if it starts with "Số" or similar
+	if strings.ToLower(firstWord) == "số" {
+		rest := addr[firstSpace+1:]
+		secondSpace := strings.Index(rest, " ")
+		if secondSpace != -1 {
+			secondWord := rest[:secondSpace]
+			if containsDigit(secondWord) {
+				return firstWord + " " + secondWord, rest[secondSpace+1:]
+			}
+		} else {
+			if containsDigit(rest) {
+				return firstWord + " " + rest, ""
+			}
+		}
+	}
+
+	return "", addr
+}
+
+func containsDigit(s string) bool {
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			return true
+		}
+	}
+	return false
+}
+
 // ensureFontsExist downloads Roboto Regular and Bold from Google Fonts if they do not exist locally.
 func ensureFontsExist() error {
 	fontDir := "fonts"
@@ -422,6 +470,7 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 	for _, copyName := range copies {
 		for pageIdx, pData := range pages {
 			pdf.AddPage()
+			pdf.SetDrawColor(0, 0, 0)
 
 			// Draw header
 			pdf.SetTextColor(20, 80, 160)
@@ -450,8 +499,19 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 			if address != "" {
 				pdf.SetFont("Roboto", "B", 11)
 				pdf.CellFormat(30, 4.5, "Địa chỉ:", "", 0, "L", false, 0, "")
-				pdf.SetFont("Roboto", "", 11)
-				pdf.MultiCell(90, 4.5, address, "", "L", false)
+				
+				numPart, restPart := splitAddressNumber(address)
+				if numPart != "" {
+					pdf.SetFont("Roboto", "B", 11)
+					wNum := pdf.GetStringWidth(numPart + " ")
+					pdf.CellFormat(wNum, 4.5, numPart+" ", "", 0, "L", false, 0, "")
+					
+					pdf.SetFont("Roboto", "", 11)
+					pdf.MultiCell(90-wNum, 4.5, restPart, "", "L", false)
+				} else {
+					pdf.SetFont("Roboto", "", 11)
+					pdf.MultiCell(90, 4.5, address, "", "L", false)
+				}
 			}
 
 			// 3. Số điện thoại (MultiCell)
@@ -493,7 +553,7 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 			pdf.SetFillColor(30, 100, 200)
 			pdf.SetTextColor(255, 255, 255)
 			pdf.SetFont("Roboto", "B", tableFontSize)
-			pdf.SetLineWidth(0.2)
+			pdf.SetLineWidth(0.35)
 
 			pdf.CellFormat(wSTT, 8.5, "STT", "1", 0, "C", true, 0, "")
 			pdf.CellFormat(wName, 8.5, "Tên hàng", "1", 0, "L", true, 0, "")
@@ -505,7 +565,6 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 
 			// Reset body fonts and colors
 			pdf.SetTextColor(50, 50, 50)
-			pdf.SetFont("Roboto", "", tableFontSize)
 
 			// Draw pre-calculated page rows
 			for _, row := range pData.Rows {
@@ -552,17 +611,19 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 					x := pdf.GetX()
 					y := pdf.GetY()
 
-					// 1. STT
+					// 1. STT (Regular)
+					pdf.SetFont("Roboto", "", tableFontSize)
 					pdf.CellFormat(wSTT, rowHeight, fmt.Sprintf("%d", row.STT), "1", 0, "C", true, 0, "")
 
-					// 2. Item Name (Dynamic vertical centering with compact line spacing)
+					// 2. Item Name (Bold)
+					pdf.SetFont("Roboto", "B", tableFontSize)
 					lines := pdf.SplitText(itemName, wName)
 					numLines := len(lines)
 					if numLines < 1 {
 						numLines = 1
 					}
 
-					// 13.0pt font size is ~4.58mm. A line height of 5.0mm keeps lines beautifully close and readable.
+					// 13.0pt font size is ~4.58mm. A line height of 6.0mm keeps lines beautifully close and readable.
 					lineSpacing := 6.0
 					actualTextHeight := float64(numLines) * lineSpacing
 					verticalOffset := (rowHeight - actualTextHeight) / 2.0
@@ -578,22 +639,26 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 					pdf.SetXY(x+wSTT, y+verticalOffset)
 					pdf.MultiCell(wName, lineSpacing, itemName, "", "L", false)
 
-					// 3. Unit
+					// 3. Unit (Regular)
+					pdf.SetFont("Roboto", "", tableFontSize)
 					pdf.SetXY(x+wSTT+wName, y)
 					pdf.CellFormat(wUnit, rowHeight, unitName, "1", 0, "C", true, 0, "")
 
-					// 4. Quantity
+					// 4. Quantity (Bold)
+					pdf.SetFont("Roboto", "B", tableFontSize)
 					pdf.CellFormat(wQty, rowHeight, fmt.Sprintf("%d", qty), "1", 0, "C", true, 0, "")
 
-					// 5. Unit Price
+					// 5. Unit Price (Regular)
+					pdf.SetFont("Roboto", "", tableFontSize)
 					pdf.CellFormat(wUnitPrice, rowHeight, formatVND(price), "1", 0, "C", true, 0, "")
 
-					// 6. Subtotal (T.Tiền)
+					// 6. Subtotal (T.Tiền) (Regular)
 					pdf.CellFormat(wPrice, rowHeight, formatVND(subTotal), "1", 0, "C", true, 0, "")
 
 					pdf.SetXY(x, y+rowHeight)
 				} else {
 					// Empty Row Padding
+					pdf.SetFont("Roboto", "", tableFontSize)
 					pdf.CellFormat(wSTT, rowHeight, "", "1", 0, "C", true, 0, "")
 					pdf.CellFormat(wName, rowHeight, "", "1", 0, "L", true, 0, "")
 					pdf.CellFormat(wUnit, rowHeight, "", "1", 0, "C", true, 0, "")
@@ -620,6 +685,7 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 
 			// Absolute bottom constraints for line divider, Invoice ID, and copy info
 			pdf.SetDrawColor(200, 200, 200)
+			pdf.SetLineWidth(0.45)
 			pdf.Line(marginSide, 198.0, marginSide+printableWidth, 198.0)
 
 			pdf.SetXY(marginSide, 200.0)

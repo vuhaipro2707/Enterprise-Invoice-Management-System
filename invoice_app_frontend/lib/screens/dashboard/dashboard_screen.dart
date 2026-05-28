@@ -47,6 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
   @override
   void didPush() {
     super.didPush();
+    _fetchEditingInvoices();
     _startRefreshTimer();
   }
 
@@ -97,6 +98,15 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
           _isLoadingInvoices = false;
           _isOnline = false;
         });
+
+        // If first-load or focus fetch fails, schedule a fast retry in 3 seconds to recover quickly
+        if (!isAutoRefresh) {
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted && !_isOnline) {
+              _fetchEditingInvoices();
+            }
+          });
+        }
       }
     }
   }

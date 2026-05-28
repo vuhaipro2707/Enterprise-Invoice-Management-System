@@ -31,6 +31,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   String? _autoApplyPriceListId;
   List<dynamic>? _clonedItems;
   bool _isArgumentsParsed = false;
+  bool _isManualInputExpanded = false;
 
   @override
   void didChangeDependencies() {
@@ -70,6 +71,14 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         }
         if (args.containsKey('prefill_email')) {
           _emailController.text = args['prefill_email'] ?? '';
+        }
+
+        final hasPrefill = args.containsKey('prefill_buyer_name') ||
+            args.containsKey('prefill_address') ||
+            args.containsKey('prefill_phone') ||
+            args.containsKey('prefill_tax_id');
+        if (hasPrefill) {
+          _isManualInputExpanded = true;
         }
       }
     }
@@ -112,6 +121,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         _idCardController.text = buyer['idCardNumber'] ?? '';
         _emailController.text = buyer['email'] ?? '';
         _taxIdController.text = buyer['taxId'] ?? '';
+        _isManualInputExpanded = true;
       });
     } catch (e) {
       if (mounted) {
@@ -138,6 +148,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         _idCardController.text = buyer['idCardNumber'] ?? '';
         _emailController.text = buyer['email'] ?? '';
         _taxIdController.text = buyer['taxId'] ?? '';
+        _isManualInputExpanded = true;
       });
     }
   }
@@ -438,6 +449,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                       const SizedBox(height: 16),
                       Card(
                         color: colorScheme.surfaceContainer,
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         child: Padding(
                           padding: const EdgeInsets.all(16.0),
                           child: Column(
@@ -452,115 +465,270 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _buyerCodeController,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Mã khách hàng (Tùy chọn)',
-                                        border: OutlineInputBorder(),
+                              
+                              // SECTION 1: TÌM KIẾM KHÁCH HÀNG NÂNG CAO (KHUYẾN KHÍCH)
+                              InkWell(
+                                onTap: _searchBuyerAdvanced,
+                                borderRadius: BorderRadius.circular(16),
+                                child: Ink(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        colorScheme.primary,
+                                        colorScheme.secondary,
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: colorScheme.primary.withValues(alpha: 0.25),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
                                       ),
+                                    ],
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: colorScheme.onPrimary.withValues(alpha: 0.2),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            Icons.people_alt_rounded,
+                                            color: colorScheme.onPrimary,
+                                            size: 28,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'CHỌN KHÁCH HÀNG',
+                                                style: TextStyle(
+                                                  color: colorScheme.onPrimary,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 15,
+                                                  letterSpacing: 1.1,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Tìm kiếm nhanh theo tên, SĐT, địa chỉ...',
+                                                style: TextStyle(
+                                                  color: colorScheme.onPrimary.withValues(alpha: 0.8),
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(
+                                          Icons.arrow_forward_ios_rounded,
+                                          color: colorScheme.onPrimary,
+                                          size: 18,
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  _isFetchingBuyer
-                                      ? const Padding(
-                                          padding: EdgeInsets.all(12.0),
-                                          child: SizedBox(
-                                              width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
-                                        )
-                                      : Row(
-                                          children: [
-                                            IconButton.filled(
-                                              onPressed: _lookupBuyer,
-                                              icon: const Icon(Icons.person_search),
-                                              tooltip: 'Truy vấn nhanh theo mã',
-                                            ),
-                                            const SizedBox(width: 4),
-                                            IconButton.filledTonal(
-                                              onPressed: _searchBuyerAdvanced,
-                                              icon: const Icon(Icons.search),
-                                              tooltip: 'Tìm kiếm nâng cao',
-                                            ),
-                                          ],
-                                        ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _taxIdController,
-                                decoration: InputDecoration(
-                                  labelText: 'Mã số thuế (Tùy chọn)',
-                                  suffixIcon: _isFetchingBusiness
-                                    ? const Padding(
-                                        padding: EdgeInsets.all(12.0),
-                                        child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                                      )
-                                    : IconButton(
-                                        icon: const Icon(Icons.search),
-                                        onPressed: _lookupVietQR,
-                                        tooltip: 'Lấy thông tin từ MST',
-                                      ),
-                                  border: const OutlineInputBorder(),
                                 ),
                               ),
+                              
                               const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _buyerNameController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Tên khách hàng *',
-                                  border: OutlineInputBorder(),
-                                ),
-                                validator: (val) => val == null || val.isEmpty ? 'Vui lòng nhập tên khách hàng' : null,
-                              ),
-                              const SizedBox(height: 16),
-                              AddressSearchField(
-                                controller: _addressController,
-                                initialLat: _selectedLat,
-                                initialLng: _selectedLng,
-                                initialAddress: _addressController.text,
-                                onLocationSelected: (lat, lng) {
+                              
+                              // SECTION 2: NHẬP THỦ CÔNG (COLLAPSED BY DEFAULT)
+                              InkWell(
+                                onTap: () {
                                   setState(() {
-                                    _selectedLat = lat;
-                                    _selectedLng = lng;
+                                    _isManualInputExpanded = !_isManualInputExpanded;
                                   });
                                 },
-                              ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _phoneController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Số điện thoại',
-                                  border: OutlineInputBorder(),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: _isManualInputExpanded
+                                        ? colorScheme.primary.withValues(alpha: 0.05)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _isManualInputExpanded
+                                          ? colorScheme.primary.withValues(alpha: 0.2)
+                                          : colorScheme.outlineVariant,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.edit_note_rounded,
+                                            color: _isManualInputExpanded ? colorScheme.primary : colorScheme.outline,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Nhập thông tin khách hàng thủ công',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                              color: _isManualInputExpanded ? colorScheme.primary : colorScheme.onSurface,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Icon(
+                                        _isManualInputExpanded
+                                            ? Icons.keyboard_arrow_up_rounded
+                                            : Icons.keyboard_arrow_down_rounded,
+                                        color: _isManualInputExpanded ? colorScheme.primary : colorScheme.outline,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                keyboardType: TextInputType.phone,
                               ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _idCardController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Số CMND/CCCD (Tùy chọn)',
-                                  border: OutlineInputBorder(),
+                              
+                              // Expandable manual inputs list
+                              AnimatedCrossFade(
+                                firstChild: const SizedBox.shrink(),
+                                secondChild: Padding(
+                                  padding: const EdgeInsets.only(top: 16.0),
+                                  child: Column(
+                                    children: [
+                                      // Tìm nhanh theo mã ở ngay trên cùng của nhập thủ công
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextFormField(
+                                              controller: _buyerCodeController,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Nhập mã khách hàng (Tìm nhanh)',
+                                                border: OutlineInputBorder(),
+                                                isDense: true,
+                                              ),
+                                              onFieldSubmitted: (_) => _lookupBuyer(),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          _isFetchingBuyer
+                                              ? const SizedBox(
+                                                  width: 40,
+                                                  height: 40,
+                                                  child: Center(
+                                                    child: SizedBox(
+                                                      width: 20,
+                                                      height: 20,
+                                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                                    ),
+                                                  ),
+                                                )
+                                              : IconButton.filled(
+                                                  onPressed: _lookupBuyer,
+                                                  icon: const Icon(Icons.person_search),
+                                                  tooltip: 'Truy vấn nhanh',
+                                                ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      TextFormField(
+                                        controller: _buyerNameController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Tên khách hàng *',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        validator: (val) {
+                                          if (val == null || val.trim().isEmpty) {
+                                            setState(() {
+                                              _isManualInputExpanded = true;
+                                            });
+                                            return 'Vui lòng nhập tên khách hàng';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      TextFormField(
+                                        controller: _taxIdController,
+                                        decoration: InputDecoration(
+                                          labelText: 'Mã số thuế (Tùy chọn)',
+                                          suffixIcon: _isFetchingBusiness
+                                            ? const Padding(
+                                                padding: EdgeInsets.all(12.0),
+                                                child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                                              )
+                                            : IconButton(
+                                                icon: const Icon(Icons.search),
+                                                onPressed: _lookupVietQR,
+                                                tooltip: 'Lấy thông tin từ MST',
+                                              ),
+                                          border: const OutlineInputBorder(),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      AddressSearchField(
+                                        controller: _addressController,
+                                        initialLat: _selectedLat,
+                                        initialLng: _selectedLng,
+                                        initialAddress: _addressController.text,
+                                        onLocationSelected: (lat, lng) {
+                                          setState(() {
+                                            _selectedLat = lat;
+                                            _selectedLng = lng;
+                                          });
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      TextFormField(
+                                        controller: _phoneController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Số điện thoại',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        keyboardType: TextInputType.phone,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      TextFormField(
+                                        controller: _idCardController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Số CMND/CCCD (Tùy chọn)',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        keyboardType: TextInputType.number,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      TextFormField(
+                                        controller: _emailController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Email (Tùy chọn)',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        keyboardType: TextInputType.emailAddress,
+                                        validator: (value) {
+                                          if (value == null || value.trim().isEmpty) return null;
+                                          final emailRegex = RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
+                                          if (!emailRegex.hasMatch(value.trim())) {
+                                            setState(() {
+                                              _isManualInputExpanded = true;
+                                            });
+                                            return 'Định dạng email không hợp lệ';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                keyboardType: TextInputType.number,
-                              ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _emailController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Email (Tùy chọn)',
-                                  border: OutlineInputBorder(),
-                                ),
-                                keyboardType: TextInputType.emailAddress,
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) return null;
-                                  final emailRegex = RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
-                                  if (!emailRegex.hasMatch(value.trim())) {
-                                    return 'Định dạng email không hợp lệ';
-                                  }
-                                  return null;
-                                },
+                                crossFadeState: _isManualInputExpanded
+                                    ? CrossFadeState.showSecond
+                                    : CrossFadeState.showFirst,
+                                duration: const Duration(milliseconds: 300),
                               ),
                             ],
                           ),

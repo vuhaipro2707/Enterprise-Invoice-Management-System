@@ -83,3 +83,7 @@ migrate_working_dir/
 *.iml
 *.ipr
 *.iws
+
+# User custom ignores
+invoice_app_backend/printing_folder/
+invoice_app_frontend/note.txt

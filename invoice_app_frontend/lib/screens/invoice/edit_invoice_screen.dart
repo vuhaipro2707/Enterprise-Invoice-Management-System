@@ -38,6 +38,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   double? _selectedLng;
   bool _isFetchingBuyer = false;
   bool _isFetchingBusiness = false;
+  bool _isBuyerInfoExpanded = false;
 
   Timer? _pingTimer;
   int _failedPingCount = 0;
@@ -481,6 +482,9 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
 
   Future<void> _updateBuyerInfo() async {
     if (_formKey.currentState != null && !_formKey.currentState!.validate()) {
+      setState(() {
+        _isBuyerInfoExpanded = true;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng kiểm tra lại thông tin khách hàng')),
       );
@@ -533,6 +537,262 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     }
   }
 
+  void _showSaveConfirmationDialog() {
+    if (_formKey.currentState != null && !_formKey.currentState!.validate()) {
+      setState(() {
+        _isBuyerInfoExpanded = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng kiểm tra lại thông tin khách hàng')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        bool autoPrint = true;
+        String printType = 'Triplicate';
+
+        Future<Map<String, bool>> checkPrintJobStatus() async {
+          if (_invoiceId == null) return {'Pending': false, 'Printing': false, 'Completed': false};
+          try {
+            final jobs = await _apiService.getPrintJobs(invoiceId: _invoiceId);
+            return {
+              'Pending': jobs.any((job) => job['printStatus'] == 'Pending'),
+              'Printing': jobs.any((job) => job['printStatus'] == 'Printing'),
+              'Completed': jobs.any((job) => job['printStatus'] == 'Completed'),
+            };
+          } catch (_) {
+            return {'Pending': false, 'Printing': false, 'Completed': false};
+          }
+        }
+
+        return StatefulBuilder(
+          builder: (statefulContext, setDialogState) {
+            final dialogColorScheme = Theme.of(statefulContext).colorScheme;
+            return AlertDialog(
+              title: const Text('Xác nhận lưu'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Bạn có chắc chắn muốn hoàn tất và lưu hóa đơn này không?'),
+                  FutureBuilder<Map<String, bool>>(
+                    future: checkPrintJobStatus(),
+                    builder: (futureContext, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 1.5),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Đang kiểm tra hàng chờ in...',
+                                style: TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      
+                      final statusMap = snapshot.data;
+                      if (statusMap == null) return const SizedBox.shrink();
+
+                      final hasPending = statusMap['Pending'] ?? false;
+                      final hasPrinting = statusMap['Printing'] ?? false;
+                      final hasCompleted = statusMap['Completed'] ?? false;
+
+                      if (hasPending || hasPrinting || hasCompleted) {
+                        String msg = '';
+                        Color bannerColor = Colors.amber;
+                        IconData bannerIcon = Icons.warning_amber_rounded;
+
+                        if (hasPending) {
+                          msg = 'Lưu ý: Có bản in của hóa đơn này đang chờ xử lý.';
+                          bannerColor = Colors.orange;
+                          bannerIcon = Icons.hourglass_empty;
+                        } else if (hasPrinting) {
+                          msg = 'Lưu ý: Hóa đơn này đang được tiến hành in.';
+                          bannerColor = Colors.blue;
+                          bannerIcon = Icons.print;
+                        } else if (hasCompleted) {
+                          msg = 'Thông báo: Hóa đơn này đã được in thành công trước đó.';
+                          bannerColor = Colors.green;
+                          bannerIcon = Icons.check_circle_outline;
+                        }
+
+                        return Container(
+                          margin: const EdgeInsets.only(top: 12),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: bannerColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: bannerColor.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(bannerIcon, color: bannerColor, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  msg,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(futureContext).colorScheme.onSurface,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Tự động in sau khi lưu',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'Đưa hóa đơn vào hàng chờ in',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    value: autoPrint,
+                    onChanged: (val) {
+                      setDialogState(() {
+                        autoPrint = val;
+                      });
+                    },
+                  ),
+                  if (autoPrint) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Chọn liên in:',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ChoiceChip(
+                            label: const Center(child: Text('1 bản (Bản gốc)')),
+                            selected: printType == 'Original',
+                            onSelected: (selected) {
+                              if (selected) {
+                                setDialogState(() {
+                                  printType = 'Original';
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ChoiceChip(
+                            label: const Center(child: Text('3 bản (Liên ba)')),
+                            selected: printType == 'Triplicate',
+                            onSelected: (selected) {
+                              if (selected) {
+                                setDialogState(() {
+                                  printType = 'Triplicate';
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('HỦY'),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: autoPrint ? Colors.teal : dialogColorScheme.primary,
+                    foregroundColor: autoPrint ? Colors.white : dialogColorScheme.onPrimary,
+                  ),
+                  onPressed: () {
+                    _pingTimer?.cancel();
+                    setState(() => _isShowingAlert = true);
+                    Navigator.pop(dialogContext);
+                    _finishInvoiceWithPrintOption(autoPrint, printType);
+                  },
+                  icon: Icon(autoPrint ? Icons.print : Icons.check),
+                  label: Text(autoPrint ? 'LƯU & IN' : 'LƯU NGAY'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _handleBackNavigation() async {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.save_outlined, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Lưu hóa đơn?'),
+            ],
+          ),
+          content: const Text(
+            'Bạn có muốn lưu hóa đơn này trước khi thoát không?'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 'cancel'),
+              child: const Text('HỦY'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 'discard'),
+              style: TextButton.styleFrom(
+                foregroundColor: colorScheme.error,
+              ),
+              child: const Text('THOÁT KHÔNG LƯU'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'save'),
+              child: const Text('LƯU NGAY'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == 'save') {
+      _showSaveConfirmationDialog();
+    } else if (result == 'discard') {
+      _pingTimer?.cancel();
+      setState(() => _isShowingAlert = true);
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -547,23 +807,17 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     final lineItems = (_invoiceData?['lineItems'] as List?) ?? [];
 
     return PopScope(
-      canPop: true,
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (didPop) {
-          _pingTimer?.cancel();
-          setState(() => _isShowingAlert = true);
-        }
+        if (didPop) return;
+        _handleBackNavigation();
       },
       child: Scaffold(
         appBar: AppBar(
           title: Text('Sửa ${_invoiceData?['invoiceCode'] ?? 'Hóa đơn'}'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () {
-              _pingTimer?.cancel();
-              setState(() => _isShowingAlert = true);
-              Navigator.pop(context);
-            },
+            onPressed: _handleBackNavigation,
           ),
           actions: [
             IconButton(
@@ -605,8 +859,11 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            // Thông tin khách hàng (Editable)
+            // Thông tin khách hàng (Editable - Collapsible)
             Card(
+              color: colorScheme.surfaceContainer,
+              elevation: 1,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Form(
@@ -614,115 +871,173 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Thông tin khách hàng',
-                              style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
-                          TextButton.icon(
-                            onPressed: _updateBuyerInfo,
-                            icon: const Icon(Icons.save),
-                            label: const Text('Lưu'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _buyerCodeController,
-                              decoration: const InputDecoration(
-                                labelText: 'Mã khách hàng (Tùy chọn)',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _isFetchingBuyer
-                              ? const Padding(
-                                  padding: EdgeInsets.all(12.0),
-                                  child: SizedBox(
-                                      width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
-                                )
-                              : Row(
-                                  children: [
-                                    IconButton.filled(
-                                      onPressed: _lookupBuyer,
-                                      icon: const Icon(Icons.person_search),
-                                      tooltip: 'Truy vấn nhanh theo mã',
-                                    ),
-                                    const SizedBox(width: 4),
-                                    IconButton.filledTonal(
-                                      onPressed: _searchBuyerAdvanced,
-                                      icon: const Icon(Icons.search),
-                                      tooltip: 'Tìm kiếm nâng cao',
-                                    ),
-                                  ],
-                                ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _taxIdController,
-                        decoration: InputDecoration(
-                          labelText: 'Mã số thuế (Tùy chọn)',
-                          suffixIcon: _isFetchingBusiness
-                            ? const Padding(
-                                padding: EdgeInsets.all(12.0),
-                                child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                              )
-                            : IconButton(
-                                icon: const Icon(Icons.search),
-                                onPressed: _lookupVietQR,
-                                tooltip: 'Lấy thông tin từ MST',
-                              ),
-                          border: const OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _buyerNameController,
-                        decoration: const InputDecoration(labelText: 'Tên khách hàng *', border: OutlineInputBorder()),
-                        validator: (value) => value == null || value.trim().isEmpty ? 'Vui lòng nhập tên khách hàng' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      AddressSearchField(
-                        controller: _addressController,
-                        initialLat: _selectedLat,
-                        initialLng: _selectedLng,
-                        initialAddress: _addressController.text,
-                        onLocationSelected: (lat, lng) {
+                      InkWell(
+                        onTap: () {
                           setState(() {
-                            _selectedLat = lat;
-                            _selectedLng = lng;
+                            _isBuyerInfoExpanded = !_isBuyerInfoExpanded;
                           });
                         },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.person_outline_rounded,
+                                    color: _isBuyerInfoExpanded ? colorScheme.primary : colorScheme.outline,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Thông tin khách hàng',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: _isBuyerInfoExpanded ? colorScheme.primary : colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  if (_isBuyerInfoExpanded) ...[
+                                    TextButton.icon(
+                                      onPressed: _updateBuyerInfo,
+                                      icon: const Icon(Icons.save),
+                                      label: const Text('Lưu'),
+                                      style: TextButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  Icon(
+                                    _isBuyerInfoExpanded
+                                        ? Icons.keyboard_arrow_up_rounded
+                                        : Icons.keyboard_arrow_down_rounded,
+                                    color: _isBuyerInfoExpanded ? colorScheme.primary : colorScheme.outline,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _phoneController,
-                        decoration: const InputDecoration(labelText: 'Số điện thoại', border: OutlineInputBorder()),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _idCardController,
-                        decoration: const InputDecoration(labelText: 'Số CMND/CCCD (Tùy chọn)', border: OutlineInputBorder()),
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _emailController,
-                        decoration: const InputDecoration(labelText: 'Email (Tùy chọn)', border: OutlineInputBorder()),
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) return null;
-                          final emailRegex = RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
-                          if (!emailRegex.hasMatch(value.trim())) {
-                            return 'Định dạng email không hợp lệ';
-                          }
-                          return null;
-                        },
+                      AnimatedCrossFade(
+                        firstChild: const SizedBox.shrink(),
+                        secondChild: Padding(
+                          padding: const EdgeInsets.only(top: 16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _buyerCodeController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Mã khách hàng (Tùy chọn)',
+                                        border: OutlineInputBorder(),
+                                        isDense: true,
+                                      ),
+                                      onFieldSubmitted: (_) => _lookupBuyer(),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _isFetchingBuyer
+                                      ? const Padding(
+                                          padding: EdgeInsets.all(12.0),
+                                          child: SizedBox(
+                                              width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+                                        )
+                                      : Row(
+                                          children: [
+                                            IconButton.filled(
+                                              onPressed: _lookupBuyer,
+                                              icon: const Icon(Icons.person_search),
+                                              tooltip: 'Truy vấn nhanh theo mã',
+                                            ),
+                                            const SizedBox(width: 4),
+                                            IconButton.filledTonal(
+                                              onPressed: _searchBuyerAdvanced,
+                                              icon: const Icon(Icons.search),
+                                              tooltip: 'Tìm kiếm nâng cao',
+                                            ),
+                                          ],
+                                        ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _taxIdController,
+                                decoration: InputDecoration(
+                                  labelText: 'Mã số thuế (Tùy chọn)',
+                                  suffixIcon: _isFetchingBusiness
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(12.0),
+                                        child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                                      )
+                                    : IconButton(
+                                        icon: const Icon(Icons.search),
+                                        onPressed: _lookupVietQR,
+                                        tooltip: 'Lấy thông tin từ MST',
+                                      ),
+                                  border: const OutlineInputBorder(),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _buyerNameController,
+                                decoration: const InputDecoration(labelText: 'Tên khách hàng *', border: OutlineInputBorder()),
+                                validator: (value) => value == null || value.trim().isEmpty ? 'Vui lòng nhập tên khách hàng' : null,
+                              ),
+                              const SizedBox(height: 16),
+                              AddressSearchField(
+                                controller: _addressController,
+                                initialLat: _selectedLat,
+                                initialLng: _selectedLng,
+                                initialAddress: _addressController.text,
+                                onLocationSelected: (lat, lng) {
+                                  setState(() {
+                                    _selectedLat = lat;
+                                    _selectedLng = lng;
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _phoneController,
+                                decoration: const InputDecoration(labelText: 'Số điện thoại', border: OutlineInputBorder()),
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _idCardController,
+                                decoration: const InputDecoration(labelText: 'Số CMND/CCCD (Tùy chọn)', border: OutlineInputBorder()),
+                                keyboardType: TextInputType.number,
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _emailController,
+                                decoration: const InputDecoration(labelText: 'Email (Tùy chọn)', border: OutlineInputBorder()),
+                                keyboardType: TextInputType.emailAddress,
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) return null;
+                                  final emailRegex = RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
+                                  if (!emailRegex.hasMatch(value.trim())) {
+                                    return 'Định dạng email không hợp lệ';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        crossFadeState: _isBuyerInfoExpanded
+                            ? CrossFadeState.showSecond
+                            : CrossFadeState.showFirst,
+                        duration: const Duration(milliseconds: 300),
                       ),
                     ],
                   ),
@@ -1023,209 +1338,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                onPressed: () {
-                  if (_formKey.currentState != null && !_formKey.currentState!.validate()) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Vui lòng kiểm tra lại thông tin khách hàng')),
-                    );
-                    return;
-                  }
-                  showDialog(
-                    context: context,
-                    builder: (dialogContext) {
-                      bool autoPrint = true;
-                      String printType = 'Triplicate';
-
-                      // Helper to check for existing pending/printing/completed jobs
-                      Future<Map<String, bool>> checkPrintJobStatus() async {
-                        if (_invoiceId == null) return {'Pending': false, 'Printing': false, 'Completed': false};
-                        try {
-                          final jobs = await _apiService.getPrintJobs(invoiceId: _invoiceId);
-                          return {
-                            'Pending': jobs.any((job) => job['printStatus'] == 'Pending'),
-                            'Printing': jobs.any((job) => job['printStatus'] == 'Printing'),
-                            'Completed': jobs.any((job) => job['printStatus'] == 'Completed'),
-                          };
-                        } catch (_) {
-                          return {'Pending': false, 'Printing': false, 'Completed': false};
-                        }
-                      }
-
-                      return StatefulBuilder(
-                        builder: (statefulContext, setDialogState) {
-                          final dialogColorScheme = Theme.of(statefulContext).colorScheme;
-                          return AlertDialog(
-                            title: const Text('Xác nhận lưu'),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Bạn có chắc chắn muốn hoàn tất và lưu hóa đơn này không?'),
-                                FutureBuilder<Map<String, bool>>(
-                                  future: checkPrintJobStatus(),
-                                  builder: (futureContext, snapshot) {
-                                    if (snapshot.connectionState == ConnectionState.waiting) {
-                                      return const Padding(
-                                        padding: EdgeInsets.symmetric(vertical: 8.0),
-                                        child: Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 14,
-                                              height: 14,
-                                              child: CircularProgressIndicator(strokeWidth: 1.5),
-                                            ),
-                                            SizedBox(width: 8),
-                                            Text(
-                                              'Đang kiểm tra hàng chờ in...',
-                                              style: TextStyle(fontSize: 12, color: Colors.grey),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }
-                                    
-                                    final statusMap = snapshot.data;
-                                    if (statusMap == null) return const SizedBox.shrink();
-
-                                    final hasPending = statusMap['Pending'] ?? false;
-                                    final hasPrinting = statusMap['Printing'] ?? false;
-                                    final hasCompleted = statusMap['Completed'] ?? false;
-
-                                    if (hasPending || hasPrinting || hasCompleted) {
-                                      String msg = '';
-                                      Color bannerColor = Colors.amber;
-                                      IconData bannerIcon = Icons.warning_amber_rounded;
-
-                                      if (hasPending) {
-                                        msg = 'Lưu ý: Có bản in của hóa đơn này đang chờ xử lý.';
-                                        bannerColor = Colors.orange;
-                                        bannerIcon = Icons.hourglass_empty;
-                                      } else if (hasPrinting) {
-                                        msg = 'Lưu ý: Hóa đơn này đang được tiến hành in.';
-                                        bannerColor = Colors.blue;
-                                        bannerIcon = Icons.print;
-                                      } else if (hasCompleted) {
-                                        msg = 'Thông báo: Hóa đơn này đã được in thành công trước đó.';
-                                        bannerColor = Colors.green;
-                                        bannerIcon = Icons.check_circle_outline;
-                                      }
-
-                                      return Container(
-                                        margin: const EdgeInsets.only(top: 12),
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: bannerColor.withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: bannerColor.withValues(alpha: 0.3)),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Icon(bannerIcon, color: bannerColor, size: 20),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                msg,
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Theme.of(futureContext).colorScheme.onSurface,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }
-                                    return const SizedBox.shrink();
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                                const Divider(),
-                                const SizedBox(height: 8),
-                                SwitchListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  title: const Text(
-                                    'Tự động in sau khi lưu',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                  ),
-                                  subtitle: const Text(
-                                    'Đưa hóa đơn vào hàng chờ in',
-                                    style: TextStyle(fontSize: 12),
-                                  ),
-                                  value: autoPrint,
-                                  onChanged: (val) {
-                                    setDialogState(() {
-                                      autoPrint = val;
-                                    });
-                                  },
-                                ),
-                                if (autoPrint) ...[
-                                  const SizedBox(height: 12),
-                                  const Text(
-                                    'Chọn liên in:',
-                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: ChoiceChip(
-                                          label: const Center(child: Text('1 bản (Bản gốc)')),
-                                          selected: printType == 'Original',
-                                          onSelected: (selected) {
-                                            if (selected) {
-                                              setDialogState(() {
-                                                printType = 'Original';
-                                              });
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: ChoiceChip(
-                                          label: const Center(child: Text('3 bản (Liên ba)')),
-                                          selected: printType == 'Triplicate',
-                                          onSelected: (selected) {
-                                            if (selected) {
-                                              setDialogState(() {
-                                                printType = 'Triplicate';
-                                              });
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ],
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(dialogContext),
-                                child: const Text('HỦY'),
-                              ),
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: autoPrint ? Colors.teal : dialogColorScheme.primary,
-                                  foregroundColor: autoPrint ? Colors.white : dialogColorScheme.onPrimary,
-                                ),
-                                onPressed: () {
-                                  _pingTimer?.cancel();
-                                  setState(() => _isShowingAlert = true);
-                                  Navigator.pop(dialogContext);
-                                  _finishInvoiceWithPrintOption(autoPrint, printType);
-                                },
-                                icon: Icon(autoPrint ? Icons.print : Icons.check),
-                                label: Text(autoPrint ? 'LƯU & IN' : 'LƯU NGAY'),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                  );
-                },
+                onPressed: _showSaveConfirmationDialog,
                 icon: const Icon(Icons.check_circle_outline),
                 label: const Text('HOÀN TẤT & LƯU HÓA ĐƠN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ),
