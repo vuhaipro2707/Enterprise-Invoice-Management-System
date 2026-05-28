@@ -196,30 +196,21 @@ chmod +x setup.sh
 ```
 
 ### Step 2: Build Flutter Assets Locally
-Compile the production Flutter Web assets and release Android APK:
+Compile the production Flutter Web assets and release Android APK (select `y` when prompted to clean and rebuild; the upload step will automatically be skipped since no remote server is specified):
 ```bash
 chmod +x build_flutter.sh
 ./build_flutter.sh
 ```
 
-
 ### Step 3: Build the Backend Docker Image Locally
-Build the Go backend image locally so it is registered in your local docker daemon:
+Build the Go backend image locally without pushing to the registry. The script automatically reads the tag from the `DEPLOY_DOCKER_IMAGE` variable inside your root `.env` file (or you can pass it as an argument):
 ```bash
-cd invoice_app_backend
-docker build -t invoice_app_backend:latest .
-cd ..
+chmod +x build_backend.sh
+./build_backend.sh
 ```
 
-### Step 4: Configure `docker-compose.prod.yml`
-Open [docker-compose.prod.yml](file:///Users/thanhhai/Documents/LocalSrc/Invoice_App/docker-compose.prod.yml) and modify the Go `backend` service `image` to use your locally compiled image:
-```yaml
-  backend:
-    # Change from:
-    # image: haideptrai2707/invoice_app_backend:v1
-    # To:
-    image: invoice_app_backend:latest
-```
+### Step 4: Run Docker Compose
+Because `build_backend.sh` automatically tags the local image matching the exact name from your `.env` (the same tag specified in `docker-compose.prod.yml`), you **do not** need to modify `docker-compose.prod.yml`.
 
 Ensure your root `.env` is configured (including `PRINT_FOLDER_PATH` and `DOMAIN`), then start the containers.
 

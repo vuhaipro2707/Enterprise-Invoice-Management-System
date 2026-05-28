@@ -3,7 +3,7 @@ services:
   db:
     image: postgres:16-alpine
     container_name: invoice_db
-    restart: always
+    restart: unless-stopped 
     env_file:
       - ./invoice_app_backend/.env
     expose:
@@ -21,12 +21,13 @@ services:
   pgadmin:
     image: dpage/pgadmin4
     container_name: pgadmin_dev
-    restart: always
+    restart: unless-stopped 
     depends_on:
       - db
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "False"
     expose:
       - "8888"
     volumes:
@@ -34,9 +35,9 @@ services:
 
   # 3. Backend Go (Internal)
   backend:
-    image: invoice_app_backend:latest
+    image: ${DEPLOY_DOCKER_IMAGE}
     container_name: invoice_backend
-    restart: always
+    restart: unless-stopped 
     depends_on:
       - db
     env_file:
@@ -58,6 +59,7 @@ services:
   gateway:
     image: nginx:alpine
     container_name: invoice_gateway
+    restart: unless-stopped 
     ports:
       - "${DEPLOY_HTTP_PORT:-27080}:80"
       - "${DEPLOY_HTTPS_PORT:-27443}:443"

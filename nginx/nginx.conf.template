@@ -49,13 +49,19 @@ server {
 }
 
 # =========================================================================
-# 2. FRONTEND FLUTTER WEB SERVER BLOCK (PUBLIC ACCESS VIA domain.com & www.domain.com)
+# 2. FRONTEND FLUTTER WEB SERVER BLOCK (NO PUBLIC ACCESS)
 # =========================================================================
 server {
-    listen 80;
-    listen 443 ssl;
-    # Catch both www and non-www requests to serve the Flutter Web Frontend
-    server_name DOMAIN_PLACEHOLDER www.DOMAIN_PLACEHOLDER;
+    listen 443 ssl default_server;
+    server_name _;
+
+    # --- LOCAL IP RESTRICTION (LAN ONLY) FOR BOTH FRONTEND & PGADMIN ---
+    allow 127.0.0.1;
+    allow ::1;
+    allow 192.168.0.0/16;
+    allow 172.16.0.0/12;
+    allow 10.0.0.0/8;
+    deny all;
 
     # SSL Certificate paths inside the container (mounted from the host)
     ssl_certificate     /etc/nginx/ssl/fullchain.pem;
@@ -76,17 +82,14 @@ server {
 
     # Reverse proxy to access the internal pgAdmin dashboard (Securely LAN-restricted!)
     location /pgadmin/ {
-        # --- LOCAL IP RESTRICTION (LAN ONLY) ---
-        allow 192.168.1.0/24;
-        allow 127.0.0.1;
-        deny all;
 
         # Proxy to pgadmin container (Standard port is 80)
         proxy_pass http://pgadmin_dev:80/;
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $http_host;
 
         # Essential headers for pgAdmin path prefixing
         proxy_set_header X-Script-Name /pgadmin;

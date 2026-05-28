@@ -35,9 +35,15 @@ if [ -z "$DOMAIN" ]; then
     read -p "Enter your domain (e.g. invoice.yourdomain.com): " DOMAIN
 fi
 
+if [ -z "$DEPLOY_DOCKER_IMAGE" ]; then
+    echo "❌ ERROR: DEPLOY_DOCKER_IMAGE is not set in root .env. Aborting."
+    exit 1
+fi
+
 echo ""
 echo "Target  : $REMOTE_SERVER:$REMOTE_PATH"
 echo "Domain  : $DOMAIN"
+echo "Image   : $DEPLOY_DOCKER_IMAGE"
 echo ""
 
 # 1.5 Prepare backend env & run generate_jwt_key.py
@@ -51,12 +57,27 @@ if [ ! -f "./invoice_app_backend/.env" ]; then
     fi
 fi
 
-if [ -f "./generate_jwt_key.py" ]; then
-    echo "Running generate_jwt_key.py to ensure secure JWT Secret..."
-    python3 ./generate_jwt_key.py || python ./generate_jwt_key.py
-    if [ $? -ne 0 ]; then
-        echo "⚠️ Warning: Failed to execute generate_jwt_key.py. Proceeding with existing config..."
+RUN_GENERATE_JWT=true
+if [ -f "./invoice_app_backend/.env" ]; then
+    if grep -q '^JWT_SECRET=[a-zA-Z0-9]' "./invoice_app_backend/.env"; then
+        read -p "🔑 JWT_SECRET is already configured in backend .env. Re-generate a new one? (y/N): " CONFIRM_JWT
+        echo ""
+        if [[ ! "$CONFIRM_JWT" =~ ^[Yy]$ ]]; then
+            RUN_GENERATE_JWT=false
+        fi
     fi
+fi
+
+if [ "$RUN_GENERATE_JWT" = true ]; then
+    if [ -f "./generate_jwt_key.py" ]; then
+        echo "Running generate_jwt_key.py to ensure secure JWT Secret..."
+        python3 ./generate_jwt_key.py || python ./generate_jwt_key.py
+        if [ $? -ne 0 ]; then
+            echo "⚠️ Warning: Failed to execute generate_jwt_key.py. Proceeding with existing config..."
+        fi
+    fi
+else
+    echo "⏭  Skipping JWT_SECRET generation. Using existing JWT_SECRET."
 fi
 
 # 2. Check that local files exist before uploading
@@ -84,6 +105,13 @@ fi
 
 echo "✅ Local files OK."
 echo ""
+
+# 2.5 Build and push Backend Docker image to registry
+DEPLOY_DOCKER_IMAGE="$DEPLOY_DOCKER_IMAGE" REMOTE_SERVER="$REMOTE_SERVER" REMOTE_PATH="$REMOTE_PATH" bash ./build_backend.sh
+if [ $? -ne 0 ]; then
+    echo "❌ ERROR: Backend build/push step failed."
+    exit 1
+fi
 
 # 3. Create remote directories if they don't exist
 echo "Ensuring remote directories exist..."
@@ -197,14 +225,14 @@ fi
 echo "✅ setup.sh done."
 echo ""
 
-# 8. Pull remote images and restart Docker (no local build)
-echo "Pulling remote Docker images and restarting containers..."
-ssh "$REMOTE_SERVER" "cd $REMOTE_PATH && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml down && docker compose -f docker-compose.prod.yml up -d --force-recreate"
+# 8. Pull remote images, rebuild containers, and restart Docker
+echo "Pulling remote images, rebuilding containers, and restarting Docker..."
+ssh "$REMOTE_SERVER" "cd $REMOTE_PATH && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml build --no-cache && docker compose -f docker-compose.prod.yml down && docker compose -f docker-compose.prod.yml up -d"
 if [ $? -ne 0 ]; then
-    echo "❌ ERROR: Docker Compose pull & restart failed."
+    echo "❌ ERROR: Docker Compose pull, build & restart failed."
     exit 1
 fi
-echo "✅ Docker Compose is up and running with the latest pulled images."
+echo "✅ Docker Compose is up and running with the latest pulled and rebuilt images."
 
 echo ""
 echo "--- DONE! Remote server is updated and running: $REMOTE_SERVER:$REMOTE_PATH ---"

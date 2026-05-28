@@ -27,39 +27,43 @@ echo ""
 read -p "Clean build cache and rebuild everything? (y/N): " CONFIRM_BUILD
 echo ""
 
-if [[ ! "$CONFIRM_BUILD" =~ ^[Yy]$ ]]; then
-    echo "⏭  Skipping build and upload."
-    exit 0
-fi
+if [[ "$CONFIRM_BUILD" =~ ^[Yy]$ ]]; then
+    echo "🧹 Cleaning Flutter build cache..."
+    (cd "$FRONTEND_DIR" && flutter clean && flutter pub get)
+    if [ $? -ne 0 ]; then
+        echo "❌ ERROR: Flutter clean/pub get failed."
+        exit 1
+    fi
+    echo "✅ Clean complete."
+    echo ""
 
-echo "🧹 Cleaning Flutter build cache..."
-(cd "$FRONTEND_DIR" && flutter clean && flutter pub get)
-if [ $? -ne 0 ]; then
-    echo "❌ ERROR: Flutter clean/pub get failed."
-    exit 1
-fi
-echo "✅ Clean complete."
-echo ""
+    # --- Flutter Web ---
+    echo "Building Flutter Web..."
+    (cd "$FRONTEND_DIR" && flutter build web --release)
+    if [ $? -ne 0 ]; then
+        echo "❌ ERROR: Flutter Web build failed."
+        exit 1
+    fi
+    echo "✅ Flutter Web build done."
+    echo ""
 
-# --- Flutter Web ---
-echo "Building Flutter Web..."
-(cd "$FRONTEND_DIR" && flutter build web --release)
-if [ $? -ne 0 ]; then
-    echo "❌ ERROR: Flutter Web build failed."
-    exit 1
+    # --- Flutter APK ---
+    echo "Building Flutter APK (release)..."
+    (cd "$FRONTEND_DIR" && flutter build apk --release)
+    if [ $? -ne 0 ]; then
+        echo "❌ ERROR: Flutter APK build failed."
+        exit 1
+    fi
+    echo "✅ Flutter APK build done."
+    echo ""
+else
+    echo "⏭  Skipping compilation step. Proceeding with existing build..."
+    if [ ! -d "$WEB_BUILD_DIR" ] || [ ! -f "$APK_BUILD_PATH" ]; then
+        echo "⚠️  WARNING: Web build directory or APK build file is missing!"
+        echo "   Please run a full build at least once."
+    fi
+    echo ""
 fi
-echo "✅ Flutter Web build done."
-echo ""
-
-# --- Flutter APK ---
-echo "Building Flutter APK (release)..."
-(cd "$FRONTEND_DIR" && flutter build apk --release)
-if [ $? -ne 0 ]; then
-    echo "❌ ERROR: Flutter APK build failed."
-    exit 1
-fi
-echo "✅ Flutter APK build done."
-echo ""
 
 if [ "$UPLOAD" = true ]; then
     # --- Upload Flutter Web ---
