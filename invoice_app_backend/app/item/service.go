@@ -485,7 +485,7 @@ func (s *ItemService) initContextCache(ctx context.Context) {
 	}
 
 	modelName := "gemini-3.1-flash-lite"
-	displayName := "item_suggestions_static_instructions"
+	displayName := "item_suggestions_static_instructions_v2"
 
 	// 1. Kiểm tra danh sách cache hiện tại để tìm cache trùng DisplayName và chưa hết hạn
 	page, err := s.genaiClient.Caches.List(ctx, &genai.ListCachedContentsConfig{PageSize: 50})

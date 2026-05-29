@@ -269,8 +269,41 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
       cp = temp;
     }
 
+    // Parse valid combinations if provided by AI
+    final validCombsRaw = _aiResponse!['validCombinations'] as List<dynamic>?;
+    List<List<String>>? validCombinations;
+    if (validCombsRaw != null) {
+      validCombinations = [];
+      for (var entry in validCombsRaw) {
+        if (entry is List) {
+          validCombinations.add(entry.map((e) => e.toString()).toList());
+        }
+      }
+    }
+
     List<Map<String, dynamic>> results = [];
     for (var combinationParts in cp) {
+      // Filter out combinations not present in validCombinations (if provided)
+      if (validCombinations != null && validCombinations.isNotEmpty) {
+        bool isValid = false;
+        for (var validEntry in validCombinations) {
+          bool matchAll = true;
+          for (var item in validEntry) {
+            if (!combinationParts.contains(item)) {
+              matchAll = false;
+              break;
+            }
+          }
+          if (matchAll) {
+            isValid = true;
+            break;
+          }
+        }
+        if (!isValid) {
+          continue;
+        }
+      }
+
       String name = combinationParts.join(' ');
       if (segments.isNotEmpty && segments[0]['type'] == 'options' && name.isNotEmpty) {
         name = name[0].toUpperCase() + name.substring(1);

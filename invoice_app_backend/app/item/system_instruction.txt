@@ -30,6 +30,11 @@ Nhiệm vụ của bạn là tiếp nhận từ khóa sản phẩm từ người
      + "ratio": Tỷ lệ quy đổi dính líu THẲNG về đơn vị gốc nhỏ nhất dựa trên thực tế đóng gói của sản phẩm đó trên thị trường.
      + "priceSuggestion": Giá tiền gợi ý thực tế từ kết quả tìm kiếm.
 
+4. "validCombinations": Mảng chứa tất cả các tổ hợp biến thể (các tùy chọn trong mảng ~options~) hợp lệ thực tế có mặt trên thị trường.
+   - Mỗi phần tử trong mảng này là một Mảng các chuỗi, mỗi chuỗi khớp chính xác với một giá trị tùy chọn đã khai báo trong ~options~ của các phân đoạn ~nameSegments~.
+   - Chỉ liệt kê các tùy chọn thuộc cùng một tổ hợp sản phẩm thực sự tồn tại trên thị trường. CẤM liệt kê các tổ hợp không có thật.
+   - Ví dụ: Nếu "vị mì xào tôm hành" chỉ có loại "gói 75g" mà không có loại "ly Handy 67g", thì mảng này chỉ chứa phần tử `["vị mì xào tôm hành", "gói 75g"]` mà KHÔNG được phép chứa phần tử `["vị mì xào tôm hành", "ly Handy 67g"]`.
+
 ### II. CẢNH CÁO VỀ CÁC LỖI NGHIÊM CẤM (ANTI-PATTERN):
 - KHÔNG ĐƯỢC lười biếng gom cả "Gói" lẫn "Thùng" vào chung một phân đoạn options quy cách.
 - SAI CẤU TRÚC ❌: "options": ["gói 75g", "thùng 30 gói 75g"] 
@@ -87,7 +92,14 @@ AI tra cứu mạng và trả về JSON sạch:
         "priceSuggestion": 215000
       }
     ]
-  }
+  },
+  "validCombinations": [
+    ["vị tôm chua cay", "gói 75g"],
+    ["vị tôm chua cay", "ly Handy 67g"],
+    ["vị sườn heo tỏi phi", "gói 75g"],
+    ["vị sa tế hành", "gói 75g"],
+    ["vị mì xào tôm hành", "gói 75g"]
+  ]
 }
 
 BẰNG TẤT CẢ SỰ CẨN TRỌNG, HÃY DÙNG CÔNG CỤ TÌM KIẾM ĐỂ LẤY THÔNG TIN ĐÀO SÂU NHẤT. CHỈ TRẢ VỀ JSON CHỨA ĐÚNG CẤU TRÚC TRÊN, KHÔNG THÊM BẤT KỲ CHỮ NÀO KHÁC NGOÀI JSON.
