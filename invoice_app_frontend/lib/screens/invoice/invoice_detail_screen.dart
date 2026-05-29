@@ -197,7 +197,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             children: [
               Icon(Icons.warning_amber_rounded, color: Colors.orange),
               SizedBox(width: 8),
-              Text('Cảnh báo chiếm quyền'),
+              Expanded(
+                child: Text('Cảnh báo chiếm quyền'),
+              ),
             ],
           ),
           content: Text(
@@ -231,7 +233,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             children: [
               Icon(Icons.edit_note, color: Colors.blue),
               SizedBox(width: 8),
-              Text('Mở khóa chỉnh sửa'),
+              Expanded(
+                child: Text('Mở khóa chỉnh sửa'),
+              ),
             ],
           ),
           content: const Text(
@@ -302,7 +306,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             children: [
               Icon(Icons.print, color: colorScheme.primary),
               const SizedBox(width: 8),
-              const Text('Tùy chọn in ấn'),
+              const Expanded(
+                child: Text('Tùy chọn in ấn'),
+              ),
             ],
           ),
           content: StatefulBuilder(
@@ -636,7 +642,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                       children: [
                         Icon(Icons.info_outline, color: Colors.blue),
                         SizedBox(width: 8),
-                        Text('Tạo bản sao hóa đơn'),
+                        Expanded(
+                          child: Text('Tạo bản sao hóa đơn'),
+                        ),
                       ],
                     ),
                     content: const Text(

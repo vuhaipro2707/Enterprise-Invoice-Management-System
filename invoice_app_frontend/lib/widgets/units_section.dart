@@ -302,26 +302,14 @@ class _UnitsSectionState extends State<UnitsSection> {
                             ],
                           ),
                         ),
-                      if (!widget.readOnly && (!isBase || widget.units.length == 1)) ...[
-                        if (widget.units.length > 1 || !isBase)
-                          IconButton(
-                            onPressed: () => _removeUnit(index),
-                            icon: Icon(
-                              Icons.delete_outline,
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                            tooltip: 'Xóa đơn vị',
+                      if (!widget.readOnly && !isBase) ...[
+                        IconButton(
+                          onPressed: () => _removeUnit(index),
+                          icon: Icon(
+                            Icons.delete_outline,
+                            color: Theme.of(context).colorScheme.error,
                           ),
-                      ] else if (!widget.readOnly) ...[
-                        Tooltip(
-                          message: 'Không thể xóa đơn vị gốc khi còn đơn vị khác',
-                          child: IconButton(
-                            onPressed: null,
-                            icon: Icon(
-                              Icons.delete_outline,
-                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
-                            ),
-                          ),
+                          tooltip: 'Xóa đơn vị',
                         ),
                       ]
                     ],

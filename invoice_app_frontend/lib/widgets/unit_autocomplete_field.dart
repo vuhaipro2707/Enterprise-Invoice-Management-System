@@ -24,10 +24,23 @@ class UnitAutocompleteField extends StatelessWidget {
 
   // Common Vietnamese unit suggestions
   static const List<String> _unitSuggestions = [
-    'Thùng', 'Túi', 'Hộp', 'Chai', 'Két',
-    'Cái', 'Lon', 'Gói', 'Bao', 'Bình',
-    'Lít', 'Kg', 'Gram', 'Mét', 'Cuộn',
-    'Tấm', 'Đôi', 'Bộ', 'Chiếc', 'Viên',
+    // Đóng gói lớn & Vận chuyển
+    'Thùng', 'Bao', 'Két', 'Kiện', 'Lô', 'Pallet', 'Lốc',
+    
+    // Đóng gói vừa & Nhỏ
+    'Hộp', 'Túi', 'Gói', 'Bịch', 'Vỉ', 'Hũ', 'Lọ', 'Chai', 'Bình', 'Ống', 'Tuýp', 'Khay',
+    
+    // Đơn vị bán lẻ & Chi tiết
+    'Cái', 'Chiếc', 'Cây', 'Thanh', 'Tấm', 'Sợi', 'Viên', 'Đôi', 'Cặp', 'Bộ', 'Cuộn', 'Vòng', 'Cuốn', 'Quyển', 'Tập', 'Ram', 'Xấp', 'Tờ',
+    
+    // Trọng lượng & Đo lường
+    'Kg', 'Gram', 'Tấn', 'Tạ', 'Yến', 'Lít', 'Mililít', 'Mét', 'Centimét', 'Mét vuông', 'Mét khối',
+    
+    // Nông sản & Thực phẩm
+    'Bó', 'Mớ', 'Nải', 'Trái', 'Quả', 'Củ', 'Nhánh', 'Tép', 'Bánh', 'Hạt', 'Lát',
+    
+    // Đơn vị dịch vụ & Khác
+    'Chục', 'Lần', 'Giờ', 'Ngày', 'Công', 'Vé', 'Suất', 'Phần',
   ];
 
   /// Normalize a string: lowercase + strip Vietnamese diacritics.
@@ -117,15 +130,15 @@ class UnitAutocompleteField extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 220),
-              child: ListView.builder(
+              child: ListView.separated(
                 padding: EdgeInsets.zero,
                 shrinkWrap: true,
                 itemCount: options.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final option = options.elementAt(index);
                   return ListTile(
                     dense: true,
-                    leading: const Icon(Icons.straighten_rounded, size: 18),
                     title: Text(option),
                     onTap: () => onSelectedOption(option),
                   );

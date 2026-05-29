@@ -388,7 +388,9 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
                                 color: Theme.of(confirmDialogContext).colorScheme.error,
                               ),
                               const SizedBox(width: 8),
-                              const Text('Xác nhận thay đổi'),
+                              const Expanded(
+                                child: Text('Xác nhận thay đổi'),
+                              ),
                             ],
                           ),
                           content: const Text(

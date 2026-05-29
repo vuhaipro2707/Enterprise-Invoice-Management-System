@@ -302,7 +302,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           children: [
             Icon(Icons.warning, color: Colors.orange),
             SizedBox(width: 8),
-            Text('Trùng mã hóa đơn'),
+            Expanded(
+              child: Text('Trùng mã hóa đơn'),
+            ),
           ],
         ),
         content: const Text(
@@ -567,23 +569,22 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.edit_note_rounded,
-                                            color: _isManualInputExpanded ? colorScheme.primary : colorScheme.outline,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Nhập thông tin khách hàng thủ công',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                              color: _isManualInputExpanded ? colorScheme.primary : colorScheme.onSurface,
-                                            ),
-                                          ),
-                                        ],
+                                      Icon(
+                                        Icons.edit_note_rounded,
+                                        color: _isManualInputExpanded ? colorScheme.primary : colorScheme.outline,
                                       ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Nhập thông tin khách hàng thủ công',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                            color: _isManualInputExpanded ? colorScheme.primary : colorScheme.onSurface,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
                                       Icon(
                                         _isManualInputExpanded
                                             ? Icons.keyboard_arrow_up_rounded

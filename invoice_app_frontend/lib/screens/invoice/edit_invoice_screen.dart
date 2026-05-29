@@ -755,7 +755,9 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
             children: [
               Icon(Icons.save_outlined, color: Colors.orange),
               SizedBox(width: 8),
-              Text('Lưu hóa đơn?'),
+              Expanded(
+                child: Text('Lưu hóa đơn?'),
+              ),
             ],
           ),
           content: const Text(
@@ -883,24 +885,32 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.person_outline_rounded,
-                                    color: _isBuyerInfoExpanded ? colorScheme.primary : colorScheme.outline,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Thông tin khách hàng',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: _isBuyerInfoExpanded ? colorScheme.primary : colorScheme.onSurface,
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.person_outline_rounded,
+                                      color: _isBuyerInfoExpanded ? colorScheme.primary : colorScheme.outline,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Thông tin khách hàng',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          color: _isBuyerInfoExpanded ? colorScheme.primary : colorScheme.onSurface,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
+                              const SizedBox(width: 8),
                               Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (_isBuyerInfoExpanded) ...[
                                     TextButton.icon(
@@ -911,7 +921,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                                         visualDensity: VisualDensity.compact,
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
+                                    const SizedBox(width: 4),
                                   ],
                                   Icon(
                                     _isBuyerInfoExpanded

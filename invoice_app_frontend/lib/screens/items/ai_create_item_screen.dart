@@ -848,12 +848,14 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
               children: [
                 Icon(Icons.auto_awesome_rounded, color: colorScheme.primary, size: 20),
                 const SizedBox(width: 8),
-                Text(
-                  'Tìm kiếm nhanh trên thị trường bằng AI',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                    fontSize: 15,
+                Expanded(
+                  child: Text(
+                    'Tìm kiếm nhanh trên thị trường bằng AI',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                      fontSize: 15,
+                    ),
                   ),
                 ),
               ],

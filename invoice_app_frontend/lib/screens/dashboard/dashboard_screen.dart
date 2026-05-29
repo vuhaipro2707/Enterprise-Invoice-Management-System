@@ -134,7 +134,9 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
             children: [
               Icon(Icons.warning_amber_rounded, color: Colors.orange),
               SizedBox(width: 8),
-              Text('Cảnh báo chiếm quyền'),
+              Expanded(
+                child: Text('Cảnh báo chiếm quyền'),
+              ),
             ],
           ),
           content: Text(
@@ -215,12 +217,13 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
     return Scaffold(
       appBar: AppBar(
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Dashboard'),
+            const Text('Invoice App'),
             const SizedBox(width: 8),
             Container(
-              width: 10,
-              height: 10,
+              width: 8,
+              height: 8,
               decoration: BoxDecoration(
                 color: _isOnline ? Colors.green : Colors.grey,
                 shape: BoxShape.circle,
@@ -228,7 +231,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
                   BoxShadow(
                     color: (_isOnline ? Colors.green : Colors.grey).withValues(alpha: 0.5),
                     blurRadius: 4,
-                    spreadRadius: 2,
+                    spreadRadius: 1,
                   ),
                 ],
               ),
@@ -250,24 +253,60 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
             onPressed: _openQRScanner,
             tooltip: 'Quét mã QR Hóa đơn',
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _fetchEditingInvoices,
-            tooltip: 'Làm mới',
-          ),
-          IconButton(
-            icon: Icon(themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode),
-            onPressed: () => themeProvider.toggleTheme(),
-            tooltip: 'Chế độ sáng/tối',
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await ApiService().clearAuth();
-              if (context.mounted) {
-                Navigator.pushReplacementNamed(context, '/login');
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'Menu tùy chọn',
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            onSelected: (value) async {
+              if (value == 'refresh') {
+                _fetchEditingInvoices();
+              } else if (value == 'theme') {
+                themeProvider.toggleTheme();
+              } else if (value == 'logout') {
+                await ApiService().clearAuth();
+                if (context.mounted) {
+                  Navigator.pushReplacementNamed(context, '/login');
+                }
               }
             },
+            itemBuilder: (BuildContext menuContext) => [
+              const PopupMenuItem<String>(
+                value: 'refresh',
+                child: Row(
+                  children: [
+                    Icon(Icons.refresh, size: 20),
+                    SizedBox(width: 8),
+                    Text('Làm mới'),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'theme',
+                child: Row(
+                  children: [
+                    Icon(
+                      themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Text(themeProvider.isDarkMode ? 'Chế độ sáng' : 'Chế độ tối'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Text('Đăng xuất', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

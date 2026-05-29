@@ -252,7 +252,9 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with 
             children: [
               Icon(Icons.warning_amber_rounded, color: Colors.orange),
               SizedBox(width: 8),
-              Text('Hóa đơn đang bị sửa'),
+              Expanded(
+                child: Text('Hóa đơn đang bị sửa'),
+              ),
             ],
           ),
           content: Text(
