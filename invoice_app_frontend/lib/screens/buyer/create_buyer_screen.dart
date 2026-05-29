@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_native_contact_picker/flutter_native_contact_picker.dart';
 import '../../services/api_service.dart';
 import '../../widgets/address_search_field.dart';
 
@@ -12,6 +14,7 @@ class CreateBuyerScreen extends StatefulWidget {
 class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
   final _formKey = GlobalKey<FormState>();
   final _apiService = ApiService();
+  final FlutterNativeContactPicker _contactPicker = FlutterNativeContactPicker();
   
   final _codeController = TextEditingController();
   final _nameController = TextEditingController();
@@ -32,6 +35,39 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
   void initState() {
     super.initState();
     _autoGenerateCode();
+  }
+
+  Future<void> _pickContact() async {
+    try {
+      final contact = await _contactPicker.selectContact();
+      if (!mounted) return;
+      if (contact != null) {
+        setState(() {
+          if (contact.fullName != null && contact.fullName!.isNotEmpty) {
+            _nameController.text = contact.fullName!;
+          }
+          if (contact.phoneNumbers != null && contact.phoneNumbers!.isNotEmpty) {
+            String phone = contact.phoneNumbers!.first.replaceAll(RegExp(r'[^0-9+]'), '');
+            if (phone.startsWith('+84')) {
+              phone = '0${phone.substring(3)}';
+            } else if (phone.startsWith('84') && phone.length > 9) {
+              phone = '0${phone.substring(2)}';
+            }
+            _phoneController.text = phone;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking contact: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi mở danh bạ: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _autoGenerateCode() async {
@@ -219,18 +255,28 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _nameController,
-                            decoration: InputDecoration(
-                              labelText: 'Tên người mua *',
-                              prefixIcon: const Icon(Icons.person),
-                              border: const OutlineInputBorder(),
-                              filled: true,
-                              fillColor: Theme.of(context).colorScheme.surface,
-                            ),
-                            validator: (value) => 
-                               value == null || value.isEmpty ? 'Vui lòng nhập tên' : null,
-                          ),
+                           TextFormField(
+                             controller: _nameController,
+                             decoration: InputDecoration(
+                               labelText: 'Tên người mua *',
+                               prefixIcon: const Icon(Icons.person),
+                               suffixIcon: kIsWeb
+                                 ? null
+                                 : IconButton(
+                                     icon: Icon(
+                                       Icons.contact_phone,
+                                       color: Theme.of(context).colorScheme.primary,
+                                     ),
+                                     onPressed: _pickContact,
+                                     tooltip: 'Chọn từ danh bạ',
+                                   ),
+                               border: const OutlineInputBorder(),
+                               filled: true,
+                               fillColor: Theme.of(context).colorScheme.surface,
+                             ),
+                             validator: (value) => 
+                                value == null || value.isEmpty ? 'Vui lòng nhập tên' : null,
+                           ),
                         ],
                       ),
                     ),
@@ -252,10 +298,20 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _phoneController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Số điện thoại',
-                      prefixIcon: Icon(Icons.phone),
-                      border: OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.phone),
+                      suffixIcon: kIsWeb
+                          ? null
+                          : IconButton(
+                              icon: Icon(
+                                Icons.contact_phone,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              onPressed: _pickContact,
+                              tooltip: 'Chọn từ danh bạ',
+                            ),
+                      border: const OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.phone,
                   ),

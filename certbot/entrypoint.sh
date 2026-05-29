@@ -56,6 +56,9 @@ fi
 # === Deploy certs to nginx/ssl on startup ===
 /deploy.sh
 
+# === Start DDNS update loop in background ===
+/ddns.sh &
+
 # === Start renewal loop (every 12h) ===
 echo ""
 echo "🔄 Starting auto-renewal loop (checks every 12h)..."

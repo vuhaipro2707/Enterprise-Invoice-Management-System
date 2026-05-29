@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
+import '../../services/string_utils.dart';
 
 class PriceListItemPickerScreen extends StatefulWidget {
   const PriceListItemPickerScreen({super.key});
@@ -11,6 +12,7 @@ class PriceListItemPickerScreen extends StatefulWidget {
 
 class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
   final ApiService _apiService = ApiService();
+  final TextEditingController _searchController = TextEditingController();
   String? _pricelistId;
   Map<String, dynamic>? _priceListData;
   List<dynamic> _priceItems = [];
@@ -25,6 +27,7 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     for (var controller in _quantityControllers.values) {
       controller.dispose();
     }
@@ -88,20 +91,20 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
     });
   }
 
-  void _selectAll() {
+  void _selectAllFiltered(List<int> filteredIndices) {
     setState(() {
-      if (_selectedIndexes.length == _priceItems.length) {
-        _selectedIndexes.clear();
-        for (var controller in _quantityControllers.values) {
-          controller.dispose();
+      final allFilteredSelected = filteredIndices.every((idx) => _selectedIndexes.contains(idx));
+      if (allFilteredSelected) {
+        for (final idx in filteredIndices) {
+          _selectedIndexes.remove(idx);
+          _quantityControllers[idx]?.dispose();
+          _quantityControllers.remove(idx);
         }
-        _quantityControllers.clear();
       } else {
-        _selectedIndexes.clear();
-        for (int i = 0; i < _priceItems.length; i++) {
-          _selectedIndexes.add(i);
-          if (!_quantityControllers.containsKey(i)) {
-            _quantityControllers[i] = TextEditingController(text: '1');
+        for (final idx in filteredIndices) {
+          _selectedIndexes.add(idx);
+          if (!_quantityControllers.containsKey(idx)) {
+            _quantityControllers[idx] = TextEditingController(text: '1');
           }
         }
       }
@@ -219,7 +222,18 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
     final String? buyerName = _priceListData?['buyerName'];
     final String? buyerCode = _priceListData?['buyerCode'];
 
-    final allSelected = _selectedIndexes.length == _priceItems.length;
+    final String query = _searchController.text.trim();
+    final List<MapEntry<int, dynamic>> filteredItems = [];
+    for (int i = 0; i < _priceItems.length; i++) {
+      final itm = _priceItems[i];
+      final String itemName = (itm['itemDefaultName'] ?? '').toString();
+      if (query.isEmpty || StringUtils.containsUnaccented(itemName, query)) {
+        filteredItems.add(MapEntry(i, itm));
+      }
+    }
+
+    final filteredIndices = filteredItems.map((e) => e.key).toList();
+    final allSelected = filteredIndices.isNotEmpty && filteredIndices.every((idx) => _selectedIndexes.contains(idx));
 
     return Scaffold(
       appBar: AppBar(
@@ -259,6 +273,36 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
             ),
           ),
 
+          // Search Input Field
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Tìm kiếm mặt hàng...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                          });
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              ),
+              onChanged: (val) {
+                setState(() {});
+              },
+            ),
+          ),
+
           // Control bar for selection
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -266,16 +310,18 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Danh sách mặt hàng (${_priceItems.length})',
+                  query.isEmpty
+                      ? 'Danh sách mặt hàng (${_priceItems.length})'
+                      : 'Kết quả tìm kiếm (${filteredItems.length})',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: colorScheme.primary,
                     fontSize: 14,
                   ),
                 ),
-                if (_priceItems.isNotEmpty)
+                if (filteredItems.isNotEmpty)
                   TextButton.icon(
-                    onPressed: _selectAll,
+                    onPressed: () => _selectAllFiltered(filteredIndices),
                     icon: Icon(
                       allSelected ? Icons.deselect : Icons.select_all,
                       size: 20,
@@ -287,7 +333,7 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
           ),
 
           Expanded(
-            child: _priceItems.isEmpty
+            child: filteredItems.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -295,7 +341,9 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
                         Icon(Icons.inventory_2_outlined, size: 64, color: colorScheme.outline),
                         const SizedBox(height: 16),
                         Text(
-                          'Bảng báo giá này chưa có mặt hàng nào',
+                          _priceItems.isEmpty
+                              ? 'Bảng báo giá này chưa có mặt hàng nào'
+                              : 'Không tìm thấy mặt hàng phù hợp',
                           style: TextStyle(color: colorScheme.outline),
                         ),
                       ],
@@ -303,10 +351,13 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    itemCount: _priceItems.length,
+                    itemCount: filteredItems.length,
                     itemBuilder: (context, index) {
-                      final itm = _priceItems[index];
-                      final isSelected = _selectedIndexes.contains(index);
+                      final entry = filteredItems[index];
+                      final int originalIndex = entry.key;
+                      final itm = entry.value;
+
+                      final isSelected = _selectedIndexes.contains(originalIndex);
                       final String itemName = itm['itemDefaultName'] ?? 'Mặt hàng không tên';
                       final String unitName = itm['unitName'] ?? 'Cái';
                       final int customPrice = (itm['unitPriceCustom'] as num?)?.toInt() ?? 0;
@@ -326,7 +377,7 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
                           ),
                         ),
                         child: InkWell(
-                          onTap: () => _toggleItem(index),
+                          onTap: () => _toggleItem(originalIndex),
                           borderRadius: BorderRadius.circular(12),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -337,7 +388,7 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
                                   children: [
                                     Checkbox(
                                       value: isSelected,
-                                      onChanged: (_) => _toggleItem(index),
+                                      onChanged: (_) => _toggleItem(originalIndex),
                                       activeColor: colorScheme.primary,
                                     ),
                                     const SizedBox(width: 8),
@@ -420,7 +471,7 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
                                           children: [
                                             IconButton(
                                               onPressed: () {
-                                                final controller = _quantityControllers[index];
+                                                final controller = _quantityControllers[originalIndex];
                                                 if (controller != null) {
                                                   double val = double.tryParse(controller.text) ?? 1.0;
                                                   if (val > 1.0) {
@@ -437,7 +488,7 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
                                             SizedBox(
                                               width: 60,
                                               child: TextField(
-                                                controller: _quantityControllers[index],
+                                                controller: _quantityControllers[originalIndex],
                                                 keyboardType: const TextInputType.numberWithOptions(
                                                     decimal: true),
                                                 textAlign: TextAlign.center,
@@ -470,7 +521,7 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
                                             ),
                                             IconButton(
                                               onPressed: () {
-                                                final controller = _quantityControllers[index];
+                                                final controller = _quantityControllers[originalIndex];
                                                 if (controller != null) {
                                                   double val = double.tryParse(controller.text) ?? 1.0;
                                                   val++;

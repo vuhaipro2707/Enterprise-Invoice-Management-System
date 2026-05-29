@@ -779,14 +779,29 @@ LEFT JOIN units u ON i.item_id = u.item_id AND u.deleted_at IS NULL
 WHERE i.deleted_at IS NULL
 AND ($1::UUID IS NULL OR i.type_id = $1::UUID)
 AND (
-  -- ILIKE and trigram similarity can use pg_trgm index on item_default_name
-  my_unaccent(i.item_default_name) ILIKE '%' || my_unaccent($2) || '%'
+  -- Check if all words from keyword are present or highly similar in my_unaccent(item_default_name)
+  (
+    SELECT COALESCE(bool_and(
+      my_unaccent(i.item_default_name) ILIKE '%' || word || '%'
+      OR word_similarity(word, my_unaccent(i.item_default_name)) > 0.5
+    ), FALSE)
+    FROM unnest(string_to_array(my_unaccent($2), ' ')) AS word
+    WHERE word <> ''
+  )
+  -- Or similarity is close enough (for fuzzy matching)
   OR my_unaccent(i.item_default_name) % my_unaccent($2)
-  -- Exact search on other names
+  -- Or there exists an other name containing all words from keyword
   OR EXISTS (
     SELECT 1 FROM item_other_names ion2 
     WHERE ion2.item_id = i.item_id 
-    AND my_unaccent(ion2.name_string) ILIKE '%' || my_unaccent($2) || '%'
+    AND (
+      SELECT COALESCE(bool_and(
+        my_unaccent(ion2.name_string) ILIKE '%' || word || '%'
+        OR word_similarity(word, my_unaccent(ion2.name_string)) > 0.5
+      ), FALSE)
+      FROM unnest(string_to_array(my_unaccent($2), ' ')) AS word
+      WHERE word <> ''
+    )
   )
 )
 GROUP BY i.item_id

@@ -347,6 +347,7 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 	// DEBUG WRITE FILE
 	var debugBuf bytes.Buffer
 	debugBuf.WriteString(fmt.Sprintf("wName: %f, margin: %f, printableWidth: %f\n", wName, pdf.GetCellMargin(), printableWidth))
+	pdf.SetFont("Roboto", "B", tableFontSize)
 	for i, itm := range items {
 		name := strings.TrimSpace(getStringValue(itm["itemNameSnapshot"]))
 		lines := pdf.SplitText(name, wName)
@@ -388,6 +389,7 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 			itemName := strings.TrimSpace(getStringValue(itm["itemNameSnapshot"]))
 
 			// Calculate slots needed based on Roboto font wrapping using UTF-8 safe SplitText
+			pdf.SetFont("Roboto", "B", tableFontSize)
 			lines := pdf.SplitText(itemName, wName)
 			slotsNeeded := len(lines)
 			if slotsNeeded < 1 {
