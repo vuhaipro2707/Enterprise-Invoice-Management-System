@@ -83,3 +83,34 @@ SELECT * FROM print_queue
 WHERE print_status = 'Printing'
 ORDER BY created_at DESC
 LIMIT 1;
+
+-- name: GetPrintJobByID :one
+SELECT * FROM print_queue
+WHERE print_job_id = sqlc.arg('print_job_id')::uuid;
+
+-- name: GetPrintJobsAfterTimestamp :many
+SELECT 
+    pq.print_job_id,
+    pq.invoice_id,
+    pq.customer_price_list_id,
+    pq.print_status,
+    pq.print_type,
+    pq.print_part,
+    pq.retry_count,
+    pq.priority_num,
+    pq.created_at,
+    pq.printed_at,
+    i.invoice_code,
+    i.buyer_name_snapshot AS invoice_buyer_name,
+    cpl.description AS price_list_description,
+    b.buyer_name AS price_list_buyer_name
+FROM print_queue pq
+LEFT JOIN invoices i ON pq.invoice_id = i.invoice_id
+LEFT JOIN customer_price_lists cpl ON pq.customer_price_list_id = cpl.customer_price_list_id
+LEFT JOIN buyers b ON cpl.buyer_id = b.buyer_id
+WHERE 
+    pq.created_at >= sqlc.arg('target_created_at')::timestamp
+    AND pq.print_job_id != sqlc.arg('target_job_id')::uuid
+    AND pq.print_status::text != 'Cancelled'
+ORDER BY 
+    pq.created_at ASC;

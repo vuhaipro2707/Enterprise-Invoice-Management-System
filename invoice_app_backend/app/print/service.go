@@ -166,6 +166,8 @@ func (s *PrintService) PollAllQueue(ctx context.Context, includePrinting, comple
 				"addressSnapshot":      "",
 				"phoneNumberSnapshot":  "",
 				"lineItems":            lineItems,
+				"printJobId":           job.PrintJobID.String(),
+				"print_job_id":          job.PrintJobID.String(),
 			}
 
 			if invoice.BuyerNameSnapshot.Valid {
@@ -326,6 +328,220 @@ func (s *PrintService) PollAllQueue(ctx context.Context, includePrinting, comple
 	return outBuf.Bytes(), len(pdfSlices), nil
 }
 
+func (s *PrintService) PollAllQueueAfterJob(ctx context.Context, afterJobID uuid.UUID, includePrinting, completeJobs bool) ([]byte, int, error) {
+	// 1. Fetch the target print job to get its creation timestamp
+	targetJob, err := s.Repo.GetPrintJobByID(ctx, afterJobID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, 0, fmt.Errorf("không tìm thấy bản in mốc")
+		}
+		return nil, 0, fmt.Errorf("failed to fetch target print job: %w", err)
+	}
+
+	if !targetJob.CreatedAt.Valid {
+		return nil, 0, fmt.Errorf("target print job has no valid created_at timestamp")
+	}
+
+	targetTime := targetJob.CreatedAt.Time
+
+	// 2. Fetch all jobs after that timestamp (excluding Cancelled)
+	allJobs, err := s.Repo.GetPrintJobsAfterTimestamp(ctx, sqlc.GetPrintJobsAfterTimestampParams{
+		TargetCreatedAt: targetTime,
+		TargetJobID:     afterJobID,
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(allJobs) == 0 {
+		return nil, 0, sql.ErrNoRows
+	}
+
+	var pdfSlices [][]byte
+
+	// 4. Generate individual PDF document bytes for each print job
+	for _, job := range allJobs {
+		if job.InvoiceID.Valid {
+			invoice, err := s.Repo.GetInvoiceWithLines(ctx, job.InvoiceID.UUID)
+			if err != nil {
+				continue // Skip failed fetches gracefully
+			}
+
+			var lineItems []interface{}
+			if invoice.LineItems != nil {
+				json.Unmarshal(invoice.LineItems, &lineItems)
+			}
+
+			invData := map[string]interface{}{
+				"invoiceId":            invoice.InvoiceID.String(),
+				"invoiceCode":          invoice.InvoiceCode,
+				"totalAmount":          invoice.TotalAmount,
+				"buyerNameSnapshot":    "",
+				"addressSnapshot":      "",
+				"phoneNumberSnapshot":  "",
+				"lineItems":            lineItems,
+				"printJobId":           job.PrintJobID.String(),
+				"print_job_id":          job.PrintJobID.String(),
+			}
+
+			if invoice.BuyerNameSnapshot.Valid {
+				invData["buyerNameSnapshot"] = invoice.BuyerNameSnapshot.String
+			}
+			if invoice.AddressSnapshot.Valid {
+				invData["addressSnapshot"] = invoice.AddressSnapshot.String
+			}
+			if invoice.PhoneNumberSnapshot.Valid {
+				invData["phoneNumberSnapshot"] = invoice.PhoneNumberSnapshot.String
+			}
+
+			printType := enumToString(job.PrintType)
+			printPart := enumToString(job.PrintPart)
+			if printType == "" {
+				printType = "Original"
+			}
+
+			pdfBytes, err := invoicePkg.GenerateInvoicePDF(invData, printType, printPart)
+			if err == nil && len(pdfBytes) > 0 {
+				pdfSlices = append(pdfSlices, pdfBytes)
+			}
+		} else if job.CustomerPriceListID.Valid {
+			row, err := s.Repo.GetCustomerPriceListByID(ctx, job.CustomerPriceListID.UUID)
+			if err != nil {
+				continue // Skip failed fetches gracefully
+			}
+
+			var buyerID *uuid.UUID
+			if row.BuyerID.Valid {
+				buyerID = &row.BuyerID.UUID
+			}
+			var isActive *bool
+			if row.IsActive.Valid {
+				isActive = &row.IsActive.Bool
+			}
+			var createdAt *string
+			if row.CreatedAt.Valid {
+				sTime := row.CreatedAt.Time.Format(time.RFC3339)
+				createdAt = &sTime
+			}
+			var updatedAt *string
+			if row.UpdatedAt.Valid {
+				sTime := row.UpdatedAt.Time.Format(time.RFC3339)
+				updatedAt = &sTime
+			}
+			var deletedAt *string
+			if row.DeletedAt.Valid {
+				sTime := row.DeletedAt.Time.Format(time.RFC3339)
+				deletedAt = &sTime
+			}
+			var buyerCode *string
+			if row.BuyerCode.Valid {
+				buyerCode = &row.BuyerCode.String
+			}
+			var buyerName *string
+			if row.BuyerName.Valid {
+				buyerName = &row.BuyerName.String
+			}
+			var phoneNumber *string
+			if row.PhoneNumber.Valid {
+				phoneNumber = &row.PhoneNumber.String
+			}
+			var address *string
+			if row.Address.Valid {
+				address = &row.Address.String
+			}
+			var itemPrices []interface{}
+			if row.ItemPrices != nil {
+				json.Unmarshal(row.ItemPrices, &itemPrices)
+			}
+
+			plData := map[string]interface{}{
+				"customerPriceListId": row.CustomerPriceListID,
+				"description":         row.Description,
+				"buyerId":             buyerID,
+				"isActive":            isActive,
+				"createdAt":           createdAt,
+				"updatedAt":           updatedAt,
+				"deletedAt":           deletedAt,
+				"buyerCode":           buyerCode,
+				"buyerName":           buyerName,
+				"phoneNumber":         phoneNumber,
+				"address":             address,
+				"itemPrices":          itemPrices,
+			}
+
+			// Fetch company settings dynamically
+			companyName := "Công ty Hải Minh"
+			companyPhone := "0909090909"
+			settings, errSettings := s.Repo.GetGlobalSettings(ctx)
+			if errSettings == nil {
+				var configMap map[string]interface{}
+				if errJson := json.Unmarshal(settings.GlobalSettingsFile, &configMap); errJson == nil {
+					if name, ok := configMap["company_name"].(string); ok && name != "" {
+						companyName = name
+					}
+					if phone, ok := configMap["phone_number"].(string); ok && phone != "" {
+						companyPhone = phone
+					}
+				}
+			}
+			plData["companyName"] = companyName
+			plData["companyPhone"] = companyPhone
+
+			pdfBytes, err := pricelistPkg.GeneratePriceListPDF(plData, "A5")
+			if err == nil && len(pdfBytes) > 0 {
+				pdfSlices = append(pdfSlices, pdfBytes)
+			}
+		}
+	}
+
+	if len(pdfSlices) == 0 {
+		return nil, 0, fmt.Errorf("failed to generate PDF documents for any jobs in queue")
+	}
+
+	// 5. Merge all generated PDF documents into a single PDF
+	readers := make([]io.ReadSeeker, len(pdfSlices))
+	for i, slice := range pdfSlices {
+		readers[i] = bytes.NewReader(slice)
+	}
+
+	var outBuf bytes.Buffer
+	err = api.MergeRaw(readers, &outBuf, false, nil)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to merge PDF pages: %w", err)
+	}
+
+	// 6. If completeJobs is true, update the status inside a database transaction
+	if completeJobs && len(allJobs) > 0 {
+		tx, err := dbconn.DB.BeginTx(ctx, nil)
+		if err != nil {
+			return nil, 0, err
+		}
+		defer tx.Rollback()
+
+		qTx := s.Repo.WithTx(tx)
+
+		completedStatus := "Completed"
+		for _, job := range allJobs {
+			arg := sqlc.UpdatePrintJobStatusParams{
+				PrintJobID:  job.PrintJobID,
+				PrintStatus: completedStatus,
+				RetryCount:  sql.NullInt32{Int32: job.RetryCount.Int32, Valid: true},
+				PriorityNum: sql.NullInt32{Int32: job.PriorityNum.Int32, Valid: true},
+			}
+			_, err := qTx.UpdatePrintJobStatus(ctx, arg)
+			if err != nil {
+				return nil, 0, err
+			}
+		}
+
+		if err := tx.Commit(); err != nil {
+			return nil, 0, err
+		}
+	}
+
+	return outBuf.Bytes(), len(pdfSlices), nil
+}
+
 func (s *PrintService) GetLatestPrintingJob(ctx context.Context) (sqlc.PrintQueue, error) {
 	return s.Repo.GetLatestPrintingJob(ctx)
 }
@@ -350,6 +566,8 @@ func (s *PrintService) GenerateSingleJobPDF(ctx context.Context, job sqlc.PrintQ
 			"addressSnapshot":      "",
 			"phoneNumberSnapshot":  "",
 			"lineItems":            lineItems,
+			"printJobId":           job.PrintJobID.String(),
+			"print_job_id":          job.PrintJobID.String(),
 		}
 
 		if invoice.BuyerNameSnapshot.Valid {

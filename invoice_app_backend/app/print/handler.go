@@ -225,8 +225,9 @@ func (h *PrintHandler) UpdatePrintJobStatus(c *fiber.Ctx) error {
 
 func (h *PrintHandler) PollAllQueue(c *fiber.Ctx) error {
 	type pollAllRequest struct {
-		IncludePrinting bool `json:"includePrinting"`
-		CompleteJobs    bool `json:"completeJobs"`
+		IncludePrinting bool   `json:"includePrinting"`
+		CompleteJobs    bool   `json:"completeJobs"`
+		AfterJobID      string `json:"afterJobId"`
 	}
 
 	var req pollAllRequest
@@ -234,8 +235,25 @@ func (h *PrintHandler) PollAllQueue(c *fiber.Ctx) error {
 
 	includePrinting := req.IncludePrinting || c.QueryBool("includePrinting", false)
 	completeJobs := req.CompleteJobs || c.QueryBool("completeJobs", false)
+	afterJobIDStr := req.AfterJobID
+	if afterJobIDStr == "" {
+		afterJobIDStr = c.Query("afterJobId")
+	}
 
-	pdfBytes, jobCount, err := h.service.PollAllQueue(c.Context(), includePrinting, completeJobs)
+	var pdfBytes []byte
+	var jobCount int
+	var err error
+
+	if afterJobIDStr != "" {
+		afterJobID, parseErr := uuid.Parse(afterJobIDStr)
+		if parseErr != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid afterJobId UUID format"})
+		}
+		pdfBytes, jobCount, err = h.service.PollAllQueueAfterJob(c.Context(), afterJobID, includePrinting, completeJobs)
+	} else {
+		pdfBytes, jobCount, err = h.service.PollAllQueue(c.Context(), includePrinting, completeJobs)
+	}
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return c.Status(404).JSON(fiber.Map{"error": "No jobs in queue to poll"})

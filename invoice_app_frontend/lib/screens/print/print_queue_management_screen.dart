@@ -246,73 +246,86 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
             children: [
               Icon(Icons.print_outlined, color: colorScheme.primary),
               const SizedBox(width: 8),
-              const Text('Poll toàn bộ hàng chờ'),
+              const Expanded(
+                child: Text(
+                  'Poll toàn bộ hàng chờ',
+                  style: TextStyle(fontSize: 18),
+                ),
+              ),
             ],
           ),
-          content: StatefulBuilder(
-            builder: (dialogBuilderContext, setDialogState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Trích xuất đồng loạt các lệnh in trong hàng chờ để xử lý:',
-                    style: TextStyle(fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Nguồn trích xuất',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.secondary,
+          content: SingleChildScrollView(
+            child: StatefulBuilder(
+              builder: (dialogBuilderContext, setDialogState) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Trích xuất đồng loạt các lệnh in trong hàng chờ để xử lý:',
+                      style: TextStyle(fontSize: 14),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<bool>(
-                    initialValue: includePrinting,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: false,
-                        child: Text('Chỉ lệnh Chờ in (Pending)'),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Nguồn trích xuất',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.secondary,
                       ),
-                      DropdownMenuItem(
-                        value: true,
-                        child: Text('Cả Chờ in và Đang in'),
-                      ),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) {
-                        setDialogState(() => includePrinting = val);
-                      }
-                    },
-                  ),
-                  const Divider(height: 24),
-                  Text(
-                    'Hành động sau trích xuất',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.secondary,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    title: const Text('Đánh dấu Hoàn thành'),
-                    subtitle: const Text('Tự động chuyển các lệnh được trích xuất sang trạng thái Completed'),
-                    value: completeJobs,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: (val) {
-                      setDialogState(() => completeJobs = val);
-                    },
-                  ),
-                ],
-              );
-            },
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<bool>(
+                      initialValue: includePrinting,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: false,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Chỉ Chờ in (Pending)'),
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: true,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Cả Chờ in và Đang in'),
+                          ),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setDialogState(() => includePrinting = val);
+                        }
+                      },
+                    ),
+                    const Divider(height: 24),
+                    Text(
+                      'Hành động sau trích xuất',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.secondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      title: const Text('Đánh dấu Hoàn thành'),
+                      subtitle: const Text('Tự động chuyển các lệnh được trích xuất sang trạng thái Completed'),
+                      value: completeJobs,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (val) {
+                        setDialogState(() => completeJobs = val);
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
           actions: [
             TextButton(
@@ -391,6 +404,186 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Lỗi khi thực hiện poll hàng chờ: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showPollAfterJobDialog() async {
+    bool completeJobs = true;
+    String afterJobId = '';
+    final formKey = GlobalKey<FormState>();
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(dialogContext).colorScheme;
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.history_toggle_off_rounded, color: colorScheme.secondary),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'In nối tiếp từ bản in mốc',
+                  style: TextStyle(fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: StatefulBuilder(
+              builder: (dialogBuilderContext, setDialogState) {
+                return Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Nhập ID bản in thành công cuối cùng. Hệ thống sẽ kết hợp tất cả các bản in được tạo sau bản đó (trừ các bản đã hủy) thành 1 tệp PDF duy nhất.',
+                        style: TextStyle(fontSize: 13, height: 1.4),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'ID bản in mốc (Bắt buộc)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.secondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        decoration: const InputDecoration(
+                          labelText: 'Nhập printJobId (UUID)',
+                          hintText: 'Ví dụ: 550e8400-e29b-41d4-a716-446655440000',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) {
+                            return 'Vui lòng nhập ID bản in mốc';
+                          }
+                          final uuidRegExp = RegExp(
+                            r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+                          );
+                          if (!uuidRegExp.hasMatch(val.trim())) {
+                            return 'Định dạng UUID không hợp lệ';
+                          }
+                          return null;
+                        },
+                        onChanged: (val) {
+                          afterJobId = val.trim();
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Hành động sau trích xuất',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.secondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SwitchListTile(
+                        title: const Text('Đánh dấu Hoàn thành'),
+                        subtitle: const Text('Tự động chuyển các lệnh được trích xuất sang trạng thái Completed'),
+                        value: completeJobs,
+                        contentPadding: EdgeInsets.zero,
+                        onChanged: (val) {
+                          setDialogState(() => completeJobs = val);
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('HỦY'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() == true) {
+                  Navigator.pop(dialogContext, true);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.secondary,
+                foregroundColor: colorScheme.onSecondary,
+              ),
+              child: const Text('XÁC NHẬN IN'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true || afterJobId.isEmpty) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final results = await _apiService.pollAllQueue(
+        includePrinting: true,
+        completeJobs: completeJobs,
+        afterJobId: afterJobId,
+      );
+
+      final bytes = results['bytes'] as Uint8List;
+      final jobCount = results['count'] as int;
+
+      if (jobCount > 0 && bytes.isNotEmpty) {
+        final formattedDate = DateTime.now().toLocal().toString().replaceAll(' ', '_').replaceAll(':', '-').split('.').first;
+        final downloadUrl = '${ApiService.baseUrl}/print/poll-all?afterJobId=$afterJobId';
+        downloadFile(
+          bytes,
+          'In_noi_tiep_sau_job_${afterJobId.substring(0, 8)}__$formattedDate.pdf',
+          'application/pdf',
+          downloadUrl,
+        );
+      }
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _fetchPrintJobs(isAutoRefresh: true);
+        
+        showDialog(
+          context: context,
+          builder: (successDialogContext) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text('Thành công'),
+                ],
+              ),
+              content: Text(
+                'Đã trích xuất thành công và gộp $jobCount bản in mới thành 1 tệp PDF duy nhất để tải về.\n'
+                '${completeJobs ? "Tất cả các bản in này đã được đánh dấu Hoàn thành (Completed)." : "Các bản in vẫn giữ nguyên trạng thái."}',
+                style: const TextStyle(fontSize: 14),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(successDialogContext),
+                  child: const Text('ĐỒNG Ý'),
+                ),
+              ],
+            );
+          },
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi thực hiện in nối tiếp: $e')),
         );
       }
     }
@@ -591,10 +784,38 @@ class _PrintQueueManagementScreenState extends State<PrintQueueManagementScreen>
       appBar: AppBar(
         title: const Text('Hàng chờ in'),
         actions: [
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.download_for_offline_outlined),
-            onPressed: _showPollAllDialog,
-            tooltip: 'Poll toàn bộ hàng chờ',
+            tooltip: 'Tác vụ trích xuất hàng loạt',
+            onSelected: (value) {
+              if (value == 'poll_all') {
+                _showPollAllDialog();
+              } else if (value == 'poll_after') {
+                _showPollAfterJobDialog();
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              PopupMenuItem<String>(
+                value: 'poll_all',
+                child: Row(
+                  children: [
+                    Icon(Icons.print_outlined, color: colorScheme.primary, size: 20),
+                    const SizedBox(width: 10),
+                    const Text('Poll toàn bộ hàng chờ'),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'poll_after',
+                child: Row(
+                  children: [
+                    Icon(Icons.history_toggle_off_rounded, color: colorScheme.secondary, size: 20),
+                    const SizedBox(width: 10),
+                    const Text('In nối tiếp từ bản in mốc'),
+                  ],
+                ),
+              ),
+            ],
           ),
           IconButton(
             icon: const Icon(Icons.refresh),

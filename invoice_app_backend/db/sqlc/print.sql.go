@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -71,6 +72,29 @@ LIMIT 1
 
 func (q *Queries) GetLatestPrintingJob(ctx context.Context) (PrintQueue, error) {
 	row := q.db.QueryRowContext(ctx, getLatestPrintingJob)
+	var i PrintQueue
+	err := row.Scan(
+		&i.PrintJobID,
+		&i.InvoiceID,
+		&i.CustomerPriceListID,
+		&i.PrintStatus,
+		&i.PrintType,
+		&i.PrintPart,
+		&i.RetryCount,
+		&i.PriorityNum,
+		&i.CreatedAt,
+		&i.PrintedAt,
+	)
+	return i, err
+}
+
+const getPrintJobByID = `-- name: GetPrintJobByID :one
+SELECT print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at FROM print_queue
+WHERE print_job_id = $1::uuid
+`
+
+func (q *Queries) GetPrintJobByID(ctx context.Context, printJobID uuid.UUID) (PrintQueue, error) {
+	row := q.db.QueryRowContext(ctx, getPrintJobByID, printJobID)
 	var i PrintQueue
 	err := row.Scan(
 		&i.PrintJobID,
@@ -177,6 +201,94 @@ func (q *Queries) GetPrintJobs(ctx context.Context, arg GetPrintJobsParams) ([]G
 	var items []GetPrintJobsRow
 	for rows.Next() {
 		var i GetPrintJobsRow
+		if err := rows.Scan(
+			&i.PrintJobID,
+			&i.InvoiceID,
+			&i.CustomerPriceListID,
+			&i.PrintStatus,
+			&i.PrintType,
+			&i.PrintPart,
+			&i.RetryCount,
+			&i.PriorityNum,
+			&i.CreatedAt,
+			&i.PrintedAt,
+			&i.InvoiceCode,
+			&i.InvoiceBuyerName,
+			&i.PriceListDescription,
+			&i.PriceListBuyerName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPrintJobsAfterTimestamp = `-- name: GetPrintJobsAfterTimestamp :many
+SELECT 
+    pq.print_job_id,
+    pq.invoice_id,
+    pq.customer_price_list_id,
+    pq.print_status,
+    pq.print_type,
+    pq.print_part,
+    pq.retry_count,
+    pq.priority_num,
+    pq.created_at,
+    pq.printed_at,
+    i.invoice_code,
+    i.buyer_name_snapshot AS invoice_buyer_name,
+    cpl.description AS price_list_description,
+    b.buyer_name AS price_list_buyer_name
+FROM print_queue pq
+LEFT JOIN invoices i ON pq.invoice_id = i.invoice_id
+LEFT JOIN customer_price_lists cpl ON pq.customer_price_list_id = cpl.customer_price_list_id
+LEFT JOIN buyers b ON cpl.buyer_id = b.buyer_id
+WHERE 
+    pq.created_at >= $1::timestamp
+    AND pq.print_job_id != $2::uuid
+    AND pq.print_status::text != 'Cancelled'
+ORDER BY 
+    pq.created_at ASC
+`
+
+type GetPrintJobsAfterTimestampParams struct {
+	TargetCreatedAt time.Time `json:"target_created_at"`
+	TargetJobID     uuid.UUID `json:"target_job_id"`
+}
+
+type GetPrintJobsAfterTimestampRow struct {
+	PrintJobID           uuid.UUID      `json:"print_job_id"`
+	InvoiceID            uuid.NullUUID  `json:"invoice_id"`
+	CustomerPriceListID  uuid.NullUUID  `json:"customer_price_list_id"`
+	PrintStatus          interface{}    `json:"print_status"`
+	PrintType            interface{}    `json:"print_type"`
+	PrintPart            interface{}    `json:"print_part"`
+	RetryCount           sql.NullInt32  `json:"retry_count"`
+	PriorityNum          sql.NullInt32  `json:"priority_num"`
+	CreatedAt            sql.NullTime   `json:"created_at"`
+	PrintedAt            sql.NullTime   `json:"printed_at"`
+	InvoiceCode          sql.NullString `json:"invoice_code"`
+	InvoiceBuyerName     sql.NullString `json:"invoice_buyer_name"`
+	PriceListDescription sql.NullString `json:"price_list_description"`
+	PriceListBuyerName   sql.NullString `json:"price_list_buyer_name"`
+}
+
+func (q *Queries) GetPrintJobsAfterTimestamp(ctx context.Context, arg GetPrintJobsAfterTimestampParams) ([]GetPrintJobsAfterTimestampRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPrintJobsAfterTimestamp, arg.TargetCreatedAt, arg.TargetJobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPrintJobsAfterTimestampRow
+	for rows.Next() {
+		var i GetPrintJobsAfterTimestampRow
 		if err := rows.Scan(
 			&i.PrintJobID,
 			&i.InvoiceID,

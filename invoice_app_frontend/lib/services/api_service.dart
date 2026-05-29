@@ -937,6 +937,7 @@ class ApiService {
   Future<Map<String, dynamic>> pollAllQueue({
     required bool includePrinting,
     required bool completeJobs,
+    String? afterJobId,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/print/poll-all'),
@@ -944,6 +945,7 @@ class ApiService {
       body: jsonEncode({
         'includePrinting': includePrinting,
         'completeJobs': completeJobs,
+        'afterJobId': afterJobId ?? '',
       }),
     );
     if (response.statusCode == 200) {
