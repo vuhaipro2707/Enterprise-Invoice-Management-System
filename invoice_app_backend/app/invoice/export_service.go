@@ -184,7 +184,7 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 
 	// Initialize A5 portrait document
 	pdf := gofpdf.New("P", "mm", "A5", "")
-	marginSide := 4.0
+	marginSide := 5.0
 	printableWidth := 148.0 - (2 * marginSide)
 	pdf.SetMargins(marginSide, 6, marginSide)
 	pdf.SetAutoPageBreak(false, 0)
@@ -234,6 +234,7 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 	if invoiceCode == "" {
 		invoiceCode = getStringValue(inv["invoiceId"])
 	}
+	printJobID := getStringValue(inv["printJobId"])
 	buyerName := "Khách vãng lai"
 	if val := getStringValue(inv["buyerNameSnapshot"]); val != "" && val != "N/A" {
 		buyerName = val
@@ -506,10 +507,44 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 				if numPart != "" {
 					pdf.SetFont("Roboto", "B", 11)
 					wNum := pdf.GetStringWidth(numPart + " ")
-					pdf.CellFormat(wNum, 4.5, numPart+" ", "", 0, "L", false, 0, "")
 					
 					pdf.SetFont("Roboto", "", 11)
-					pdf.MultiCell(90-wNum, 4.5, restPart, "", "L", false)
+					firstLineSplit := pdf.SplitText(restPart, 90-wNum)
+					
+					if len(firstLineSplit) > 0 {
+						pdf.SetFont("Roboto", "B", 11)
+						pdf.CellFormat(wNum, 4.5, numPart+" ", "", 0, "L", false, 0, "")
+						
+						pdf.SetFont("Roboto", "", 11)
+						firstLineText := firstLineSplit[0]
+						
+						if len(firstLineSplit) > 1 {
+							// Print first line text, then carriage return
+							pdf.CellFormat(90-wNum, 4.5, firstLineText, "", 1, "L", false, 0, "")
+							
+							// Extract remainder of address to wrap under the same margin
+							remainder := ""
+							if strings.HasPrefix(restPart, firstLineText) {
+								remainder = strings.TrimSpace(restPart[len(firstLineText):])
+							} else {
+								remainder = strings.Join(firstLineSplit[1:], " ")
+							}
+							
+							if remainder != "" {
+								// Set X back to the same column margin as "123 Trường" (which is startX + 30)
+								pdf.SetX(startX + 30)
+								pdf.MultiCell(90, 4.5, remainder, "", "L", false)
+							}
+						} else {
+							// Everything fits in the first line, just print it and move to next line
+							pdf.MultiCell(90-wNum, 4.5, firstLineText, "", "L", false)
+						}
+					} else {
+						// Fallback if split text is empty (should not happen)
+						pdf.SetFont("Roboto", "B", 11)
+						pdf.CellFormat(wNum, 4.5, numPart+" ", "", 0, "L", false, 0, "")
+						pdf.Ln(4.5)
+					}
 				} else {
 					pdf.SetFont("Roboto", "", 11)
 					pdf.MultiCell(90, 4.5, address, "", "L", false)
@@ -527,7 +562,7 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 			customerEndY := pdf.GetY()
 
 			// Right Side: QR Code Box (positioned at startY)
-			qrBoxSize := 22.0
+			qrBoxSize := 20.0
 			qrX := startX + printableWidth - qrBoxSize
 			qrY := startY
 
@@ -686,12 +721,19 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 			pdf.CellFormat(60.0, 6.5, formatVND(grandTotal)+" VND", "", 0, "R", false, 0, "")
 
 			// Absolute bottom constraints for line divider, Invoice ID, and copy info
-			pdf.SetDrawColor(200, 200, 200)
+			pdf.SetDrawColor(0, 0, 0)
 			pdf.SetLineWidth(0.45)
 			pdf.Line(marginSide, 198.0, marginSide+printableWidth, 198.0)
 
 			pdf.SetXY(marginSide, 200.0)
-			pdf.SetTextColor(120, 120, 120)
+			pdf.SetTextColor(0, 0, 0)
+
+			// Middle side (optional): Print Job ID (clean 8.5pt font, centered)
+			if printJobID != "" {
+				pdf.SetFont("Roboto", "", 8.5)
+				pdf.CellFormat(printableWidth, 4.0, "Job: "+printJobID, "", 0, "C", false, 0, "")
+				pdf.SetXY(marginSide, 200.0) // Reset cursor for left/right cells
+			}
 
 			// Left side: Invoice ID (clean 8.5pt font)
 			pdf.SetFont("Roboto", "", 8.5)

@@ -23,7 +23,8 @@ services:
     container_name: pgadmin_dev
     restart: unless-stopped 
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
@@ -39,7 +40,8 @@ services:
     container_name: invoice_backend
     restart: unless-stopped 
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     env_file:
       - ./invoice_app_backend/.env
     environment:
@@ -54,6 +56,12 @@ services:
       - ./invoice_app_backend/backups:/root/backups
       # Mount printing folder
       - ${PRINT_FOLDER_PATH}:/root/printing_folder
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8090 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # 4. Frontend Web (Forward public)
   gateway:
@@ -71,7 +79,8 @@ services:
       # Mount SSL certificate
       - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   # 5. Certbot - DNS Challenge Auto Renewal (Cloudflare)
   certbot:
@@ -93,7 +102,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
     depends_on:
-      - gateway
+      gateway:
+        condition: service_started
 
 volumes:
   pgadmin_data:

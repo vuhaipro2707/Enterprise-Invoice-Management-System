@@ -810,8 +810,14 @@ class ApiService {
     throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to export price list');
   }
 
-  Future<dynamic> exportInvoice(String id, String printType, {String? printPart}) async {
-    final String query = printPart != null ? 'printType=$printType&printPart=$printPart' : 'printType=$printType';
+  Future<dynamic> exportInvoice(String id, String printType, {String? printPart, String? printJobId}) async {
+    var query = 'printType=$printType';
+    if (printPart != null) {
+      query += '&printPart=$printPart';
+    }
+    if (printJobId != null) {
+      query += '&printJobId=$printJobId';
+    }
     final response = await get('/invoice/id/$id/export?$query');
     if (response.statusCode == 200) {
       return response.bodyBytes;

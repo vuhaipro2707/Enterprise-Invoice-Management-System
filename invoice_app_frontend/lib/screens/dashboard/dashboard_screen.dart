@@ -66,7 +66,8 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
 
   void _startRefreshTimer() {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+    final duration = _isOnline ? const Duration(seconds: 15) : const Duration(seconds: 2);
+    _refreshTimer = Timer.periodic(duration, (timer) {
       _fetchEditingInvoices();
     });
   }
@@ -78,6 +79,8 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
     if (!isAutoRefresh) {
       setState(() => _isLoadingInvoices = true);
     }
+
+    final bool wasOnline = _isOnline;
 
     try {
       final invoices = await _apiService.getInvoices(
@@ -91,6 +94,9 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
           _isLoadingInvoices = false;
           _isOnline = true;
         });
+        if (!wasOnline) {
+          _startRefreshTimer();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -98,10 +104,13 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
           _isLoadingInvoices = false;
           _isOnline = false;
         });
+        if (wasOnline) {
+          _startRefreshTimer();
+        }
 
-        // If first-load or focus fetch fails, schedule a fast retry in 3 seconds to recover quickly
+        // If first-load or focus fetch fails, schedule a fast retry in 2 seconds to recover quickly
         if (!isAutoRefresh) {
-          Future.delayed(const Duration(seconds: 3), () {
+          Future.delayed(const Duration(seconds: 2), () {
             if (mounted && !_isOnline) {
               _fetchEditingInvoices();
             }
@@ -170,7 +179,11 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
           context,
           '/edit_invoice',
           arguments: invoiceId,
-        ).then((_) => _fetchEditingInvoices());
+        ).then((_) {
+          if (mounted) {
+            _fetchEditingInvoices();
+          }
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -310,10 +323,13 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: RefreshIndicator(
+        onRefresh: _fetchEditingInvoices,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             if (_editingInvoices.isNotEmpty || _isLoadingInvoices) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -399,7 +415,11 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
                       return InkWell(
                         onTap: () {
                           if (item['title'] == 'Tạo Hóa đơn mới') {
-                            Navigator.pushNamed(context, '/create_invoice').then((_) => _fetchEditingInvoices());
+                            Navigator.pushNamed(context, '/create_invoice').then((_) {
+                              if (mounted) {
+                                _fetchEditingInvoices();
+                              }
+                            });
                           } else if (item['title'] == 'Quản lý Thiết bị') {
                             Navigator.pushNamed(context, '/device_management');
                           } else if (item['title'] == 'Quản lý Mặt hàng') {
@@ -407,7 +427,11 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
                           } else if (item['title'] == 'Quản lý Người mua') {
                             Navigator.pushNamed(context, '/buyer_management');
                           } else if (item['title'] == 'Quản lý Hóa đơn') {
-                            Navigator.pushNamed(context, '/invoice_management').then((_) => _fetchEditingInvoices());
+                            Navigator.pushNamed(context, '/invoice_management').then((_) {
+                              if (mounted) {
+                                _fetchEditingInvoices();
+                              }
+                            });
                           } else if (item['title'] == 'Bảng báo giá') {
                             Navigator.pushNamed(context, '/pricelist_management');
                           } else if (item['title'] == 'Hàng chờ in') {
@@ -450,6 +474,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
           ],
         ),
       ),
+    ),
     );
   }
 }

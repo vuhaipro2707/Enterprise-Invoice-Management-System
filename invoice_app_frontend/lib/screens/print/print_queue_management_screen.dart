@@ -923,6 +923,7 @@ class PrintJobPreviewWidget extends StatefulWidget {
   final String? customerPriceListId;
   final String printType;
   final String? printPart;
+  final String? printJobId;
   final String titleText;
   final ApiService apiService;
   final bool hidePreview;
@@ -936,6 +937,7 @@ class PrintJobPreviewWidget extends StatefulWidget {
     required this.customerPriceListId,
     required this.printType,
     this.printPart,
+    this.printJobId,
     required this.titleText,
     required this.apiService,
     this.hidePreview = false,
@@ -973,6 +975,7 @@ class PrintJobPreviewWidgetState extends State<PrintJobPreviewWidget> {
           widget.invoiceId!,
           widget.printType,
           printPart: widget.printPart,
+          printJobId: widget.printJobId,
         );
         bytes = res as Uint8List;
       } else if (widget.customerPriceListId != null) {
@@ -1147,8 +1150,9 @@ class PrintJobPreviewWidgetState extends State<PrintJobPreviewWidget> {
                   final fileName = widget.invoiceId != null ? 'Hoa_don.pdf' : 'Bao_gia.pdf';
                   final String downloadUrl;
                   if (widget.invoiceId != null) {
-                    final partQuery = widget.printPart != null ? '&part=${widget.printPart}' : '';
-                    downloadUrl = '${ApiService.baseUrl}/invoice/${widget.invoiceId}/export?printType=${widget.printType}$partQuery';
+                    final partQuery = widget.printPart != null ? '&printPart=${widget.printPart}' : '';
+                    final jobQuery = widget.printJobId != null ? '&printJobId=${widget.printJobId}' : '';
+                    downloadUrl = '${ApiService.baseUrl}/invoice/id/${widget.invoiceId}/export?printType=${widget.printType}$partQuery$jobQuery';
                   } else if (widget.customerPriceListId != null) {
                     final pageSizeQuery = widget.pageSize != null ? '&pageSize=${widget.pageSize}' : '';
                     downloadUrl = '${ApiService.baseUrl}/pricelist/id/${widget.customerPriceListId}/export?format=pdf$pageSizeQuery';

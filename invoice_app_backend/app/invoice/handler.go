@@ -2254,6 +2254,11 @@ func (h *InvoiceHandler) ExportInvoice(c *fiber.Ctx) error {
 	}
 	printPart := c.Query("printPart", "Default")
 
+	printJobID := c.Query("printJobId")
+	if printJobID == "" {
+		printJobID = c.Query("print_job_id")
+	}
+
 	invoice, err := h.service.GetInvoiceWithLines(context.Background(), invoiceID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -2275,6 +2280,7 @@ func (h *InvoiceHandler) ExportInvoice(c *fiber.Ctx) error {
 		"addressSnapshot":      "",
 		"phoneNumberSnapshot":  "",
 		"lineItems":            lineItems,
+		"printJobId":           printJobID,
 	}
 
 	if invoice.BuyerNameSnapshot.Valid {

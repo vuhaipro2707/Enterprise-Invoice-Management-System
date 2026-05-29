@@ -777,6 +777,7 @@ class _PrintJobDetailScreenState extends State<PrintJobDetailScreen> {
     final String? customerPriceListId = _currentJob['customerPriceListId']?.toString();
     final String printType = _currentJob['printType']?.toString() ?? 'Original';
     final String? printPart = _currentJob['printPart']?.toString();
+    final String? printJobId = _currentJob['printJobId']?.toString();
 
     final String titleText = isInvoice
         ? 'Hoá đơn: ${_currentJob['invoiceCode'] ?? "N/A"}'
@@ -834,6 +835,7 @@ class _PrintJobDetailScreenState extends State<PrintJobDetailScreen> {
                           customerPriceListId: customerPriceListId,
                           printType: printType,
                           printPart: printPart,
+                          printJobId: printJobId,
                           titleText: 'Xem trước bản in',
                           apiService: _apiService,
                           hidePreview: _isDialogOpen,
@@ -857,6 +859,7 @@ class _PrintJobDetailScreenState extends State<PrintJobDetailScreen> {
                           customerPriceListId: customerPriceListId,
                           printType: printType,
                           printPart: printPart,
+                          printJobId: printJobId,
                           titleText: 'Xem trước bản in',
                           apiService: _apiService,
                           hidePreview: _isDialogOpen,
