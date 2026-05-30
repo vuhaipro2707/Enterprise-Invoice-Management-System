@@ -20,6 +20,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
   final ApiService _apiService = ApiService();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _searchFocusNode = FocusNode();
   Timer? _debounce;
   
   List<dynamic> _items = [];
@@ -297,6 +298,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
           IconButton(
             icon: const Icon(Icons.delete_sweep_rounded),
             onPressed: () {
+              _searchFocusNode.unfocus();
               Navigator.pushNamed(context, '/item_trash').then((_) {
                 _loadInitialData(isQuiet: true);
               });
@@ -381,13 +383,20 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                       subtitle: const Text('Tự nhập tay từng tên hàng, quy cách và đơn vị tính'),
                       onTap: () async {
                         Navigator.pop(sheetContext);
+                        _searchFocusNode.unfocus();
                         final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (builderContext) => CreateItemScreen(types: _types),
                           ),
                         );
+                        if (context.mounted) {
+                          _searchFocusNode.unfocus();
+                        }
                         if (result == true && mounted) {
+                          setState(() {
+                            _searchController.clear();
+                          });
                           _fetchItems(isQuiet: true);
                         }
                       },
@@ -436,13 +445,20 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                       subtitle: const Text('Bóc tách biến thể, gợi ý giá thị trường và lưu hàng loạt'),
                       onTap: () async {
                         Navigator.pop(sheetContext);
+                        _searchFocusNode.unfocus();
                         final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (builderContext) => AICreateItemScreen(types: _types),
                           ),
                         );
+                        if (context.mounted) {
+                          _searchFocusNode.unfocus();
+                        }
                         if (result == true && mounted) {
+                          setState(() {
+                            _searchController.clear();
+                          });
                           _loadInitialData(isQuiet: true);
                         }
                       },
@@ -462,6 +478,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
             padding: const EdgeInsets.all(16.0),
             child: TextField(
               controller: _searchController,
+              focusNode: _searchFocusNode,
               decoration: InputDecoration(
                 hintText: 'Tìm kiếm mặt hàng...',
                 prefixIcon: const Icon(Icons.search),
@@ -543,7 +560,67 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
             child: _isLoading 
               ? const Center(child: CircularProgressIndicator())
               : _items.isEmpty
-                ? const Center(child: Text('Không tìm thấy mặt hàng nào'))
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.search_off_rounded,
+                            size: 64,
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Không tìm thấy mặt hàng nào',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                          if (_searchController.text.trim().isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              'Bạn có muốn tạo mới sản phẩm "${_searchController.text.trim()}" với AI không?',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            FilledButton.icon(
+                              onPressed: () async {
+                                _searchFocusNode.unfocus();
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (builderContext) => AICreateItemScreen(
+                                      types: _types,
+                                      initialKeyword: _searchController.text.trim(),
+                                    ),
+                                  ),
+                                );
+                                if (context.mounted) {
+                                  _searchFocusNode.unfocus();
+                                }
+                                if (result == true && mounted) {
+                                  setState(() {
+                                    _searchController.clear();
+                                  });
+                                  _loadInitialData(isQuiet: true);
+                                }
+                              },
+                              icon: const Icon(Icons.auto_awesome_rounded),
+                              label: const Text('Tạo mới với AI'),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  )
                 : RefreshIndicator(
                     onRefresh: () => _fetchItems(isQuiet: true),
                     child: isDesktop
@@ -577,6 +654,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                                                 item: _items[startIndex + i],
                                                 types: _types,
                                                 onTap: () async {
+                                                  _searchFocusNode.unfocus();
                                                   final result = await Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
@@ -586,6 +664,9 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                                                       ),
                                                     ),
                                                   );
+                                                  if (context.mounted) {
+                                                    _searchFocusNode.unfocus();
+                                                  }
                                                   if (result == true) {
                                                     _fetchItems(isQuiet: true);
                                                   }
@@ -615,15 +696,19 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                                   item: _items[index],
                                   types: _types,
                                   onTap: () async {
+                                     _searchFocusNode.unfocus();
                                      final result = await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (builderContext) => ItemDetailScreen(
-                                          item: _items[index],
-                                          types: _types,
-                                        ),
-                                      ),
-                                    );
+                                       context,
+                                       MaterialPageRoute(
+                                         builder: (builderContext) => ItemDetailScreen(
+                                           item: _items[index],
+                                           types: _types,
+                                         ),
+                                       ),
+                                     );
+                                     if (context.mounted) {
+                                       _searchFocusNode.unfocus();
+                                     }
                                     if (result == true) {
                                       _fetchItems(isQuiet: true);
                                     }
@@ -642,6 +727,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
   void dispose() {
     _searchController.dispose();
     _scrollController.dispose();
+    _searchFocusNode.dispose();
     _debounce?.cancel();
     super.dispose();
   }

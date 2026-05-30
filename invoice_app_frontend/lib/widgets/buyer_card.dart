@@ -3,11 +3,17 @@ import 'package:flutter/material.dart';
 class BuyerCard extends StatelessWidget {
   final Map<String, dynamic> buyer;
   final VoidCallback onTap;
+  final bool showInvoiceButton;
+  final bool showEditButton;
+  final VoidCallback? onEditPressed;
 
   const BuyerCard({
     super.key,
     required this.buyer,
     required this.onTap,
+    this.showInvoiceButton = true,
+    this.showEditButton = false,
+    this.onEditPressed,
   });
 
   @override
@@ -106,35 +112,56 @@ class BuyerCard extends StatelessWidget {
       ],
     );
 
-    final bottomSection = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Divider(height: 16, thickness: 0.5),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            onPressed: () {
-              Navigator.pushNamed(
-                context,
-                '/invoice_management',
-                arguments: {'buyer': buyer},
-              );
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: colorScheme.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            icon: const Icon(Icons.receipt_long, size: 16),
-            label: const Text(
-              'Xem hóa đơn',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-      ],
-    );
+    final bottomSection = (!showInvoiceButton && !showEditButton)
+        ? const SizedBox.shrink()
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Divider(height: 16, thickness: 0.5),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (showEditButton)
+                    TextButton.icon(
+                      onPressed: onEditPressed,
+                      style: TextButton.styleFrom(
+                        foregroundColor: colorScheme.secondary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: const Icon(Icons.edit, size: 16),
+                      label: const Text(
+                        'Chỉnh sửa',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  if (showEditButton && showInvoiceButton) const SizedBox(width: 8),
+                  if (showInvoiceButton)
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/invoice_management',
+                          arguments: {'buyer': buyer},
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: colorScheme.primary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: const Icon(Icons.receipt_long, size: 16),
+                      label: const Text(
+                        'Xem hóa đơn',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          );
 
     return Card(
       margin: isDesktop ? EdgeInsets.zero : const EdgeInsets.only(bottom: 12),

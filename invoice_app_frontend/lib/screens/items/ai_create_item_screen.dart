@@ -6,8 +6,9 @@ import '../../widgets/type_selection_sheet.dart';
 
 class AICreateItemScreen extends StatefulWidget {
   final List<dynamic> types;
+  final String? initialKeyword;
 
-  const AICreateItemScreen({super.key, required this.types});
+  const AICreateItemScreen({super.key, required this.types, this.initialKeyword});
 
   @override
   State<AICreateItemScreen> createState() => _AICreateItemScreenState();
@@ -37,6 +38,12 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
     _types = List.from(widget.types);
     if (_types.isNotEmpty) {
       _selectedType = null; // Default to uncategorized, user selects optionally
+    }
+    if (widget.initialKeyword != null && widget.initialKeyword!.isNotEmpty) {
+      _searchController.text = widget.initialKeyword!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _queryGeminiAI();
+      });
     }
   }
 

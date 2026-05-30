@@ -5,7 +5,8 @@ import '../../services/api_service.dart';
 import '../../widgets/address_search_field.dart';
 
 class CreateBuyerScreen extends StatefulWidget {
-  const CreateBuyerScreen({super.key});
+  final String? initialName;
+  const CreateBuyerScreen({super.key, this.initialName});
 
   @override
   State<CreateBuyerScreen> createState() => _CreateBuyerScreenState();
@@ -35,6 +36,9 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
   void initState() {
     super.initState();
     _autoGenerateCode();
+    if (widget.initialName != null) {
+      _nameController.text = widget.initialName!;
+    }
   }
 
   Future<void> _pickContact() async {

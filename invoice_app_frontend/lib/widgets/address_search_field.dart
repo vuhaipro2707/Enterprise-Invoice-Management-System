@@ -50,7 +50,7 @@ class _AddressSearchFieldState extends State<AddressSearchField> {
       if (_lastBaseAddress != null && (widget.initialLat != null || widget.initialLng != null)) {
         final currentText = widget.controller.text;
         final dist = _getEditDistance(currentText, _lastBaseAddress!);
-        if (dist > 3) {
+        if (dist > 7) {
           widget.onLocationSelected(null, null);
         }
       }

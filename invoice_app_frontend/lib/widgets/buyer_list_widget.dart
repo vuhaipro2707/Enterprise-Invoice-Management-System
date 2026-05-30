@@ -2,15 +2,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/buyer_card.dart';
+import '../screens/buyer/buyer_detail_screen.dart';
+import '../screens/buyer/create_buyer_screen.dart';
 
 class BuyerListWidget extends StatefulWidget {
   final Function(Map<String, dynamic> buyer)? onBuyerSelected;
   final VoidCallback? onRefresh;
+  final bool showInvoiceButton;
+  final bool showEditButton;
 
   const BuyerListWidget({
     super.key,
     this.onBuyerSelected,
     this.onRefresh,
+    this.showInvoiceButton = true,
+    this.showEditButton = false,
   });
 
   @override
@@ -21,6 +27,7 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
   final ApiService _apiService = ApiService();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _searchFocusNode = FocusNode();
   Timer? _debounce;
 
   List<dynamic> _buyers = [];
@@ -146,6 +153,7 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
           padding: const EdgeInsets.all(16.0),
           child: TextField(
             controller: _searchController,
+            focusNode: _searchFocusNode,
             onChanged: (val) {
               setState(() {});
               _onSearchChanged(val);
@@ -175,7 +183,69 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
               : _buyers.isEmpty
-                  ? const Center(child: Text('Không tìm thấy người mua nào'))
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.search_off_rounded,
+                              size: 64,
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Không tìm thấy người mua nào',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            if (_searchController.text.trim().isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                'Bạn có muốn tạo mới người mua "${_searchController.text.trim()}" không?',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton.icon(
+                                onPressed: () async {
+                                  _searchFocusNode.unfocus();
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (builderContext) => CreateBuyerScreen(
+                                        initialName: _searchController.text.trim(),
+                                      ),
+                                    ),
+                                  );
+                                  if (context.mounted) {
+                                    _searchFocusNode.unfocus();
+                                  }
+                                  if (result == true && mounted) {
+                                    setState(() {
+                                      _searchController.clear();
+                                    });
+                                    refresh(isQuiet: true);
+                                    if (widget.onRefresh != null) {
+                                      widget.onRefresh!();
+                                    }
+                                  }
+                                },
+                                icon: const Icon(Icons.person_add_alt_1_rounded),
+                                label: const Text('Tạo người mua mới'),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    )
                   : RefreshIndicator(
                       onRefresh: () => _fetchBuyers(isQuiet: true),
                       child: isDesktop
@@ -207,6 +277,25 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
                                           child: (startIndex + i < _buyers.length)
                                               ? BuyerCard(
                                                   buyer: _buyers[startIndex + i],
+                                                  showInvoiceButton: widget.showInvoiceButton,
+                                                  showEditButton: widget.showEditButton,
+                                                   onEditPressed: () async {
+                                                    _searchFocusNode.unfocus();
+                                                    final result = await Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (builderContext) => BuyerDetailScreen(
+                                                          buyer: _buyers[startIndex + i],
+                                                        ),
+                                                      ),
+                                                    );
+                                                    if (context.mounted) {
+                                                      _searchFocusNode.unfocus();
+                                                    }
+                                                    if (result == true && mounted) {
+                                                      refresh(isQuiet: true);
+                                                    }
+                                                  },
                                                   onTap: () {
                                                     if (widget.onBuyerSelected != null) {
                                                       widget.onBuyerSelected!(_buyers[startIndex + i]);
@@ -238,6 +327,25 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
                                 final buyer = _buyers[index];
                                 return BuyerCard(
                                   buyer: buyer,
+                                  showInvoiceButton: widget.showInvoiceButton,
+                                  showEditButton: widget.showEditButton,
+                                   onEditPressed: () async {
+                                    _searchFocusNode.unfocus();
+                                    final result = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (builderContext) => BuyerDetailScreen(
+                                          buyer: buyer,
+                                        ),
+                                      ),
+                                    );
+                                    if (context.mounted) {
+                                      _searchFocusNode.unfocus();
+                                    }
+                                    if (result == true && mounted) {
+                                      refresh(isQuiet: true);
+                                    }
+                                  },
                                   onTap: () {
                                     if (widget.onBuyerSelected != null) {
                                       widget.onBuyerSelected!(buyer);
@@ -252,10 +360,15 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
     );
   }
 
+  void unfocusSearch() {
+    _searchFocusNode.unfocus();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
     _scrollController.dispose();
+    _searchFocusNode.dispose();
     _debounce?.cancel();
     super.dispose();
   }

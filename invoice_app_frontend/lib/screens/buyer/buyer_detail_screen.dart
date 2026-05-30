@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_native_contact_picker/flutter_native_contact_picker.dart';
 import '../../services/api_service.dart';
 import '../../widgets/address_search_field.dart';
 
@@ -15,6 +17,7 @@ class BuyerDetailScreen extends StatefulWidget {
 class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
   final _formKey = GlobalKey<FormState>();
   final _apiService = ApiService();
+  final FlutterNativeContactPicker _contactPicker = FlutterNativeContactPicker();
 
   late final TextEditingController _codeController;
   late final TextEditingController _nameController;
@@ -54,6 +57,39 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
     _emailController.dispose();
     _taxIdController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickContact({bool updateName = false, bool updatePhone = false}) async {
+    try {
+      final contact = await _contactPicker.selectContact();
+      if (!mounted) return;
+      if (contact != null) {
+        setState(() {
+          if (updateName && contact.fullName != null && contact.fullName!.isNotEmpty) {
+            _nameController.text = contact.fullName!;
+          }
+          if (updatePhone && contact.phoneNumbers != null && contact.phoneNumbers!.isNotEmpty) {
+            String phone = contact.phoneNumbers!.first.replaceAll(RegExp(r'[^0-9+]'), '');
+            if (phone.startsWith('+84')) {
+              phone = '0${phone.substring(3)}';
+            } else if (phone.startsWith('84') && phone.length > 9) {
+              phone = '0${phone.substring(2)}';
+            }
+            _phoneController.text = phone;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking contact: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi mở danh bạ: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _updateBuyer() async {
@@ -337,6 +373,16 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
                         decoration: InputDecoration(
                           labelText: 'Tên người mua',
                           prefixIcon: const Icon(Icons.person),
+                          suffixIcon: widget.isDeleted || kIsWeb
+                            ? null
+                            : IconButton(
+                                icon: Icon(
+                                  Icons.contact_phone,
+                                  color: colorScheme.primary,
+                                ),
+                                onPressed: () => _pickContact(updateName: true),
+                                tooltip: 'Chọn từ danh bạ',
+                              ),
                           border: const OutlineInputBorder(),
                           filled: true,
                           fillColor: colorScheme.surface,
@@ -367,10 +413,20 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
               TextFormField(
                 controller: _phoneController,
                 enabled: !widget.isDeleted,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Số điện thoại',
-                  prefixIcon: Icon(Icons.phone),
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.phone),
+                  suffixIcon: widget.isDeleted || kIsWeb
+                    ? null
+                    : IconButton(
+                        icon: Icon(
+                          Icons.contact_phone,
+                          color: colorScheme.primary,
+                        ),
+                        onPressed: () => _pickContact(updatePhone: true),
+                        tooltip: 'Chọn từ danh bạ',
+                      ),
+                  border: const OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.phone,
               ),

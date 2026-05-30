@@ -27,10 +27,14 @@ class _BuyerSearchScreenState extends State<BuyerSearchScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
+          _listKey.currentState?.unfocusSearch();
           final result = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const CreateBuyerScreen()),
           );
+          if (context.mounted) {
+            _listKey.currentState?.unfocusSearch();
+          }
           if (result == true) {
             _listKey.currentState?.refresh();
           }
@@ -40,6 +44,8 @@ class _BuyerSearchScreenState extends State<BuyerSearchScreen> {
       ),
       body: BuyerListWidget(
         key: _listKey,
+        showInvoiceButton: false,
+        showEditButton: true,
         onBuyerSelected: (buyer) {
           Navigator.pop(context, buyer);
         },

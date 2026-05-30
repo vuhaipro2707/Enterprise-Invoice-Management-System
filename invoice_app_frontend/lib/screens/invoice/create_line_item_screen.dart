@@ -20,6 +20,7 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
   final _unitNameController = TextEditingController();
   final _quantityController = TextEditingController();
   final _priceController = TextEditingController();
+  final _scrollController = ScrollController();
   final _unitFocusNode = FocusNode();
   final _quantityFocusNode = FocusNode();
   bool _isSaving = false;
@@ -97,6 +98,7 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
           _selectedUnitId = null;
         }
       });
+      _scrollToBottom();
     }
   }
 
@@ -114,6 +116,20 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
     Future.delayed(const Duration(milliseconds: 350), () {
       if (mounted) {
         _quantityFocusNode.requestFocus();
+        // Wait for keyboard to fully pop up and resize the viewport, then scroll to bottom
+        _scrollToBottom(delayMs: 500);
+      }
+    });
+  }
+
+  void _scrollToBottom({int delayMs = 700}) {
+    Future.delayed(Duration(milliseconds: delayMs), () {
+      if (mounted && _scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
       }
     });
   }
@@ -125,6 +141,7 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(_currentExistingLineItem != null ? 'Sửa dòng hàng' : 'Thêm dòng hàng')),
       body: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,6 +447,7 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
     _priceController.dispose();
     _unitFocusNode.dispose();
     _quantityFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 }
