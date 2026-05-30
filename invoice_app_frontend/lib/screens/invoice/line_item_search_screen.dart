@@ -330,11 +330,24 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
               decoration: InputDecoration(
                 hintText: 'Tìm kiếm mặt hàng...',
                 prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {});
+                          _onSearchChanged('');
+                        },
+                      )
+                    : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onChanged: _onSearchChanged,
+              onChanged: (val) {
+                setState(() {});
+                _onSearchChanged(val);
+              },
             ),
           ),
           SingleChildScrollView(
@@ -390,6 +403,7 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
                  : isDesktop
                     ? ListView.builder(
                         physics: const AlwaysScrollableScrollPhysics(),
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         controller: _scrollController,
                         padding: const EdgeInsets.all(16.0),
                         itemCount: (_items.length / 3).ceil() + (_isLoadingMore ? 1 : 0),
@@ -430,6 +444,7 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
                       )
                     : ListView.builder(
                         physics: const AlwaysScrollableScrollPhysics(),
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         controller: _scrollController,
                         itemCount: _items.length + (_isLoadingMore ? 1 : 0),
                         itemBuilder: (builderContext, index) {

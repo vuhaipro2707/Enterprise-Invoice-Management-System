@@ -20,8 +20,9 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   String? _invoiceId;
   Map<String, dynamic>? _invoiceData;
   bool _isLoading = true;
+  bool _hasScrolledOnEntry = false;
   int? _pickedIndex;
-  String _localSearchQuery = '';
+  final String _localSearchQuery = '';
   String? _highlightedLineItemId; // for single add (create line item)
   Set<String> _highlightedLineItemIds = {}; // for batch add (from pricelist)
   final _formKey = GlobalKey<FormState>();
@@ -120,7 +121,10 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
               _pingTimer?.cancel();
               setState(() => _isShowingAlert = true);
               Navigator.pop(dialogContext); // Close dialog
-              Navigator.pop(context); // Go back to dashboard (using screen context)
+              if (context.mounted) {
+                Navigator.popUntil(context, (route) => route.settings.name == '/edit_invoice');
+                Navigator.pop(context);
+              }
             },
             child: const Text('THOÁT RA'),
           ),
@@ -157,7 +161,10 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
               _pingTimer?.cancel(); // Dừng ngay lập tức
               setState(() => _isShowingAlert = true); // Giữ trạng thái chặn ping
               Navigator.pop(dialogContext);
-              Navigator.pop(context);
+              if (context.mounted) {
+                Navigator.popUntil(context, (route) => route.settings.name == '/edit_invoice');
+                Navigator.pop(context);
+              }
             },
             child: const Text('THOÁT RA'),
           ),
@@ -357,20 +364,26 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     setState(() => _isLoading = true);
     try {
       final data = await _apiService.getInvoice(_invoiceId!);
-      setState(() {
-        _invoiceData = data;
-        _selectedBuyerId = data['buyerId'];
-        _buyerCodeController.text = data['buyerCode']?.toString() ?? '';
-        _buyerNameController.text = data['buyerNameSnapshot']?.toString() ?? '';
-        _addressController.text = data['addressSnapshot']?.toString() ?? '';
-        _phoneController.text = data['phoneNumberSnapshot']?.toString() ?? '';
-        _idCardController.text = data['idCardNumberSnapshot']?.toString() ?? '';
-        _emailController.text = data['emailSnapshot']?.toString() ?? '';
-        _taxIdController.text = data['taxIdSnapshot']?.toString() ?? '';
-        _selectedLat = data['latSnapshot'] != null ? (data['latSnapshot'] as num).toDouble() : null;
-        _selectedLng = data['lngSnapshot'] != null ? (data['lngSnapshot'] as num).toDouble() : null;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _invoiceData = data;
+          _selectedBuyerId = data['buyerId'];
+          _buyerCodeController.text = data['buyerCode']?.toString() ?? '';
+          _buyerNameController.text = data['buyerNameSnapshot']?.toString() ?? '';
+          _addressController.text = data['addressSnapshot']?.toString() ?? '';
+          _phoneController.text = data['phoneNumberSnapshot']?.toString() ?? '';
+          _idCardController.text = data['idCardNumberSnapshot']?.toString() ?? '';
+          _emailController.text = data['emailSnapshot']?.toString() ?? '';
+          _taxIdController.text = data['taxIdSnapshot']?.toString() ?? '';
+          _selectedLat = data['latSnapshot'] != null ? (data['latSnapshot'] as num).toDouble() : null;
+          _selectedLng = data['lngSnapshot'] != null ? (data['lngSnapshot'] as num).toDouble() : null;
+          _isLoading = false;
+        });
+        if (!_hasScrolledOnEntry) {
+          _hasScrolledOnEntry = true;
+          _scrollToBottom();
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -380,6 +393,18 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     }
   }
 
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted && _scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   Future<void> _lookupBuyer() async {
     final code = _buyerCodeController.text.trim();
     if (code.isEmpty) return;
@@ -387,17 +412,19 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
     setState(() => _isFetchingBuyer = true);
     try {
       final buyer = await _apiService.getBuyerByCode(code);
-      setState(() {
-        _selectedBuyerId = buyer['buyerId'];
-        _buyerNameController.text = buyer['buyerName'] ?? '';
-        _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
-        _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
-        _addressController.text = buyer['address'] ?? '';
-        _phoneController.text = buyer['phoneNumber'] ?? '';
-        _idCardController.text = buyer['idCardNumber'] ?? '';
-        _emailController.text = buyer['email'] ?? '';
-        _taxIdController.text = buyer['taxId'] ?? '';
-      });
+      if (mounted) {
+        setState(() {
+          _selectedBuyerId = buyer['buyerId'];
+          _buyerNameController.text = buyer['buyerName'] ?? '';
+          _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
+          _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
+          _addressController.text = buyer['address'] ?? '';
+          _phoneController.text = buyer['phoneNumber'] ?? '';
+          _idCardController.text = buyer['idCardNumber'] ?? '';
+          _emailController.text = buyer['email'] ?? '';
+          _taxIdController.text = buyer['taxId'] ?? '';
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -412,18 +439,20 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
   Future<void> _searchBuyerAdvanced() async {
     final buyer = await Navigator.pushNamed(context, '/buyer_search');
     if (buyer != null && buyer is Map<String, dynamic>) {
-      setState(() {
-        _selectedBuyerId = buyer['buyerId'];
-        _buyerCodeController.text = buyer['buyerCode'] ?? '';
-        _buyerNameController.text = buyer['buyerName'] ?? '';
-        _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
-        _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
-        _addressController.text = buyer['address'] ?? '';
-        _phoneController.text = buyer['phoneNumber'] ?? '';
-        _idCardController.text = buyer['idCardNumber'] ?? '';
-        _emailController.text = buyer['email'] ?? '';
-        _taxIdController.text = buyer['taxId'] ?? '';
-      });
+      if (mounted) {
+        setState(() {
+          _selectedBuyerId = buyer['buyerId'];
+          _buyerCodeController.text = buyer['buyerCode'] ?? '';
+          _buyerNameController.text = buyer['buyerName'] ?? '';
+          _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
+          _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
+          _addressController.text = buyer['address'] ?? '';
+          _phoneController.text = buyer['phoneNumber'] ?? '';
+          _idCardController.text = buyer['idCardNumber'] ?? '';
+          _emailController.text = buyer['email'] ?? '';
+          _taxIdController.text = buyer['taxId'] ?? '';
+        });
+      }
     }
   }
 
@@ -706,7 +735,7 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
                 Navigator.pop(dialogContext);
                 _finishInvoiceWithPrintOption(false, '');
               },
-              child: const Text('LƯU'),
+              child: const Text('LƯU KHÔNG IN'),
             ),
           ],
         );
@@ -1091,24 +1120,6 @@ class _EditInvoiceScreenState extends State<EditInvoiceScreen> {
             if (lineItems.isEmpty)
               const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('Chưa có sản phẩm nào')))
             else ...[
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
-                child: TextFormField(
-                  decoration: InputDecoration(
-                    hintText: 'Tìm kiếm sản phẩm trong danh sách...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    filled: true,
-                    fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                  onChanged: (val) {
-                    setState(() {
-                      _localSearchQuery = val;
-                    });
-                  },
-                ),
-              ),
               if (_pickedIndex != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12.0),

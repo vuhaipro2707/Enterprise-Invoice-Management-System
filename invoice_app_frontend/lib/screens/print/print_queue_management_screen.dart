@@ -1231,185 +1231,224 @@ class PrintJobPreviewWidgetState extends State<PrintJobPreviewWidget> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // If height is very small, we can hide the bottom actions to prevent layout overflows
+        final showBottomActions = constraints.maxHeight > 340;
+        final showHeaderNote = constraints.maxHeight > 240;
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: Text(
-                widget.titleText,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.primary,
-                ),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-        const Divider(),
-        const SizedBox(height: 12),
-        Expanded(
-          child: _isLoading
-              ? Center(
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const CircularProgressIndicator(),
-                      const SizedBox(height: 16),
                       Text(
-                        'Đang tải bản xem trước PDF từ máy chủ...',
-                        style: TextStyle(color: colorScheme.outline, fontSize: 13),
+                        widget.titleText,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.primary,
+                        ),
                       ),
+                      if (showHeaderNote) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              size: 14,
+                              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Kết quả xem trước dựa trên hóa đơn hoặc bảng báo giá HIỆN TẠI',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
-                )
-              : _errorMessage != null
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const Divider(),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _isLoading
                   ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.error_outline_rounded, size: 48, color: colorScheme.error),
+                          const CircularProgressIndicator(),
                           const SizedBox(height: 16),
                           Text(
-                            _errorMessage!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            onPressed: _loadPdf,
-                            icon: const Icon(Icons.refresh, size: 16),
-                            label: const Text('Thử lại'),
+                            'Đang tải bản xem trước PDF từ máy chủ...',
+                            style: TextStyle(color: colorScheme.outline, fontSize: 13),
                           ),
                         ],
                       ),
                     )
-                  : widget.hidePreview
+                  : _errorMessage != null
                       ? Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
-                                Icons.hourglass_bottom_rounded,
-                                size: 48,
-                                color: colorScheme.primary.withValues(alpha: 0.5),
-                              ),
+                              Icon(Icons.error_outline_rounded, size: 48, color: colorScheme.error),
                               const SizedBox(height: 16),
                               Text(
-                                'Đang mở tùy chọn in...',
-                                style: TextStyle(color: colorScheme.outline, fontSize: 13),
+                                _errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: _loadPdf,
+                                icon: const Icon(Icons.refresh, size: 16),
+                                label: const Text('Thử lại'),
                               ),
                             ],
                           ),
                         )
-                      : buildPreviewWidget(
-                          context,
-                          _pdfBytes!,
-                          'pdf',
-                          viewId: _pdfViewId,
+                      : widget.hidePreview
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.hourglass_bottom_rounded,
+                                    size: 48,
+                                    color: colorScheme.primary.withValues(alpha: 0.5),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Đang mở tùy chọn in...',
+                                    style: TextStyle(color: colorScheme.outline, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : buildPreviewWidget(
+                              context,
+                              _pdfBytes!,
+                              'pdf',
+                              viewId: _pdfViewId,
+                            ),
+            ),
+            if (showBottomActions) ...[
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (_pdfBytes != null) ...[
+                    if (widget.invoiceId != null || widget.customerPriceListId != null)
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          if (widget.invoiceId != null) {
+                            Navigator.pushNamed(context, '/invoice_detail', arguments: widget.invoiceId);
+                          } else if (widget.customerPriceListId != null) {
+                            Navigator.pushNamed(context, '/edit_pricelist', arguments: widget.customerPriceListId);
+                          }
+                        },
+                        icon: Icon(
+                          widget.invoiceId != null ? Icons.receipt_long_rounded : Icons.request_quote_rounded,
+                          size: 16,
                         ),
-        ),
-        const SizedBox(height: 16),
-        const Divider(),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.end,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            if (_pdfBytes != null) ...[
-              if (widget.invoiceId != null || widget.customerPriceListId != null)
-                ElevatedButton.icon(
-                  onPressed: () {
-                    if (widget.invoiceId != null) {
-                      Navigator.pushNamed(context, '/invoice_detail', arguments: widget.invoiceId);
-                    } else if (widget.customerPriceListId != null) {
-                      Navigator.pushNamed(context, '/edit_pricelist', arguments: widget.customerPriceListId);
-                    }
-                  },
-                  icon: Icon(
-                    widget.invoiceId != null ? Icons.receipt_long_rounded : Icons.request_quote_rounded,
-                    size: 16,
-                  ),
-                  label: Text(
-                    widget.invoiceId != null ? 'MỞ HÓA ĐƠN' : 'MỞ BÁO GIÁ',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              if (widget.onPrintAction != null)
-                ElevatedButton.icon(
-                  onPressed: widget.onPrintAction,
-                  icon: const Icon(Icons.print_outlined, size: 16),
-                  label: const Text(
-                    'IN LẠI',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ElevatedButton.icon(
-                onPressed: () {
-                  final fileName = widget.invoiceId != null ? 'Hoa_don.pdf' : 'Bao_gia.pdf';
-                  final String downloadUrl;
-                  if (widget.invoiceId != null) {
-                    final partQuery = widget.printPart != null ? '&printPart=${widget.printPart}' : '';
-                    final jobQuery = widget.printJobId != null ? '&printJobId=${widget.printJobId}' : '';
-                    downloadUrl = '${ApiService.baseUrl}/invoice/id/${widget.invoiceId}/export?printType=${widget.printType}$partQuery$jobQuery';
-                  } else if (widget.customerPriceListId != null) {
-                    final pageSizeQuery = widget.pageSize != null ? '&pageSize=${widget.pageSize}' : '';
-                    downloadUrl = '${ApiService.baseUrl}/pricelist/id/${widget.customerPriceListId}/export?format=pdf$pageSizeQuery';
-                  } else {
-                    downloadUrl = '';
-                  }
-                  downloadFile(_pdfBytes!, fileName, 'application/pdf', downloadUrl);
-                },
-                icon: const Icon(Icons.download_rounded, size: 16),
-                label: const Text(
-                  'LƯU VỀ MÁY',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: colorScheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
+                        label: Text(
+                          widget.invoiceId != null ? 'MỞ HÓA ĐƠN' : 'MỞ BÁO GIÁ',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    if (widget.onPrintAction != null)
+                      ElevatedButton.icon(
+                        onPressed: widget.onPrintAction,
+                        icon: const Icon(Icons.print_outlined, size: 16),
+                        label: const Text(
+                          'IN LẠI',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        final fileName = widget.invoiceId != null ? 'Hoa_don.pdf' : 'Bao_gia.pdf';
+                        final String downloadUrl;
+                        if (widget.invoiceId != null) {
+                          final partQuery = widget.printPart != null ? '&printPart=${widget.printPart}' : '';
+                          final jobQuery = widget.printJobId != null ? '&printJobId=${widget.printJobId}' : '';
+                          downloadUrl = '${ApiService.baseUrl}/invoice/id/${widget.invoiceId}/export?printType=${widget.printType}$partQuery$jobQuery';
+                        } else if (widget.customerPriceListId != null) {
+                          final pageSizeQuery = widget.pageSize != null ? '&pageSize=${widget.pageSize}' : '';
+                          downloadUrl = '${ApiService.baseUrl}/pricelist/id/${widget.customerPriceListId}/export?format=pdf$pageSizeQuery';
+                        } else {
+                          downloadUrl = '';
+                        }
+                        downloadFile(_pdfBytes!, fileName, 'application/pdf', downloadUrl);
+                      },
+                      icon: const Icon(Icons.download_rounded, size: 16),
+                      label: const Text(
+                        'LƯU VỀ MÁY',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
+                  if (widget.showCloseButton)
+                    OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text(
+                        'ĐÓNG',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                ],
               ),
             ],
-            if (widget.showCloseButton)
-              OutlinedButton(
-                onPressed: () => Navigator.pop(context),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text(
-                  'ĐÓNG',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 }

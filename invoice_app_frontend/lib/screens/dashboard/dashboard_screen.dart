@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import '../../services/api_service.dart';
@@ -20,6 +24,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
   bool _isOnline = true;
   final ScrollController _scrollController = ScrollController();
   Timer? _refreshTimer;
+  bool _hasCheckedUpdate = false;
 
   @override
   void initState() {
@@ -72,6 +77,228 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
     });
   }
 
+  Future<void> _handleLogout() async {
+    _refreshTimer?.cancel();
+    await _apiService.clearAuth();
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/login');
+    }
+  }
+
+  bool _isUpdateAvailable(String localStr, String serverStr) {
+    try {
+      final localParts = localStr.split('+');
+      final serverParts = serverStr.split('+');
+
+      final localName = localParts[0];
+      final serverName = serverParts[0];
+
+      if (localParts.length > 1 && serverParts.length > 1) {
+        final localBuild = int.tryParse(localParts[1]);
+        final serverBuild = int.tryParse(serverParts[1]);
+        if (localBuild != null && serverBuild != null) {
+          return serverBuild > localBuild;
+        }
+      }
+
+      final localSubparts = localName.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+      final serverSubparts = serverName.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+
+      for (var i = 0; i < 3; i++) {
+        final l = i < localSubparts.length ? localSubparts[i] : 0;
+        final s = i < serverSubparts.length ? serverSubparts[i] : 0;
+        if (s > l) return true;
+        if (l > s) return false;
+      }
+    } catch (e) {
+      debugPrint('Error comparing versions: $e');
+    }
+    return false;
+  }
+
+  Future<void> _checkAppUpdate() async {
+    if (kIsWeb) return;
+    try {
+      final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      final String localVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
+
+      final result = await _apiService.getLatestVersion();
+      final String serverVersion = result['version'] ?? '';
+
+      final hasUpdate = _isUpdateAvailable(localVersion, serverVersion);
+      if (hasUpdate && mounted) {
+        _showForcedUpdateDialog(localVersion, serverVersion);
+      }
+    } catch (e) {
+      debugPrint('Error checking forced update: $e');
+    }
+  }
+
+  void _showForcedUpdateDialog(String currentVer, String newVer) {
+    double downloadProgress = 0.0;
+    bool isDownloading = false;
+    String downloadStatus = '';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return PopScope(
+          canPop: false, // Prevent back button pop
+          child: StatefulBuilder(
+            builder: (BuildContext builderContext, StateSetter setDialogState) {
+              final colorScheme = Theme.of(builderContext).colorScheme;
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: Row(
+                  children: [
+                    Icon(
+                      Icons.system_update_alt,
+                      color: colorScheme.primary,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 12),
+                    const Text('Yêu Cầu Cập Nhật!'),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!isDownloading) ...[
+                      Text(
+                        'Ứng dụng đã có phiên bản mới bắt buộc. Vui lòng cập nhật để tiếp tục sử dụng.',
+                        style: Theme.of(builderContext).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Phiên bản hiện tại:', style: TextStyle(color: Colors.grey[600])),
+                          Text(currentVer, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Phiên bản bắt buộc:', style: TextStyle(color: Colors.grey[600])),
+                          Text(
+                            newVer,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      Text(
+                        downloadStatus,
+                        style: Theme.of(builderContext).textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      if (downloadProgress >= 0) ...[
+                        LinearProgressIndicator(
+                          value: downloadProgress,
+                          backgroundColor: colorScheme.surfaceContainerHighest,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${(downloadProgress * 100).toStringAsFixed(0)}%',
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ] else ...[
+                        const LinearProgressIndicator(),
+                        const SizedBox(height: 8),
+                        const Text('Đang tải...', textAlign: TextAlign.center),
+                      ],
+                    ],
+                  ],
+                ),
+                actions: [
+                  if (!isDownloading)
+                    ElevatedButton(
+                      onPressed: () async {
+                        setDialogState(() {
+                          isDownloading = true;
+                          downloadStatus = 'Đang chuẩn bị tải về...';
+                          downloadProgress = 0.0;
+                        });
+
+                        try {
+                          final tempDir = await getTemporaryDirectory();
+                          final String savePath = '${tempDir.path}/app-release.apk';
+
+                          await _apiService.downloadApk(savePath, (progress) {
+                            setDialogState(() {
+                              downloadProgress = progress;
+                              downloadStatus = 'Đang tải bản cập nhật...';
+                            });
+                          });
+
+                          setDialogState(() {
+                            downloadStatus = 'Cài đặt bản cập nhật...';
+                          });
+
+                          final openResult = await OpenFilex.open(savePath);
+                          
+                          if (openResult.type != ResultType.done) {
+                            setDialogState(() {
+                              isDownloading = false;
+                              downloadStatus = '';
+                            });
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Không thể cài đặt APK: ${openResult.message}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          setDialogState(() {
+                            isDownloading = false;
+                            downloadStatus = '';
+                          });
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Lỗi tải xuống: ${e.toString()}'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('CẬP NHẬT NGAY', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _fetchEditingInvoices() async {
     if (!mounted) return;
     // Don't show loading indicator on auto-refresh to avoid flickering
@@ -97,8 +324,23 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
         if (!wasOnline) {
           _startRefreshTimer();
         }
+
+        // Check update after first successful backend call
+        if (!_hasCheckedUpdate && !kIsWeb) {
+          _hasCheckedUpdate = true;
+          _checkAppUpdate();
+        }
       }
     } catch (e) {
+      final errStr = e.toString();
+      if (errStr.contains('Missing Authorization') ||
+          errStr.contains('Invalid Authorization') ||
+          errStr.contains('Invalid token') ||
+          errStr.contains('Unexpected signing method')) {
+        _handleLogout();
+        return;
+      }
+
       if (mounted) {
         setState(() {
           _isLoadingInvoices = false;
@@ -186,6 +428,15 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
         });
       }
     } catch (e) {
+      final errStr = e.toString();
+      if (errStr.contains('Missing Authorization') ||
+          errStr.contains('Invalid Authorization') ||
+          errStr.contains('Invalid token') ||
+          errStr.contains('Unexpected signing method')) {
+        _handleLogout();
+        return;
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Lỗi: $e')),
@@ -219,8 +470,8 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
     final List<Map<String, dynamic>> menuItems = [
       {'title': 'Tạo Hóa đơn mới', 'icon': Icons.add_shopping_cart, 'color': colorScheme.primary},
       {'title': 'Quản lý Mặt hàng', 'icon': Icons.inventory, 'color': Colors.orange},
-      {'title': 'Quản lý Người mua', 'icon': Icons.people, 'color': Colors.green},
       {'title': 'Quản lý Hóa đơn', 'icon': Icons.description, 'color': Colors.red},
+      {'title': 'Quản lý Người mua', 'icon': Icons.people, 'color': Colors.green},
       {'title': 'Bảng báo giá', 'icon': Icons.request_quote, 'color': Colors.teal},
       {'title': 'Hàng chờ in', 'icon': Icons.print, 'color': Colors.indigo},
       {'title': 'Quản lý Thiết bị', 'icon': Icons.devices, 'color': Colors.purple},
@@ -278,10 +529,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
               } else if (value == 'theme') {
                 themeProvider.toggleTheme();
               } else if (value == 'logout') {
-                await ApiService().clearAuth();
-                if (context.mounted) {
-                  Navigator.pushReplacementNamed(context, '/login');
-                }
+                await _handleLogout();
               }
             },
             itemBuilder: (BuildContext menuContext) => [

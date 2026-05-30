@@ -19,6 +19,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   final _idCardController = TextEditingController();
   final _emailController = TextEditingController();
   final _taxIdController = TextEditingController();
+  final _scrollController = ScrollController();
 
   String? _selectedBuyerId;
   double? _selectedLat;
@@ -111,18 +112,21 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     setState(() => _isFetchingBuyer = true);
     try {
       final buyer = await ApiService().getBuyerByCode(code);
-      setState(() {
-        _selectedBuyerId = buyer['buyerId'];
-        _buyerNameController.text = buyer['buyerName'] ?? '';
-        _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
-        _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
-        _addressController.text = buyer['address'] ?? '';
-        _phoneController.text = buyer['phoneNumber'] ?? '';
-        _idCardController.text = buyer['idCardNumber'] ?? '';
-        _emailController.text = buyer['email'] ?? '';
-        _taxIdController.text = buyer['taxId'] ?? '';
-        _isManualInputExpanded = true;
-      });
+      if (mounted) {
+        setState(() {
+          _selectedBuyerId = buyer['buyerId'];
+          _buyerNameController.text = buyer['buyerName'] ?? '';
+          _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
+          _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
+          _addressController.text = buyer['address'] ?? '';
+          _phoneController.text = buyer['phoneNumber'] ?? '';
+          _idCardController.text = buyer['idCardNumber'] ?? '';
+          _emailController.text = buyer['email'] ?? '';
+          _taxIdController.text = buyer['taxId'] ?? '';
+          _isManualInputExpanded = true;
+        });
+        _scrollToBottom();
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -137,20 +141,35 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   Future<void> _searchBuyerAdvanced() async {
     final buyer = await Navigator.pushNamed(context, '/buyer_search');
     if (buyer != null && buyer is Map<String, dynamic>) {
-      setState(() {
-        _selectedBuyerId = buyer['buyerId'];
-        _buyerCodeController.text = buyer['buyerCode'] ?? '';
-        _buyerNameController.text = buyer['buyerName'] ?? '';
-        _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
-        _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
-        _addressController.text = buyer['address'] ?? '';
-        _phoneController.text = buyer['phoneNumber'] ?? '';
-        _idCardController.text = buyer['idCardNumber'] ?? '';
-        _emailController.text = buyer['email'] ?? '';
-        _taxIdController.text = buyer['taxId'] ?? '';
-        _isManualInputExpanded = true;
-      });
+      if (mounted) {
+        setState(() {
+          _selectedBuyerId = buyer['buyerId'];
+          _buyerCodeController.text = buyer['buyerCode'] ?? '';
+          _buyerNameController.text = buyer['buyerName'] ?? '';
+          _selectedLat = buyer['lat'] != null ? (buyer['lat'] as num).toDouble() : null;
+          _selectedLng = buyer['lng'] != null ? (buyer['lng'] as num).toDouble() : null;
+          _addressController.text = buyer['address'] ?? '';
+          _phoneController.text = buyer['phoneNumber'] ?? '';
+          _idCardController.text = buyer['idCardNumber'] ?? '';
+          _emailController.text = buyer['email'] ?? '';
+          _taxIdController.text = buyer['taxId'] ?? '';
+          _isManualInputExpanded = true;
+        });
+        _scrollToBottom();
+      }
     }
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted && _scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Future<void> _createInvoice() async {
@@ -394,6 +413,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           : Padding(
               padding: const EdgeInsets.all(16.0),
               child: SingleChildScrollView(
+                controller: _scrollController,
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -766,6 +786,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     _idCardController.dispose();
     _emailController.dispose();
     _taxIdController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 }

@@ -470,6 +470,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                       icon: const Icon(Icons.clear),
                       onPressed: () {
                         _searchController.clear();
+                        setState(() {});
                         _onSearchChanged('');
                       },
                     )
@@ -478,7 +479,10 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onChanged: _onSearchChanged,
+              onChanged: (val) {
+                setState(() {});
+                _onSearchChanged(val);
+              },
             ),
           ),
           SingleChildScrollView(
@@ -545,6 +549,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                     child: isDesktop
                         ? ListView.builder(
                             physics: const AlwaysScrollableScrollPhysics(),
+                            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                             controller: _scrollController,
                             padding: const EdgeInsets.all(16.0),
                             itemCount: (_items.length / 3).ceil() + (_isLoadingMore ? 1 : 0),
@@ -596,35 +601,36 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                           )
                         : ListView.builder(
                             physics: const AlwaysScrollableScrollPhysics(),
+                            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                             controller: _scrollController,
                             itemCount: _items.length + (_isLoadingMore ? 1 : 0),
                             itemBuilder: (context, index) {
                               if (index == _items.length) {
-                                return const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 16.0),
-                                  child: Center(child: CircularProgressIndicator()),
-                                );
-                              }
-                              return ItemCard(
-                                item: _items[index],
-                                types: _types,
-                                onTap: () async {
-                                   final result = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (builderContext) => ItemDetailScreen(
-                                        item: _items[index],
-                                        types: _types,
-                                      ),
-                                    ),
+                                  return const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16.0),
+                                    child: Center(child: CircularProgressIndicator()),
                                   );
-                                  if (result == true) {
-                                    _fetchItems(isQuiet: true);
-                                  }
-                                },
-                              );
-                            },
-                          ),
+                                }
+                                return ItemCard(
+                                  item: _items[index],
+                                  types: _types,
+                                  onTap: () async {
+                                     final result = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (builderContext) => ItemDetailScreen(
+                                          item: _items[index],
+                                          types: _types,
+                                        ),
+                                      ),
+                                    );
+                                    if (result == true) {
+                                      _fetchItems(isQuiet: true);
+                                    }
+                                  },
+                                );
+                              },
+                            ),
                   ),
           ),
         ],

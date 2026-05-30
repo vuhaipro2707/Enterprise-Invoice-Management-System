@@ -188,6 +188,7 @@ class _PriceListPickerScreenState extends State<PriceListPickerScreen> {
                         icon: const Icon(Icons.clear),
                         onPressed: () {
                           _searchController.clear();
+                          setState(() {});
                           _onSearchChanged('');
                         },
                       )
@@ -198,7 +199,10 @@ class _PriceListPickerScreenState extends State<PriceListPickerScreen> {
                 filled: true,
                 fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
               ),
-              onChanged: _onSearchChanged,
+              onChanged: (val) {
+                setState(() {});
+                _onSearchChanged(val);
+              },
             ),
           ),
           if (_isBuyerFiltered && _preloadedBuyerId != null)
@@ -239,6 +243,7 @@ class _PriceListPickerScreenState extends State<PriceListPickerScreen> {
                         child: isDesktop
                             ? GridView.builder(
                                 physics: const AlwaysScrollableScrollPhysics(),
+                                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                                 controller: _scrollController,
                                 padding: const EdgeInsets.all(16.0),
                                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -261,6 +266,7 @@ class _PriceListPickerScreenState extends State<PriceListPickerScreen> {
                               )
                             : ListView.builder(
                                 physics: const AlwaysScrollableScrollPhysics(),
+                                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                                 controller: _scrollController,
                                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                                 itemCount: _priceLists.length + (_isLoadingMore ? 1 : 0),

@@ -146,7 +146,10 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
           padding: const EdgeInsets.all(16.0),
           child: TextField(
             controller: _searchController,
-            onChanged: _onSearchChanged,
+            onChanged: (val) {
+              setState(() {});
+              _onSearchChanged(val);
+            },
             decoration: InputDecoration(
               hintText: 'Tìm theo tên hoặc mọi thông tin khác...',
               prefixIcon: const Icon(Icons.search),
@@ -155,6 +158,7 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
                       icon: const Icon(Icons.clear),
                       onPressed: () {
                         _searchController.clear();
+                        setState(() {});
                         _onSearchChanged('');
                       },
                     )
@@ -177,6 +181,7 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
                       child: isDesktop
                           ? ListView.builder(
                               physics: const AlwaysScrollableScrollPhysics(),
+                              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                               controller: _scrollController,
                               padding: const EdgeInsets.all(16.0),
                               itemCount: (_buyers.length / 3).ceil() + (_hasMore ? 1 : 0),
@@ -218,6 +223,7 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
                             )
                           : ListView.builder(
                               physics: const AlwaysScrollableScrollPhysics(),
+                              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                               controller: _scrollController,
                               padding: const EdgeInsets.symmetric(horizontal: 16),
                               itemCount: _buyers.length + (_hasMore ? 1 : 0),

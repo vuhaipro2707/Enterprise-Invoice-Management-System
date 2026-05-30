@@ -350,6 +350,8 @@ class _PriceListItemPickerScreenState extends State<PriceListItemPickerScreen> {
                     ),
                   )
                 : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     itemCount: filteredItems.length,
                     itemBuilder: (context, index) {
