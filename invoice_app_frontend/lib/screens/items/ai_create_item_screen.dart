@@ -29,6 +29,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
   Map<String, dynamic>? _aiResponse;
   final Map<int, List<String>> _selectedOptions = {};
   final Map<String, Map<String, TextEditingController>> _priceControllers = {};
+  final Map<String, Map<String, TextEditingController>> _ratioControllers = {};
   final Map<String, Map<String, FocusNode>> _priceFocusNodes = {};
   final Map<String, bool> _combinationSelection = {};
   bool _showDraftDetail = false;
@@ -64,6 +65,12 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
       }
     }
     _priceControllers.clear();
+    for (var innerMap in _ratioControllers.values) {
+      for (var ctrl in innerMap.values) {
+        ctrl.dispose();
+      }
+    }
+    _ratioControllers.clear();
     for (var innerMap in _priceFocusNodes.values) {
       for (var node in innerMap.values) {
         node.dispose();
@@ -135,24 +142,50 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
           }
         }
 
-        // Initialize price controllers for conditional units
+        // Initialize price and ratio controllers for conditional units
         final condUnits = suggestions['conditionalUnits'] as Map<String, dynamic>? ?? {};
         condUnits.forEach((optionName, unitsList) {
           _priceControllers[optionName] = {};
+          _ratioControllers[optionName] = {};
           _priceFocusNodes[optionName] = {};
           final list = unitsList as List<dynamic>;
           
           // Find base unit for ratio linkage
           final baseUnit = list.firstWhere((u) => (u['ratio'] as int) == 1, orElse: () => null);
+          final baseUnitName = baseUnit != null ? baseUnit['unitName'] as String : '';
 
           for (var u in list) {
             final uName = u['unitName'] as String;
             final suggestionPrice = u['priceSuggestion'] as int? ?? 0;
+            final ratioVal = (u['ratio'] as num).toInt();
+            
             final controller = TextEditingController(
               text: _currencyFormatter.format(suggestionPrice),
             );
+            final ratioController = TextEditingController(
+              text: ratioVal.toString(),
+            );
+            
             _priceControllers[optionName]![uName] = controller;
+            _ratioControllers[optionName]![uName] = ratioController;
             _priceFocusNodes[optionName]![uName] = FocusNode();
+
+            // Listen to ratio changes to update the model and computed price
+            if (ratioVal > 1) {
+              ratioController.addListener(() {
+                final newRatio = int.tryParse(ratioController.text.trim()) ?? 1;
+                u['ratio'] = newRatio;
+
+                if (baseUnitName.isNotEmpty) {
+                  final baseCtrl = _priceControllers[optionName]![baseUnitName];
+                  if (baseCtrl != null && baseCtrl.text.isNotEmpty) {
+                    final basePrice = int.tryParse(baseCtrl.text.replaceAll('.', '').trim()) ?? 0;
+                    final computedPrice = basePrice * newRatio;
+                    controller.text = _currencyFormatter.format(computedPrice);
+                  }
+                }
+              });
+            }
           }
 
           // Link unit price changes as real-time pricing assistance
@@ -351,7 +384,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
           }
         }
       } else {
-        final baseUnitName = _aiResponse!['baseUnitName'] as String? ?? 'Cái';
+        const baseUnitName = 'Cái';
         unitsPayload.add({
           'unitName': baseUnitName,
           'ratio': 1,
@@ -1247,14 +1280,52 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
                           Expanded(
                             flex: 3,
                             child: Text(
-                              '$uName ${isBase ? "(Đơn vị gốc)" : "(Quy đổi: x$ratio)"}',
+                              uName,
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 14,
                                 fontWeight: isBase ? FontWeight.bold : FontWeight.normal,
                                 color: colorScheme.onSurface,
                               ),
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 3,
+                            child: isBase
+                                ? Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primaryContainer.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Gốc (x1)',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: colorScheme.primary,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  )
+                                : SizedBox(
+                                    height: 40,
+                                    child: TextField(
+                                      controller: _ratioControllers[qcOption]?[uName],
+                                      keyboardType: TextInputType.number,
+                                      decoration: InputDecoration(
+                                        prefixText: 'x ',
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        labelText: 'Quy đổi',
+                                        labelStyle: const TextStyle(fontSize: 11),
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                          const SizedBox(width: 12),
                           Expanded(
                             flex: 4,
                             child: SizedBox(
@@ -1278,12 +1349,223 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
                       ),
                     );
                   }),
+                  const Divider(height: 16),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => _showAddUnitDialog(context, qcOption),
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: const Text('Thêm đơn vị quy đổi', style: TextStyle(fontSize: 12)),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
           );
         }),
       ],
+    );
+  }
+
+  void _showAddUnitDialog(BuildContext parentContext, String qcOption) {
+    final colorScheme = Theme.of(parentContext).colorScheme;
+    final nameController = TextEditingController();
+    final ratioController = TextEditingController();
+    final priceController = TextEditingController();
+
+    final list = _aiResponse!['conditionalUnits']?[qcOption] as List<dynamic>? ?? [];
+    final baseUnit = list.firstWhere((u) => (u['ratio'] as int) == 1, orElse: () => null);
+
+    int basePrice = 0;
+    if (baseUnit != null) {
+      final baseUnitName = baseUnit['unitName'] as String;
+      final baseCtrl = _priceControllers[qcOption]?[baseUnitName];
+      if (baseCtrl != null && baseCtrl.text.isNotEmpty) {
+        basePrice = int.tryParse(baseCtrl.text.replaceAll('.', '').trim()) ?? 0;
+      }
+    }
+
+    showDialog(
+      context: parentContext,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (builderContext, setDialogState) {
+            ratioController.addListener(() {
+              final ratioStr = ratioController.text.trim();
+              if (ratioStr.isNotEmpty) {
+                final ratio = int.tryParse(ratioStr) ?? 0;
+                if (ratio > 1 && basePrice > 0) {
+                  final computed = basePrice * ratio;
+                  priceController.text = _currencyFormatter.format(computed);
+                }
+              }
+            });
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  Icon(Icons.add_box_rounded, color: colorScheme.primary),
+                  const SizedBox(width: 8),
+                  const Text('Thêm đơn vị quy đổi'),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Tên đơn vị tính (ví dụ: Thùng, Lốc)',
+                        hintText: 'Nhập tên đơn vị tính',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: ratioController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Tỷ lệ quy đổi so với đơn vị gốc',
+                        hintText: 'Ví dụ: 1 thùng = 24 chai thì nhập 24',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: priceController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [CurrencyInputFormatter()],
+                      decoration: const InputDecoration(
+                        labelText: 'Giá bán đề xuất (đ)',
+                        hintText: 'Nhập giá bán',
+                        border: OutlineInputBorder(),
+                        suffixText: 'đ',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text(
+                    'Hủy',
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final name = nameController.text.trim();
+                    final ratioStr = ratioController.text.trim();
+                    final priceStr = priceController.text.replaceAll('.', '').trim();
+
+                    if (name.isEmpty) {
+                      ScaffoldMessenger.of(parentContext).showSnackBar(
+                        const SnackBar(content: Text('Vui lòng nhập tên đơn vị tính')),
+                      );
+                      return;
+                    }
+
+                    final ratio = int.tryParse(ratioStr) ?? 0;
+                    if (ratio <= 1) {
+                      ScaffoldMessenger.of(parentContext).showSnackBar(
+                        const SnackBar(content: Text('Tỷ lệ quy đổi phải lớn hơn 1')),
+                      );
+                      return;
+                    }
+
+                    final exists = list.any((u) => u['unitName'].toString().toLowerCase() == name.toLowerCase());
+                    if (exists) {
+                      ScaffoldMessenger.of(parentContext).showSnackBar(
+                        SnackBar(content: Text('Đơn vị "$name" đã tồn tại cho quy cách này')),
+                      );
+                      return;
+                    }
+
+                    final price = int.tryParse(priceStr) ?? 0;
+
+                    Navigator.pop(dialogContext);
+
+                    if (mounted) {
+                      setState(() {
+                        final newUnitMap = {
+                          'unitName': name,
+                          'ratio': ratio,
+                          'priceSuggestion': price,
+                        };
+                        _aiResponse!['conditionalUnits']?[qcOption].add(newUnitMap);
+
+                        final ctrl = TextEditingController(text: _currencyFormatter.format(price));
+                        final node = FocusNode();
+                        _priceControllers[qcOption]![name] = ctrl;
+                        _priceFocusNodes[qcOption]![name] = node;
+
+                        final rCtrl = TextEditingController(text: ratio.toString());
+                        _ratioControllers[qcOption]![name] = rCtrl;
+
+                        rCtrl.addListener(() {
+                          final newRatio = int.tryParse(rCtrl.text.trim()) ?? 1;
+                          newUnitMap['ratio'] = newRatio;
+
+                          if (baseUnit != null) {
+                            final baseUnitName = baseUnit['unitName'] as String;
+                            final baseCtrl = _priceControllers[qcOption]?[baseUnitName];
+                            if (baseCtrl != null && baseCtrl.text.isNotEmpty) {
+                              final basePrice = int.tryParse(baseCtrl.text.replaceAll('.', '').trim()) ?? 0;
+                              final computedPrice = basePrice * newRatio;
+                              ctrl.text = _currencyFormatter.format(computedPrice);
+                            }
+                          }
+                        });
+
+                        ctrl.addListener(() {
+                          if (!node.hasFocus) return;
+
+                          final rawPrice = ctrl.text.replaceAll('.', '').trim();
+                          if (rawPrice.isEmpty) return;
+
+                          final currentPrice = int.tryParse(rawPrice) ?? 0;
+
+                          if (baseUnit != null) {
+                            final baseUnitName = baseUnit['unitName'] as String;
+                            final baseController = _priceControllers[qcOption]?[baseUnitName];
+                            if (baseController != null) {
+                              final computedBasePrice = (currentPrice / ratio).round();
+                              baseController.text = _currencyFormatter.format(computedBasePrice);
+
+                              for (var otherUnit in _aiResponse!['conditionalUnits']?[qcOption]) {
+                                final otherName = otherUnit['unitName'] as String;
+                                final otherRatio = otherUnit['ratio'] as int;
+                                if (otherName != name && otherRatio > 1) {
+                                  final targetController = _priceControllers[qcOption]?[otherName];
+                                  if (targetController != null) {
+                                    final computedPrice = computedBasePrice * otherRatio;
+                                    targetController.text = _currencyFormatter.format(computedPrice);
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        });
+                      });
+                    }
+                  },
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Thêm'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

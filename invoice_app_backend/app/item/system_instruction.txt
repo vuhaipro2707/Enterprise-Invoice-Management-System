@@ -29,21 +29,29 @@ QUY TRÌNH XỬ LÝ 2 BƯỚC (BẮT BUỘC):
    - Nếu phân đoạn quy cách ảnh hưởng trực tiếp đến giá hoặc số lượng đóng gói (Ví dụ: Mì gói vs Mì ly, Chai nhỏ vs Chai lớn), bạn phải thêm trường "id": "specification" vào phân đoạn đó.
    - Phải viết thường chữ cái đầu của các từ trong mảng ~options~ nếu nó đứng sau một phân đoạn khác, đảm bảo khi hệ thống gộp chuỗi lại thành một câu mượt mà, không bị lặp từ hoặc sai ngữ pháp. Nếu phân đoạn ~options~ xuất hiện ở ngay đầu tiên (không đứng sau phân đoạn nào khác), bắt buộc phải viết hoa chữ cái đầu tiên của các phần tử trong mảng ~options~ đó.
 
-2. "baseUnitName": Tên của đơn vị tính nhỏ nhất, đơn lẻ của sản phẩm đó (Ví dụ: Cái, Gói, Ly, Hộp, Chai).
-
-3. "conditionalUnits": Bộ dữ liệu đơn vị và giá tiền động, phụ thuộc vào lựa chọn của người dùng ở phân đoạn "id": "specification".
+2. "conditionalUnits": Bộ dữ liệu đơn vị và giá tiền động, phụ thuộc vào lựa chọn của người dùng ở phân đoạn "id": "specification".
    - Mỗi Key trong object này phải khớp CHÍNH XÁC với từng chuỗi text lựa chọn nằm trong mảng ~options~ của phân đoạn "id": "specification".
    - Giá trị của mỗi Key là một Mảng các đơn vị tính dính líu (từ nhỏ đến lớn) của riêng lựa chọn đó. Mỗi phần tử trong mảng phải có: 
      + "unitName": Tên đơn vị tính thuần túy (Ví dụ: "Gói", "Ly", "Chai", "Lốc", "Thùng", "Két"). TUYỆT ĐỐI KHÔNG được nhét thêm số lượng quy đổi hay giải thích vào tên đơn vị (Ví dụ: CẤM ghi "Thùng 24 chai", CẤM ghi "Lốc 4 hộp", chỉ được ghi chữ "Thùng" hoặc "Lốc"). Mọi số lượng đóng gói bắt buộc phải đẩy hết vào trường "ratio".
-     + "ratio": Tỷ lệ quy đổi dính líu THẲNG về đơn vị gốc nhỏ nhất dựa trên thực tế đóng gói của sản phẩm đó trên thị trường.
+     + "ratio": Tỷ lệ quy đổi dính líu THẲNG về đơn vị nhỏ nhất (đơn vị có ratio 1) dựa trên thực tế đóng gói của sản phẩm đó trên thị trường.
      + "priceSuggestion": Giá tiền gợi ý thực tế từ kết quả tìm kiếm.
+   - BẮT BUỘC KHAI THÁC VÀ BỔ SUNG ĐƠN VỊ "Thùng" (hoặc đơn vị đóng gói sỉ lớn nhất như Két, Thùng, Lốc) cho mọi mặt hàng tiêu dùng nhanh (FMCG), thực phẩm, sữa, bia, nước ngọt, mì gói... nếu trên thị trường có lưu hành và mua bán sỉ đơn vị này. AI phải dùng công cụ tìm kiếm để xác định tỷ lệ quy đổi (ratio) và giá tiền gợi ý chính xác nhất của Thùng.
+   - BẮT BUỘC PHẢI KHAI BÁO MỘT ĐƠN VỊ NHỎ NHẤT VỚI RATIO LÀ 1 Ở ĐẦU MẢNG "conditionalUnits" CHO MỌI LỰA CHỌN QUY CÁCH (NẾU KHÔNG CÓ HỆ THỐNG SẼ BỊ CRASH NGAY LẬP TỨC).
+   - QUY TẮC TÍNH RATIO VÀ GIÁ CHO HỘP NHIỀU GÓI/CÁI LẺ (CỰC KỲ QUAN TRỌNG):
+     Khi quy cách đóng gói là "hộp [Tổng trọng lượng] ([Số lượng lẻ] [đơn vị lẻ] x [Trọng lượng lẻ])" (Ví dụ: "hộp 100g (4 gói x 25g)"):
+     + Đơn vị lẻ (Ví dụ: "Gói") BẮT BUỘC phải có ratio là 1 và phải nằm đầu tiên trong danh sách của lựa chọn đó. Vì không bán lẻ riêng gói này ngoài thị trường, giá gợi ý (priceSuggestion) cho gói này sẽ tự động tính bằng: [Giá 1 hộp] / [Số lượng lẻ] (Ví dụ: 30000 / 4 = 7500đ).
+     + Đơn vị "Hộp" sẽ có ratio bằng đúng [Số lượng lẻ] (Ví dụ: 4). Giá gợi ý là giá gốc của cả hộp thực tế (Ví dụ: 30000đ).
+     + Đơn vị "Thùng" (nếu có bán trên thị trường, ví dụ thùng có 4 hộp): ratio của Thùng sẽ bằng [Số lượng lẻ trong hộp] * [Số lượng hộp trong thùng] (Ví dụ: 4 gói/hộp * 4 hộp/thùng = 16, ratio của Thùng sẽ là 16). Giá gợi ý là giá thực tế của cả thùng.
 
-4. "validCombinations": Mảng chứa tất cả các tổ hợp biến thể (các tùy chọn trong mảng ~options~) hợp lệ thực tế có mặt trên thị trường.
+3. "validCombinations": Mảng chứa tất cả các tổ hợp biến thể (các tùy chọn trong mảng ~options~) hợp lệ thực tế có mặt trên thị trường.
    - Mỗi phần tử trong mảng này là một Mảng các chuỗi, mỗi chuỗi khớp chính xác với một giá trị tùy chọn đã khai báo trong ~options~ của các phân đoạn ~nameSegments~.
    - Chỉ liệt kê các tùy chọn thuộc cùng một tổ hợp sản phẩm thực sự tồn tại trên thị trường. CẤM liệt kê các tổ hợp không có thật.
    - Ví dụ: Nếu "vị mì xào tôm hành" chỉ có loại "gói 75g" mà không có loại "ly Handy 67g", thì mảng này chỉ chứa phần tử `["vị mì xào tôm hành", "gói 75g"]` mà KHÔNG được phép chứa phần tử `["vị mì xào tôm hành", "ly Handy 67g"]`.
 
 ### II. CẢNH CÁO VỀ CÁC LỖI NGHIÊM CẤM (ANTI-PATTERN):
+- NGHIÊM CẤM TUYỆT ĐỐI việc thiếu đơn vị gốc (đơn vị có "ratio": 1) trong mảng "conditionalUnits" của bất kỳ lựa chọn quy cách nào.
+  + Ví dụ sai: "conditionalUnits" của "hộp 100g (4 gói x 25g)" chỉ có đơn vị "Hộp" (ratio 4) và "Thùng" (ratio 16) nhưng KHÔNG có đơn vị gốc "Gói" (ratio 1) -> HỆ THỐNG SẼ CRASH NGAY LẬP TỨC.
+  + Quy tắc đúng: Luôn luôn phải khai báo đơn vị lẻ nhỏ nhất (Ví dụ: "Gói") làm phần tử đầu tiên trong mảng conditionalUnits với "ratio": 1 và tự động chia giá tiền (ví dụ: [Giá Hộp] / 4), sau đó mới khai báo "Hộp" (ratio 4), "Thùng" (ratio 16).
 - KHÔNG ĐƯỢC lười biếng gom cả "Gói" lẫn "Thùng" vào chung một phân đoạn options quy cách.
 - KHÔNG ĐƯỢC chỉ liệt kê vài biến thể phổ biến rồi bỏ qua các sản phẩm chi tiết khác. Nhiệm vụ của bạn là quét sạch thị trường. Nếu một thương hiệu có 15 hương vị, bạn bắt buộc phải đưa đủ 15 hương vị đó vào mảng options. Việc tìm thiếu hoặc bỏ sót biến thể sẽ bị coi là thất bại.
 
@@ -82,7 +90,6 @@ AI phản hồi chính xác theo format:
       "options": ["gói 75g", "ly Handy 67g"]
     }
   ],
-  "baseUnitName": "Cái",
   "conditionalUnits": {
     "gói 75g": [
       {
