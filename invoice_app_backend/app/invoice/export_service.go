@@ -587,17 +587,16 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 			pdf.SetXY(startX, tableStartY)
 
 			// Table Header
-			pdf.SetFillColor(30, 100, 200)
-			pdf.SetTextColor(255, 255, 255)
+			pdf.SetTextColor(40, 40, 40)
 			pdf.SetFont("Roboto", "B", tableFontSize)
 			pdf.SetLineWidth(0.35)
 
-			pdf.CellFormat(wSTT, 8.5, "STT", "1", 0, "C", true, 0, "")
-			pdf.CellFormat(wName, 8.5, "Tên hàng", "1", 0, "L", true, 0, "")
-			pdf.CellFormat(wUnit, 8.5, "Đơn vị", "1", 0, "C", true, 0, "")
-			pdf.CellFormat(wQty, 8.5, "S.Lg", "1", 0, "C", true, 0, "")
-			pdf.CellFormat(wUnitPrice, 8.5, "Đơn giá", "1", 0, "C", true, 0, "")
-			pdf.CellFormat(wPrice, 8.5, "T.Tiền", "1", 0, "C", true, 0, "")
+			pdf.CellFormat(wSTT, 8.5, "STT", "1", 0, "C", false, 0, "")
+			pdf.CellFormat(wName, 8.5, "Tên hàng", "1", 0, "C", false, 0, "")
+			pdf.CellFormat(wUnit, 8.5, "Đơn vị", "1", 0, "C", false, 0, "")
+			pdf.CellFormat(wQty, 8.5, "S.Lg", "1", 0, "C", false, 0, "")
+			pdf.CellFormat(wUnitPrice, 8.5, "Đơn giá", "1", 0, "C", false, 0, "")
+			pdf.CellFormat(wPrice, 8.5, "T.Tiền", "1", 0, "C", false, 0, "")
 			pdf.Ln(8.5)
 
 			// Reset body fonts and colors

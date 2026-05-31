@@ -485,7 +485,7 @@ func (s *ItemService) initContextCache(ctx context.Context) {
 	}
 
 	modelName := "gemini-3.1-flash-lite"
-	displayName := "item_suggestions_static_instructions_v2"
+	displayName := "item_suggestions_static_instructions_v5"
 
 	// 1. Kiểm tra danh sách cache hiện tại để tìm cache trùng DisplayName và chưa hết hạn
 	page, err := s.genaiClient.Caches.List(ctx, &genai.ListCachedContentsConfig{PageSize: 50})
@@ -534,7 +534,10 @@ func (s *ItemService) GenerateItemAISuggestions(ctx context.Context, keyword str
 	}
 
 	// Clone config parameters correctly based on whether we use Context Cache
-	reqConfig := &genai.GenerateContentConfig{}
+	reqConfig := &genai.GenerateContentConfig{
+		Temperature:    s.genaiConfig.Temperature,
+		ThinkingConfig: s.genaiConfig.ThinkingConfig,
+	}
 
 	useCache := s.genaiConfig.CachedContent != ""
 	if useCache {
@@ -567,7 +570,10 @@ func (s *ItemService) GenerateItemAISuggestions(ctx context.Context, keyword str
 			s.initContextCache(ctx)
 
 			// Chuẩn bị cấu hình mới sử dụng cache vừa được tạo lập
-			retryConfig := &genai.GenerateContentConfig{}
+			retryConfig := &genai.GenerateContentConfig{
+				Temperature:    s.genaiConfig.Temperature,
+				ThinkingConfig: s.genaiConfig.ThinkingConfig,
+			}
 			if s.genaiConfig.CachedContent != "" {
 				retryConfig.CachedContent = s.genaiConfig.CachedContent
 			} else {
@@ -608,8 +614,20 @@ func (s *ItemService) GenerateItemAISuggestions(ctx context.Context, keyword str
 	}
 
 	rawText := resp.Candidates[0].Content.Parts[0].Text
-	cleanJSON := rawText
 
+	// Extract draft text if present
+	var draftText string
+	if strings.Contains(rawText, "<draft>") && strings.Contains(rawText, "</draft>") {
+		parts := strings.Split(rawText, "<draft>")
+		if len(parts) > 1 {
+			draftParts := strings.Split(parts[1], "</draft>")
+			if len(draftParts) > 0 {
+				draftText = strings.TrimSpace(draftParts[0])
+			}
+		}
+	}
+
+	cleanJSON := rawText
 	if strings.Contains(cleanJSON, "```json") {
 		cleanJSON = strings.Split(cleanJSON, "```json")[1]
 		cleanJSON = strings.Split(cleanJSON, "```")[0]
@@ -624,7 +642,16 @@ func (s *ItemService) GenerateItemAISuggestions(ctx context.Context, keyword str
 		return "", fmt.Errorf("failed to parse Gemini response as JSON: %w (raw response: %s)", err, rawText)
 	}
 
-	return cleanJSON, nil
+	if draftText != "" {
+		testMap["draft"] = draftText
+	}
+
+	updatedBytes, err := json.Marshal(testMap)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal updated JSON with draft: %w", err)
+	}
+
+	return string(updatedBytes), nil
 }
 
 func (s *ItemService) DeleteItem(ctx context.Context, itemID string) error {

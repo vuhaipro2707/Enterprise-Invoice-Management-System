@@ -158,16 +158,20 @@ func main() {
 	router.SetupRoutes(app, repo)
 
 	// --- CONFIGURE BACKUP CRONJOB ---
-	backupService := backup.NewBackupService(repo)
-	c := cron.New()
-	_, cronErr := c.AddFunc("*/10 * * * *", func() {
-		_ = backupService.RunBackupTask(context.Background())
-	})
-	if cronErr != nil {
-		log.Printf("❌ Cron configuration error: %v\n", cronErr)
+	if os.Getenv("APP_ENV") == "production" {
+		backupService := backup.NewBackupService(repo)
+		c := cron.New()
+		_, cronErr := c.AddFunc("*/10 * * * *", func() {
+			_ = backupService.RunBackupTask(context.Background())
+		})
+		if cronErr != nil {
+			log.Printf("❌ Cron configuration error: %v\n", cronErr)
+		} else {
+			c.Start()
+			fmt.Println("⏰ Automatic database backup CronJob activated (every 10 minutes)")
+		}
 	} else {
-		c.Start()
-		fmt.Println("⏰ Automatic database backup CronJob activated (every 10 minutes)")
+		fmt.Println("ℹ️ Automatic database backup CronJob disabled in development mode.")
 	}
 
 	// --- START BACKGROUND PRINT QUEUE MONITOR DAEMON ---

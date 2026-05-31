@@ -66,7 +66,11 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
       if (contact != null) {
         setState(() {
           if (updateName && contact.fullName != null && contact.fullName!.isNotEmpty) {
-            _nameController.text = contact.fullName!;
+            final rawName = contact.fullName!.trim();
+            _nameController.text = rawName.split(RegExp(r'\s+')).map((word) {
+              if (word.isEmpty) return '';
+              return word[0].toUpperCase() + word.substring(1).toLowerCase();
+            }).join(' ');
           }
           if (updatePhone && contact.phoneNumbers != null && contact.phoneNumbers!.isNotEmpty) {
             String phone = contact.phoneNumbers!.first.replaceAll(RegExp(r'[^0-9+]'), '');
@@ -367,9 +371,10 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      TextFormField(
+                       TextFormField(
                         controller: _nameController,
                         enabled: !widget.isDeleted,
+                        textCapitalization: TextCapitalization.words,
                         decoration: InputDecoration(
                           labelText: 'Tên người mua',
                           prefixIcon: const Icon(Icons.person),

@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../widgets/type_selection_sheet.dart';
 import '../../widgets/units_section.dart';
 
 class CreateItemScreen extends StatefulWidget {
   final List<dynamic> types;
-  const CreateItemScreen({super.key, required this.types});
+  final Map<String, dynamic>? duplicateItem;
+
+  const CreateItemScreen({
+    super.key,
+    required this.types,
+    this.duplicateItem,
+  });
 
   @override
   State<CreateItemScreen> createState() => _CreateItemScreenState();
@@ -35,6 +42,56 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
         _addOtherName(_otherNameInputController.text);
       }
     });
+
+    if (widget.duplicateItem != null) {
+      final item = widget.duplicateItem!;
+      _nameController.text = item['itemDefaultName'] ?? '';
+      
+      final rawOtherNames = item['itemOtherNames'] as List? ?? [];
+      for (var e in rawOtherNames) {
+        if (e is String) {
+          _otherNames.add(e);
+        } else if (e is Map && e['nameString'] != null) {
+          _otherNames.add(e['nameString'].toString());
+        }
+      }
+
+      _selectedTypeId = item['typeId'];
+      if (_selectedTypeId != null) {
+        final type = _types.firstWhere(
+          (t) => t['typeId'] == _selectedTypeId,
+          orElse: () => null,
+        );
+        if (type != null) {
+          _selectedTypeName = type['typeName'];
+        }
+      }
+
+      final existingUnits = item['units'] as List? ?? [];
+      final List<dynamic> sortedUnits = List.from(existingUnits);
+      sortedUnits.sort((a, b) {
+        final aBase = a['isBaseUnit'] ?? false;
+        final bBase = b['isBaseUnit'] ?? false;
+        if (aBase && !bBase) return -1;
+        if (!aBase && bBase) return 1;
+        return 0;
+      });
+
+      final formatter = NumberFormat.decimalPattern('vi_VN');
+      for (var u in sortedUnits) {
+        String formattedPrice = '';
+        if (u['unitPriceDefault'] != null) {
+          formattedPrice = formatter.format(u['unitPriceDefault']);
+        }
+        _units.add({
+          'unitId': null,
+          'nameController': TextEditingController(text: u['unitName']),
+          'priceController': TextEditingController(text: formattedPrice),
+          'ratioController': TextEditingController(text: (u['ratio'] ?? 1).toString()),
+          'isBaseUnit': u['isBaseUnit'] ?? false,
+        });
+      }
+    }
   }
 
 
@@ -202,6 +259,7 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _nameController,
+              textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(
                 labelText: 'Tên mặt hàng *',
                 border: OutlineInputBorder(),
@@ -224,6 +282,7 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
                   child: TextField(
                     controller: _otherNameInputController,
                     focusNode: _otherNameFocusNode,
+                    textCapitalization: TextCapitalization.words,
                     decoration: const InputDecoration(
                       hintText: 'Thêm tên...',
                       isDense: true,

@@ -52,11 +52,15 @@ func NewItemHandler(repo *sqlc.Queries) *ItemHandler {
 			systemInstruction := strings.ReplaceAll(systemInstructionRaw, "~", "`")
 
 			genaiConfig = &genai.GenerateContentConfig{
-				Tools: tools,
+				Tools:       tools,
+				Temperature: genai.Ptr(float32(0.7)),
 				SystemInstruction: &genai.Content{
 					Parts: []*genai.Part{
 						{Text: systemInstruction},
 					},
+				},
+				ThinkingConfig: &genai.ThinkingConfig{
+					ThinkingLevel: genai.ThinkingLevel("MINIMAL"),
 				},
 			}
 			fmt.Println("[GenAI] Pre-initialized Gemini Client and Config successfully.")

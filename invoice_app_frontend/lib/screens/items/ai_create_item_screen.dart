@@ -31,6 +31,8 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
   final Map<String, Map<String, TextEditingController>> _priceControllers = {};
   final Map<String, Map<String, FocusNode>> _priceFocusNodes = {};
   final Map<String, bool> _combinationSelection = {};
+  bool _showDraftDetail = false;
+
 
   @override
   void initState() {
@@ -110,6 +112,7 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
     setState(() {
       _isSearchingAI = true;
       _aiResponse = null;
+      _showDraftDetail = false;
       _disposePriceControllers();
       _selectedOptions.clear();
       _combinationSelection.clear();
@@ -677,6 +680,10 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
 
                     // Main options configuration area
                     if (_aiResponse != null) ...[
+                      if (_aiResponse!['draft'] != null && _aiResponse!['draft'].toString().trim().isNotEmpty) ...[
+                        _buildAIDraftWidget(_aiResponse!['draft'].toString()),
+                        const SizedBox(height: 16),
+                      ],
                       Text(
                         'Thiết lập biến thể & gợi ý giá',
                         style: TextStyle(
@@ -731,6 +738,79 @@ class _AICreateItemScreenState extends State<AICreateItemScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAIDraftWidget(String draft) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      color: colorScheme.surfaceContainer,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              setState(() {
+                _showDraftDetail = !_showDraftDetail;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Icon(Icons.auto_awesome_rounded, color: colorScheme.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Nháp phân tích từ Gemini AI',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _showDraftDetail
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: colorScheme.onSurfaceVariant,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_showDraftDetail) ...[
+            const Divider(height: 1, thickness: 1),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  draft,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

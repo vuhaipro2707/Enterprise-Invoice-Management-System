@@ -48,7 +48,11 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
       if (contact != null) {
         setState(() {
           if (contact.fullName != null && contact.fullName!.isNotEmpty) {
-            _nameController.text = contact.fullName!;
+            final rawName = contact.fullName!.trim();
+            _nameController.text = rawName.split(RegExp(r'\s+')).map((word) {
+              if (word.isEmpty) return '';
+              return word[0].toUpperCase() + word.substring(1).toLowerCase();
+            }).join(' ');
           }
           if (contact.phoneNumbers != null && contact.phoneNumbers!.isNotEmpty) {
             String phone = contact.phoneNumbers!.first.replaceAll(RegExp(r'[^0-9+]'), '');
@@ -259,8 +263,9 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                           TextFormField(
+                            TextFormField(
                              controller: _nameController,
+                             textCapitalization: TextCapitalization.words,
                              decoration: InputDecoration(
                                labelText: 'Tên người mua *',
                                prefixIcon: const Icon(Icons.person),

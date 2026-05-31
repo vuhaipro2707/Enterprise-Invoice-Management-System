@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'create_item_screen.dart';
 import '../../services/api_service.dart';
 import '../../widgets/type_selection_sheet.dart';
 import '../../widgets/units_section.dart';
@@ -350,6 +351,40 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     }
   }
 
+  void _duplicateItem() {
+    final Map<String, dynamic> itemToDuplicate = {
+      'itemDefaultName': _nameController.text.trim(),
+      'typeId': _selectedTypeId,
+      'itemOtherNames': _otherNames.map((on) => on['nameString'] as String).toList(),
+      'units': _units.map((u) {
+        final ratioStr = _getRatioController(u).text.trim();
+        final ratio = int.tryParse(ratioStr) ?? 1;
+        final rawPrice = _getPriceController(u).text.replaceAll('.', '').trim();
+        final price = int.tryParse(rawPrice);
+        return {
+          'unitName': _getNameController(u).text.trim(),
+          'ratio': ratio,
+          'isBaseUnit': u['isBaseUnit'] ?? false,
+          'unitPriceDefault': price,
+        };
+      }).toList(),
+    };
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (builderContext) => CreateItemScreen(
+          types: _types,
+          duplicateItem: itemToDuplicate,
+        ),
+      ),
+    ).then((didCreate) {
+      if (mounted && didCreate == true) {
+        Navigator.pop(context, true);
+      }
+    });
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -372,6 +407,11 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               tooltip: 'Khôi phục',
             )
           else ...[
+            IconButton(
+              onPressed: _isSaving ? null : _duplicateItem,
+              icon: const Icon(Icons.copy_all_rounded),
+              tooltip: 'Tạo bản sao',
+            ),
             IconButton(
               onPressed: _isSaving ? null : _deleteItem,
               icon: const Icon(Icons.delete_outline_rounded),
@@ -398,6 +438,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             TextFormField(
               controller: _nameController,
               enabled: !widget.isDeleted,
+              textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(
                 labelText: 'Tên mặt hàng *',
                 border: OutlineInputBorder(),
@@ -422,6 +463,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                     child: TextField(
                       controller: _otherNameInputController,
                       focusNode: _otherNameFocusNode,
+                      textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
                         hintText: 'Thêm tên...',
                         isDense: true,
