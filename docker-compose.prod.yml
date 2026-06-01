@@ -53,7 +53,7 @@ services:
       - ./invoice_app_frontend/pubspec.yaml:/root/invoice_app_frontend/pubspec.yaml:ro
       - ./invoice_app_frontend/build/app/outputs/flutter-apk/app-release.apk:/root/invoice_app_frontend/build/app/outputs/apk/release/app-release.apk:ro
       # Mount backup folder
-      - ./invoice_app_backend/backups:/root/backups
+      - ${BACKUP_FOLDER_PATH}:/root/backups
       # Mount printing folder
       - ${PRINT_FOLDER_PATH}:/root/printing_folder
     healthcheck:

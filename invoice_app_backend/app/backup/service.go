@@ -129,7 +129,6 @@ func (s *BackupService) RunBackupTask(ctx context.Context) error {
 	)
 	if err != nil {
 		log.Printf("❌ Error loading AWS R2 configuration: %v\n", err)
-		_ = os.Remove(filePath)
 		return fmt.Errorf("failed to load R2 config: %w", err)
 	}
 
@@ -140,7 +139,6 @@ func (s *BackupService) RunBackupTask(ctx context.Context) error {
 	f, err := os.Open(filePath)
 	if err != nil {
 		log.Printf("❌ Error opening SQL file for upload: %v\n", err)
-		_ = os.Remove(filePath)
 		return fmt.Errorf("failed to open backup file: %w", err)
 	}
 	defer f.Close()
@@ -153,13 +151,11 @@ func (s *BackupService) RunBackupTask(ctx context.Context) error {
 	})
 	if err != nil {
 		log.Printf("❌ Error uploading backup to Cloudflare R2: %v\n", err)
-		_ = os.Remove(filePath)
 		return fmt.Errorf("failed to upload backup to R2: %w", err)
 	}
 
 	log.Printf("🚀 Success! Backup file %s successfully uploaded to Cloudflare R2!\n", fileName)
 
-	// 5. Cleanup the temp local file
-	_ = os.Remove(filePath)
+	log.Printf("💾 Backup file %s kept locally in %s.\n", fileName, backupsDir)
 	return nil
 }
