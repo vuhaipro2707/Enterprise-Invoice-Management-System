@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../services/currency_formatter.dart';
-import '../../services/string_utils.dart';
 import '../../widgets/price_item_card.dart';
 
 class EditPriceListScreen extends StatefulWidget {
@@ -26,7 +25,6 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
   bool _isInitialized = false;
   bool _isDeleted = false;
   int? _pickedIndex;
-  String _localSearchQuery = '';
   String? _highlightedItemKey; // 'itemId_unitId' of the newly added item
 
   String _initialDescription = '';
@@ -275,13 +273,30 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final List<dynamic> units = item['units'] as List? ?? [];
     
-    String? currentUnitId = index != null ? item['unitId'] : (units.isNotEmpty ? units[0]['unitId'] : null);
+    Map<String, dynamic>? largestRatioUnit;
+    if (units.isNotEmpty) {
+      largestRatioUnit = Map<String, dynamic>.from(units[0]);
+      num maxRatio = largestRatioUnit['ratio'] ?? 0;
+      for (var u in units) {
+        final num r = u['ratio'] ?? 0;
+        if (r > maxRatio) {
+          maxRatio = r;
+          largestRatioUnit = Map<String, dynamic>.from(u);
+        }
+      }
+    }
+
+    String? currentUnitId = index != null 
+        ? item['unitId'] 
+        : (item['selectedUnitId'] ?? (largestRatioUnit != null ? largestRatioUnit['unitId'] : null));
     
     int initialPrice = 0;
     if (index != null) {
       initialPrice = item['unitPriceCustom'] as int? ?? 0;
-    } else if (units.isNotEmpty) {
-      initialPrice = (units[0]['unitPriceDefault'] as num?)?.toInt() ?? 0;
+    } else if (item['selectedUnit'] != null) {
+      initialPrice = (item['selectedUnit']['unitPriceDefault'] as num?)?.toInt() ?? 0;
+    } else if (largestRatioUnit != null) {
+      initialPrice = (largestRatioUnit['unitPriceDefault'] as num?)?.toInt() ?? 0;
     }
 
     final priceController = TextEditingController(
@@ -1100,24 +1115,6 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                         ),
                       )
                     else ...[
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12.0),
-                        child: TextFormField(
-                          decoration: InputDecoration(
-                            hintText: 'Tìm kiếm sản phẩm trong danh sách...',
-                            prefixIcon: const Icon(Icons.search),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            filled: true,
-                            fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          ),
-                          onChanged: (val) {
-                            setState(() {
-                              _localSearchQuery = val;
-                            });
-                          },
-                        ),
-                      ),
                       if (_pickedIndex != null)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 12.0),
@@ -1161,14 +1158,7 @@ class _EditPriceListScreenState extends State<EditPriceListScreen> {
                               itemsWithOrigIndex.add(itm);
                             }
 
-                            final filteredItems = itemsWithOrigIndex.where((itm) {
-                              final name = (itm['itemDefaultName'] ?? '').toString();
-                              return StringUtils.containsUnaccented(name, _localSearchQuery);
-                            }).toList();
-
-                            if (filteredItems.isEmpty) {
-                              return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('Không tìm thấy sản phẩm phù hợp')));
-                            }
+                            final filteredItems = itemsWithOrigIndex;
 
                             if (_isDeleted) {
                               return ListView.builder(

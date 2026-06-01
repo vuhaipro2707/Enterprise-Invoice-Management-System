@@ -37,6 +37,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   bool _isSaving = false;
   final _otherNameFocusNode = FocusNode();
   final _formatter = NumberFormat.decimalPattern('vi_VN');
+  bool _didSave = false;
 
   TextEditingController _getNameController(Map<String, dynamic> unit) {
     if (unit['nameController'] == null) {
@@ -168,16 +169,63 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     );
   }
 
-  Future<void> _saveChanges() async {
+  bool _hasUnsavedChanges() {
+    if (widget.isDeleted) return false;
+    if (_nameController.text.trim() != (widget.item['itemDefaultName'] ?? '')) return true;
+    if (_selectedTypeId != widget.item['typeId']) return true;
+    
+    final originalOtherNames = widget.item['itemOtherNames'] as List? ?? [];
+    final currentOtherNamesList = _otherNames.map((e) => e['nameString'] as String).toList();
+    final origOtherNamesList = originalOtherNames.map((e) {
+      if (e is String) return e;
+      if (e is Map) return e['nameString'] ?? '';
+      return '';
+    }).where((s) => s.isNotEmpty).toList();
+    
+    if (currentOtherNamesList.length != origOtherNamesList.length) return true;
+    for (int i = 0; i < currentOtherNamesList.length; i++) {
+      if (currentOtherNamesList[i] != origOtherNamesList[i]) return true;
+    }
+
+    final originalUnits = widget.item['units'] as List? ?? [];
+    if (_units.length != originalUnits.length) return true;
+    
+    for (var unit in _units) {
+      final unitId = unit['unitId'];
+      final name = _getNameController(unit).text.trim();
+      final priceStr = _getPriceController(unit).text.replaceAll('.', '').trim();
+      final price = int.tryParse(priceStr) ?? 0;
+      final ratioStr = _getRatioController(unit).text.trim();
+      final ratio = int.tryParse(ratioStr) ?? 1;
+      final isBaseUnit = unit['isBaseUnit'] ?? false;
+
+      if (unitId == null) return true;
+      
+      final origUnit = originalUnits.firstWhere((u) => u['unitId'] == unitId, orElse: () => null);
+      if (origUnit == null) return true;
+      if (name != (origUnit['unitName'] ?? '')) return true;
+      if (ratio != (origUnit['ratio'] as int? ?? 1)) return true;
+      if (isBaseUnit != (origUnit['isBaseUnit'] as bool? ?? false)) return true;
+      if (isBaseUnit) {
+        if (price != (origUnit['unitPriceDefault'] as int? ?? 0)) return true;
+      }
+    }
+    
+    if (_removedOtherNameIds.isNotEmpty) return true;
+    if (_removedUnitIds.isNotEmpty) return true;
+
+    return false;
+  }
+
+  Future<bool> _saveChangesWithResult() async {
     _addOtherName(_otherNameInputController.text);
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) return false;
 
     setState(() => _isSaving = true);
 
     try {
       final itemId = widget.item['itemId'];
       
-      // 1. Cập nhật thông tin cơ bản mặt hàng
       final Map<String, dynamic> itemUpdate = {};
       if (_nameController.text.trim() != widget.item['itemDefaultName']) {
         itemUpdate['itemDefaultName'] = _nameController.text.trim();
@@ -190,20 +238,15 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         await ApiService().patchItem(itemId, itemUpdate);
       }
 
-      // 2. Cập nhật "Tên gọi khác"
-      // Xóa các tên đã đánh dấu xóa
       for (var id in _removedOtherNameIds) {
         await ApiService().removeItemOtherName(id);
       }
-      // Thêm những cái mới (không có ID)
       for (var on in _otherNames) {
         if (on['itemOtherNameId'] == null) {
           await ApiService().addItemOtherName(itemId, on['nameString']);
         }
       }
 
-      // 3. Cập nhật các đơn vị tính
-      // Xóa các đơn vị đã đánh dấu xóa
       for (var id in _removedUnitIds) {
         await ApiService().deleteUnit(id);
       }
@@ -212,7 +255,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
       for (var unit in _units) {
         String unitName = _getNameController(unit).text.trim();
-        // Viết hoa chữ cái đầu tiên của đơn vị
         if (unitName.isNotEmpty) {
           unitName = unitName[0].toUpperCase() + unitName.substring(1);
         }
@@ -225,7 +267,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         final isBaseUnit = unit['isBaseUnit'] ?? false;
         
         if (unit['unitId'] == null) {
-          // Tạo mới đơn vị nếu chưa có ID
           if (unitName.isNotEmpty) {
             await ApiService().createUnit(
               itemId, 
@@ -236,7 +277,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             );
           }
         } else {
-          // Cập nhật đơn vị cũ nếu có thay đổi
           final String unitId = unit['unitId'];
           final originalUnit = originalUnits.firstWhere((u) => u['unitId'] == unitId, orElse: () => null);
           
@@ -246,8 +286,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             if (ratio != (originalUnit['ratio'] as int?)) unitUpdate['ratio'] = ratio;
             if (isBaseUnit != (originalUnit['isBaseUnit'] as bool?)) unitUpdate['isBaseUnit'] = isBaseUnit;
             
-            // Only update unitPriceDefault for the Base Unit.
-            // Secondary units' prices are automatically recalculated and propagated by the DB trigger.
             if (isBaseUnit) {
               if (unitPrice != (originalUnit['unitPriceDefault'] as int?)) {
                 unitUpdate['unitPriceDefault'] = unitPrice;
@@ -262,20 +300,86 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
       }
 
       if (mounted) {
-        Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Cập nhật mặt hàng thành công')),
         );
       }
+      _didSave = true;
+      return true;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Lỗi: $e')),
         );
       }
+      return false;
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Future<void> _saveChanges() async {
+    final success = await _saveChangesWithResult();
+    if (success && mounted) {
+      Navigator.pop(context, true);
+    }
+  }
+
+  Future<bool> _showBackConfirmationDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: colorScheme.error),
+              const SizedBox(width: 8),
+              const Text('Chưa lưu thay đổi'),
+            ],
+          ),
+          content: const Text(
+            'Bạn chưa lưu các chỉnh sửa của mặt hàng này. Bạn có chắc chắn muốn thoát không?',
+          ),
+          actionsAlignment: MainAxisAlignment.end,
+          actionsOverflowButtonSpacing: 8,
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'cancel'),
+              child: const Text('HỦY'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'discard'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colorScheme.error,
+                side: BorderSide(color: colorScheme.error),
+              ),
+              child: const Text('THOÁT KHÔNG LƯU'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'save'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+              ),
+              child: const Text('LƯU VÀ THOÁT'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == 'discard') {
+      return true;
+    } else if (result == 'save') {
+      final success = await _saveChangesWithResult();
+      if (success) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> _restoreItem() async {
@@ -396,9 +500,23 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.isDeleted ? 'Chi tiết mặt hàng (Đã xóa)' : 'Chi tiết mặt hàng'),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        if (_hasUnsavedChanges()) {
+          final shouldPop = await _showBackConfirmationDialog();
+          if (shouldPop && mounted) {
+            navigator.pop(_didSave);
+          }
+        } else {
+          navigator.pop(_didSave);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.isDeleted ? 'Chi tiết mặt hàng (Đã xóa)' : 'Chi tiết mặt hàng'),
         actions: [
           if (widget.isDeleted)
             IconButton(
@@ -535,6 +653,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               ),
           ],
         ),
+      ),
       ),
     );
   }

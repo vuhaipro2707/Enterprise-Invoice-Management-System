@@ -31,6 +31,7 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
   final bool _isLoadingTypes = false;
   bool _isSaving = false;
   final _otherNameFocusNode = FocusNode();
+  bool _didSave = false;
 
   @override
   void initState() {
@@ -140,9 +141,59 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
     );
   }
 
-  Future<void> _saveItem() async {
+  bool _hasUnsavedChanges() {
+    if (widget.duplicateItem == null) {
+      if (_nameController.text.trim().isNotEmpty) return true;
+      if (_otherNames.isNotEmpty) return true;
+      if (_selectedTypeId != null) return true;
+      if (_units.isNotEmpty) return true;
+      return false;
+    }
+
+    final item = widget.duplicateItem!;
+    if (_nameController.text.trim() != (item['itemDefaultName'] ?? '')) return true;
+    if (_selectedTypeId != item['typeId']) return true;
+
+    final rawOtherNames = item['itemOtherNames'] as List? ?? [];
+    final List<String> origOtherNames = [];
+    for (var e in rawOtherNames) {
+      if (e is String) {
+        origOtherNames.add(e);
+      } else if (e is Map && e['nameString'] != null) {
+        origOtherNames.add(e['nameString'].toString());
+      }
+    }
+    if (_otherNames.length != origOtherNames.length) return true;
+    for (int i = 0; i < _otherNames.length; i++) {
+      if (_otherNames[i] != origOtherNames[i]) return true;
+    }
+
+    final existingUnits = item['units'] as List? ?? [];
+    if (_units.length != existingUnits.length) return true;
+    for (int i = 0; i < _units.length; i++) {
+      final u = _units[i];
+      final origU = existingUnits[i];
+      final unitName = (u['nameController'] as TextEditingController).text.trim();
+      final priceStr = (u['priceController'] as TextEditingController).text.replaceAll('.', '').trim();
+      final price = int.tryParse(priceStr) ?? 0;
+      final ratioStr = (u['ratioController'] as TextEditingController).text.trim();
+      final ratio = int.tryParse(ratioStr) ?? 1;
+      final isBaseUnit = u['isBaseUnit'] ?? false;
+
+      if (unitName != (origU['unitName'] ?? '')) return true;
+      if (ratio != (origU['ratio'] as int? ?? 1)) return true;
+      if (isBaseUnit != (origU['isBaseUnit'] as bool? ?? false)) return true;
+      if (isBaseUnit) {
+        if (price != (origU['unitPriceDefault'] as int? ?? 0)) return true;
+      }
+    }
+
+    return false;
+  }
+
+  Future<bool> _saveItemWithResult() async {
     _addOtherName(_otherNameInputController.text);
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) return false;
 
     setState(() => _isSaving = true);
 
@@ -161,8 +212,12 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
       sortedUnits.sort((a, b) {
         final aBase = a['isBaseUnit'] ?? false;
         final bBase = b['isBaseUnit'] ?? false;
-        if (aBase && !bBase) return -1;
-        if (!aBase && bBase) return 1;
+        if (aBase && !bBase) {
+          return -1;
+        }
+        if (!aBase && bBase) {
+          return 1;
+        }
         return 0;
       });
 
@@ -171,12 +226,10 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
         final controller = unit['nameController'] as TextEditingController?;
         if (controller == null) continue;
         String unitName = controller.text.trim();
-        // Viết hoa chữ cái đầu tiên của đơn vị
         if (unitName.isNotEmpty) {
           unitName = unitName[0].toUpperCase() + unitName.substring(1);
         }
         
-        // Remove dots for parsing
         final priceController = unit['priceController'] as TextEditingController?;
         final rawPrice = priceController?.text.replaceAll('.', '').trim() ?? '';
         final unitPrice = int.tryParse(rawPrice);
@@ -197,20 +250,86 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
       }
 
       if (mounted) {
-        Navigator.pop(context, true); // Return true to trigger refresh
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Tạo mặt hàng thành công')),
         );
       }
+      _didSave = true;
+      return true;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Lỗi khi tạo mặt hàng: $e')),
         );
       }
+      return false;
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Future<void> _saveItem() async {
+    final success = await _saveItemWithResult();
+    if (success && mounted) {
+      Navigator.pop(context, true);
+    }
+  }
+
+  Future<bool> _showBackConfirmationDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: colorScheme.error),
+              const SizedBox(width: 8),
+              const Text('Chưa lưu thay đổi'),
+            ],
+          ),
+          content: const Text(
+            'Bạn chưa lưu thông tin mặt hàng mới này. Bạn có chắc chắn muốn thoát không?',
+          ),
+          actionsAlignment: MainAxisAlignment.end,
+          actionsOverflowButtonSpacing: 8,
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'cancel'),
+              child: const Text('HỦY'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'discard'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colorScheme.error,
+                side: BorderSide(color: colorScheme.error),
+              ),
+              child: const Text('THOÁT KHÔNG LƯU'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'save'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+              ),
+              child: const Text('LƯU VÀ THOÁT'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == 'discard') {
+      return true;
+    } else if (result == 'save') {
+      final success = await _saveItemWithResult();
+      if (success) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @override
@@ -223,11 +342,25 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tạo mặt hàng mới'),
-        actions: [
-          if (_isSaving)
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        if (_hasUnsavedChanges()) {
+          final shouldPop = await _showBackConfirmationDialog();
+          if (shouldPop && mounted) {
+            navigator.pop(_didSave);
+          }
+        } else {
+          navigator.pop(_didSave);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Tạo mặt hàng mới'),
+          actions: [
+            if (_isSaving)
             const Center(
               child: Padding(
                 padding: EdgeInsets.only(right: 16.0),
@@ -333,6 +466,7 @@ class _CreateItemScreenState extends State<CreateItemScreen> {
             ? const Text('Đang lưu...')
             : const Text('Lưu mặt hàng'),
         icon: const Icon(Icons.save),
+      ),
       ),
     );
   }

@@ -31,6 +31,7 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
   bool _isLoading = false;
   bool _isGeneratingCode = false;
   bool _isFetchingBusiness = false;
+  bool _didSave = false;
 
   @override
   void initState() {
@@ -92,8 +93,19 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
     }
   }
 
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+  bool _hasUnsavedChanges() {
+    final initialName = widget.initialName ?? '';
+    if (_nameController.text.trim() != initialName) return true;
+    if (_addressController.text.trim().isNotEmpty) return true;
+    if (_phoneController.text.trim().isNotEmpty) return true;
+    if (_idCardController.text.trim().isNotEmpty) return true;
+    if (_emailController.text.trim().isNotEmpty) return true;
+    if (_taxIdController.text.trim().isNotEmpty) return true;
+    return false;
+  }
+
+  Future<bool> _submitWithResult() async {
+    if (!_formKey.currentState!.validate()) return false;
 
     setState(() => _isLoading = true);
     try {
@@ -112,11 +124,12 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
       await _apiService.createBuyer(body);
       
       if (mounted) {
-        Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Tạo người mua thành công')),
         );
       }
+      _didSave = true;
+      return true;
     } catch (e) {
       if (mounted) {
         String errorMessage = e.toString();
@@ -138,9 +151,74 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
           ),
         );
       }
+      return false;
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _submit() async {
+    final success = await _submitWithResult();
+    if (success && mounted) {
+      Navigator.pop(context, true);
+    }
+  }
+
+  Future<bool> _showBackConfirmationDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: colorScheme.error),
+              const SizedBox(width: 8),
+              const Text('Chưa lưu thay đổi'),
+            ],
+          ),
+          content: const Text(
+            'Bạn chưa lưu thông tin người mua mới này. Bạn có chắc chắn muốn thoát không?',
+          ),
+          actionsAlignment: MainAxisAlignment.end,
+          actionsOverflowButtonSpacing: 8,
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'cancel'),
+              child: const Text('HỦY'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'discard'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colorScheme.error,
+                side: BorderSide(color: colorScheme.error),
+              ),
+              child: const Text('THOÁT KHÔNG LƯU'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'save'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+              ),
+              child: const Text('LƯU VÀ THOÁT'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == 'discard') {
+      return true;
+    } else if (result == 'save') {
+      final success = await _submitWithResult();
+      if (success) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> _lookupVietQR() async {
@@ -198,180 +276,195 @@ class _CreateBuyerScreenState extends State<CreateBuyerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Thêm người mua mới'),
-      ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Card(
-                    elevation: 0,
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        children: [
-                          TextFormField(
-                            controller: _codeController,
-                            decoration: InputDecoration(
-                              labelText: 'Mã người mua *',
-                              prefixIcon: const Icon(Icons.badge),
-                              suffixIcon: _isGeneratingCode 
-                                ? const Padding(
-                                    padding: EdgeInsets.all(12.0),
-                                    child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                                  )
-                                : IconButton(
-                                    icon: const Icon(Icons.refresh),
-                                    onPressed: _autoGenerateCode,
-                                    tooltip: 'Tự động tạo mã',
-                                  ),
-                              border: const OutlineInputBorder(),
-                              filled: true,
-                              fillColor: Theme.of(context).colorScheme.surface,
-                            ),
-                            validator: (value) => 
-                              value == null || value.isEmpty ? 'Vui lòng nhập mã' : null,
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _taxIdController,
-                            decoration: InputDecoration(
-                              labelText: 'Mã số thuế (MST)',
-                              prefixIcon: const Icon(Icons.description),
-                              suffixIcon: _isFetchingBusiness
-                                ? const Padding(
-                                    padding: EdgeInsets.all(12.0),
-                                    child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                                  )
-                                : IconButton(
-                                    icon: const Icon(Icons.search),
-                                    onPressed: _lookupVietQR,
-                                    tooltip: 'Lấy thông tin từ MST',
-                                  ),
-                              border: const OutlineInputBorder(),
-                              filled: true,
-                              fillColor: Theme.of(context).colorScheme.surface,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        if (_hasUnsavedChanges()) {
+          final shouldPop = await _showBackConfirmationDialog();
+          if (shouldPop && mounted) {
+            navigator.pop(_didSave);
+          }
+        } else {
+          navigator.pop(_didSave);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Thêm người mua mới'),
+        ),
+        body: _isLoading 
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Card(
+                      elevation: 0,
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          children: [
                             TextFormField(
-                             controller: _nameController,
-                             textCapitalization: TextCapitalization.words,
-                             decoration: InputDecoration(
-                               labelText: 'Tên người mua *',
-                               prefixIcon: const Icon(Icons.person),
-                               suffixIcon: kIsWeb
-                                 ? null
-                                 : IconButton(
-                                     icon: Icon(
-                                       Icons.contact_phone,
-                                       color: Theme.of(context).colorScheme.primary,
-                                     ),
-                                     onPressed: _pickContact,
-                                     tooltip: 'Chọn từ danh bạ',
-                                   ),
-                               border: const OutlineInputBorder(),
-                               filled: true,
-                               fillColor: Theme.of(context).colorScheme.surface,
-                             ),
-                             validator: (value) => 
-                                value == null || value.isEmpty ? 'Vui lòng nhập tên' : null,
-                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text('Thông tin liên hệ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  AddressSearchField(
-                    controller: _addressController,
-                    initialLat: _selectedLat,
-                    initialLng: _selectedLng,
-                    onLocationSelected: (lat, lng) {
-                      setState(() {
-                        _selectedLat = lat;
-                        _selectedLng = lng;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _phoneController,
-                    decoration: InputDecoration(
-                      labelText: 'Số điện thoại',
-                      prefixIcon: const Icon(Icons.phone),
-                      suffixIcon: kIsWeb
-                          ? null
-                          : IconButton(
-                              icon: Icon(
-                                Icons.contact_phone,
-                                color: Theme.of(context).colorScheme.primary,
+                              controller: _codeController,
+                              decoration: InputDecoration(
+                                labelText: 'Mã người mua *',
+                                prefixIcon: const Icon(Icons.badge),
+                                suffixIcon: _isGeneratingCode 
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(12.0),
+                                      child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                                    )
+                                  : IconButton(
+                                      icon: const Icon(Icons.refresh),
+                                      onPressed: _autoGenerateCode,
+                                      tooltip: 'Tự động tạo mã',
+                                    ),
+                                border: const OutlineInputBorder(),
+                                filled: true,
+                                fillColor: Theme.of(context).colorScheme.surface,
                               ),
-                              onPressed: _pickContact,
-                              tooltip: 'Chọn từ danh bạ',
+                              validator: (value) => 
+                                value == null || value.isEmpty ? 'Vui lòng nhập mã' : null,
                             ),
-                      border: const OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.phone,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _idCardController,
-                    decoration: const InputDecoration(
-                      labelText: 'Số CMND/CCCD',
-                      prefixIcon: Icon(Icons.credit_card),
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.email),
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) return null;
-                      final emailRegex = RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
-                      if (!emailRegex.hasMatch(value.trim())) {
-                        return 'Định dạng email không hợp lệ';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _taxIdController,
+                              decoration: InputDecoration(
+                                labelText: 'Mã số thuế (MST)',
+                                prefixIcon: const Icon(Icons.description),
+                                suffixIcon: _isFetchingBusiness
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(12.0),
+                                      child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                                    )
+                                  : IconButton(
+                                      icon: const Icon(Icons.search),
+                                      onPressed: _lookupVietQR,
+                                      tooltip: 'Lấy thông tin từ MST',
+                                    ),
+                                border: const OutlineInputBorder(),
+                                filled: true,
+                                fillColor: Theme.of(context).colorScheme.surface,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                              TextFormField(
+                               controller: _nameController,
+                               textCapitalization: TextCapitalization.words,
+                               decoration: InputDecoration(
+                                 labelText: 'Tên người mua *',
+                                 prefixIcon: const Icon(Icons.person),
+                                 suffixIcon: kIsWeb
+                                   ? null
+                                   : IconButton(
+                                       icon: Icon(
+                                         Icons.contact_phone,
+                                         color: Theme.of(context).colorScheme.primary,
+                                       ),
+                                       onPressed: _pickContact,
+                                       tooltip: 'Chọn từ danh bạ',
+                                     ),
+                                 border: const OutlineInputBorder(),
+                                 filled: true,
+                                 fillColor: Theme.of(context).colorScheme.surface,
+                               ),
+                               validator: (value) => 
+                                  value == null || value.isEmpty ? 'Vui lòng nhập tên' : null,
+                             ),
+                          ],
                         ),
                       ),
-                      child: const Text('Tạo người mua', 
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 24),
+                    const Text('Thông tin liên hệ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 16),
+                    AddressSearchField(
+                      controller: _addressController,
+                      initialLat: _selectedLat,
+                      initialLng: _selectedLng,
+                      onLocationSelected: (lat, lng) {
+                        setState(() {
+                          _selectedLat = lat;
+                          _selectedLng = lng;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _phoneController,
+                      decoration: InputDecoration(
+                        labelText: 'Số điện thoại',
+                        prefixIcon: const Icon(Icons.phone),
+                        suffixIcon: kIsWeb
+                            ? null
+                            : IconButton(
+                                icon: Icon(
+                                  Icons.contact_phone,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                onPressed: _pickContact,
+                                tooltip: 'Chọn từ danh bạ',
+                              ),
+                        border: const OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _idCardController,
+                      decoration: const InputDecoration(
+                        labelText: 'Số CMND/CCCD',
+                        prefixIcon: Icon(Icons.credit_card),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _emailController,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(Icons.email),
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) return null;
+                        final emailRegex = RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
+                        if (!emailRegex.hasMatch(value.trim())) {
+                          return 'Định dạng email không hợp lệ';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Tạo người mua', 
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
+      ),
     );
   }
 

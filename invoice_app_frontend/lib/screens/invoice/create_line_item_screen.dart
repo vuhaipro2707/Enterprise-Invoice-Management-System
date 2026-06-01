@@ -81,7 +81,10 @@ class _CreateLineItemScreenState extends State<CreateLineItemScreen> {
         _itemNameController.text = result['itemDefaultName'] ?? '';
         _availableUnits = result['units'] as List? ?? [];
         _isManualInputExpanded = true;
-        if (_availableUnits.isNotEmpty) {
+        
+        if (result['selectedUnit'] != null) {
+          _onUnitSelected(Map<String, dynamic>.from(result['selectedUnit']));
+        } else if (_availableUnits.isNotEmpty) {
           Map<String, dynamic> largestRatioUnit = Map<String, dynamic>.from(_availableUnits[0]);
           num maxRatio = largestRatioUnit['ratio'] ?? 0;
           for (var u in _availableUnits) {

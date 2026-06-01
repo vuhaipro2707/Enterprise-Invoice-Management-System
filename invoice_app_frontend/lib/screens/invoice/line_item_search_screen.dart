@@ -530,6 +530,12 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
                                             onTap: () {
                                               Navigator.pop(context, _items[startIndex + i]);
                                             },
+                                            onUnitTap: (unit) {
+                                              final resultItem = Map<String, dynamic>.from(_items[startIndex + i]);
+                                              resultItem['selectedUnit'] = unit;
+                                              resultItem['selectedUnitId'] = unit['unitId'];
+                                              Navigator.pop(context, resultItem);
+                                            },
                                           )
                                         : const SizedBox.shrink(),
                                   ),
@@ -576,6 +582,12 @@ class _LineItemSearchScreenState extends State<LineItemSearchScreen> {
                             },
                             onTap: () {
                               Navigator.pop(context, _items[index]);
+                            },
+                            onUnitTap: (unit) {
+                              final resultItem = Map<String, dynamic>.from(_items[index]);
+                              resultItem['selectedUnit'] = unit;
+                              resultItem['selectedUnitId'] = unit['unitId'];
+                              Navigator.pop(context, resultItem);
                             },
                           );
                         },

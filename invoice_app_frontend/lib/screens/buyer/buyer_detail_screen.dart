@@ -32,6 +32,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
 
   bool _isLoading = false;
   bool _isFetchingBusiness = false;
+  bool _didSave = false;
 
   @override
   void initState() {
@@ -96,8 +97,22 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
     }
   }
 
-  Future<void> _updateBuyer() async {
-    if (!_formKey.currentState!.validate()) return;
+  bool _hasUnsavedChanges() {
+    if (widget.isDeleted) return false;
+    if (_codeController.text != (widget.buyer['buyerCode'] ?? '')) return true;
+    if (_nameController.text != (widget.buyer['buyerName'] ?? '')) return true;
+    if (_addressController.text != (widget.buyer['address'] ?? '')) return true;
+    if (_phoneController.text != (widget.buyer['phoneNumber'] ?? '')) return true;
+    if (_idCardController.text != (widget.buyer['idCardNumber'] ?? '')) return true;
+    if (_emailController.text != (widget.buyer['email'] ?? '')) return true;
+    if (_taxIdController.text != (widget.buyer['taxId'] ?? '')) return true;
+    if (_selectedLat != (widget.buyer['lat'] != null ? (widget.buyer['lat'] as num).toDouble() : null)) return true;
+    if (_selectedLng != (widget.buyer['lng'] != null ? (widget.buyer['lng'] as num).toDouble() : null)) return true;
+    return false;
+  }
+
+  Future<bool> _updateBuyerWithResult() async {
+    if (!_formKey.currentState!.validate()) return false;
 
     setState(() => _isLoading = true);
 
@@ -120,8 +135,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
       }
 
       if (updates.isEmpty) {
-        Navigator.pop(context);
-        return;
+        return true;
       }
 
       await _apiService.patchBuyer(widget.buyer['buyerId'], updates);
@@ -130,8 +144,9 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Cập nhật người mua thành công')),
         );
-        Navigator.pop(context, true);
       }
+      _didSave = true;
+      return true;
     } catch (e) {
       if (mounted) {
         String errorMessage = e.toString();
@@ -153,9 +168,74 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
           ),
         );
       }
+      return false;
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _updateBuyer() async {
+    final success = await _updateBuyerWithResult();
+    if (success && mounted) {
+      Navigator.pop(context, true);
+    }
+  }
+
+  Future<bool> _showBackConfirmationDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: colorScheme.error),
+              const SizedBox(width: 8),
+              const Text('Chưa lưu thay đổi'),
+            ],
+          ),
+          content: const Text(
+            'Bạn chưa lưu các chỉnh sửa của người mua này. Bạn có chắc chắn muốn thoát không?',
+          ),
+          actionsAlignment: MainAxisAlignment.end,
+          actionsOverflowButtonSpacing: 8,
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'cancel'),
+              child: const Text('HỦY'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'discard'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colorScheme.error,
+                side: BorderSide(color: colorScheme.error),
+              ),
+              child: const Text('THOÁT KHÔNG LƯU'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'save'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+              ),
+              child: const Text('LƯU VÀ THOÁT'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == 'discard') {
+      return true;
+    } else if (result == 'save') {
+      final success = await _updateBuyerWithResult();
+      if (success) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> _restoreBuyer() async {
@@ -285,9 +365,23 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.isDeleted ? 'Chi tiết người mua (Đã xóa)' : 'Chi tiết người mua'),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        if (_hasUnsavedChanges()) {
+          final shouldPop = await _showBackConfirmationDialog();
+          if (shouldPop && mounted) {
+            navigator.pop(_didSave);
+          }
+        } else {
+          navigator.pop(_didSave);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.isDeleted ? 'Chi tiết người mua (Đã xóa)' : 'Chi tiết người mua'),
         actions: [
           if (widget.isDeleted)
             IconButton(
@@ -488,6 +582,7 @@ class _BuyerDetailScreenState extends State<BuyerDetailScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

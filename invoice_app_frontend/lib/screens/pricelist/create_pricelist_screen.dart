@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../services/currency_formatter.dart';
-import '../../services/string_utils.dart';
 import '../../widgets/price_item_card.dart';
 
 class CreatePriceListScreen extends StatefulWidget {
@@ -23,7 +22,6 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
   bool _isLoading = false;
   bool _isInitialized = false;
   int? _pickedIndex;
-  String _localSearchQuery = '';
   String? _highlightedItemKey; // 'itemId_unitId' of the newly added item
 
   String _initialDescription = '';
@@ -172,14 +170,31 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
     // Get units array from item. When we edit, it might be nested differently, so look for both structures
     final List<dynamic> units = item['units'] as List? ?? [];
     
-    String? currentUnitId = index != null ? item['unitId'] : (units.isNotEmpty ? units[0]['unitId'] : null);
+    Map<String, dynamic>? largestRatioUnit;
+    if (units.isNotEmpty) {
+      largestRatioUnit = Map<String, dynamic>.from(units[0]);
+      num maxRatio = largestRatioUnit['ratio'] ?? 0;
+      for (var u in units) {
+        final num r = u['ratio'] ?? 0;
+        if (r > maxRatio) {
+          maxRatio = r;
+          largestRatioUnit = Map<String, dynamic>.from(u);
+        }
+      }
+    }
+
+    String? currentUnitId = index != null 
+        ? item['unitId'] 
+        : (item['selectedUnitId'] ?? (largestRatioUnit != null ? largestRatioUnit['unitId'] : null));
     
     // Setup initial price
     int initialPrice = 0;
     if (index != null) {
       initialPrice = item['unitPriceCustom'] as int? ?? 0;
-    } else if (units.isNotEmpty) {
-      initialPrice = (units[0]['unitPriceDefault'] as num?)?.toInt() ?? 0;
+    } else if (item['selectedUnit'] != null) {
+      initialPrice = (item['selectedUnit']['unitPriceDefault'] as num?)?.toInt() ?? 0;
+    } else if (largestRatioUnit != null) {
+      initialPrice = (largestRatioUnit['unitPriceDefault'] as num?)?.toInt() ?? 0;
     }
 
     final priceController = TextEditingController(
@@ -833,24 +848,6 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                         ),
                       )
                     else ...[
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12.0),
-                        child: TextFormField(
-                          decoration: InputDecoration(
-                            hintText: 'Tìm kiếm sản phẩm trong danh sách...',
-                            prefixIcon: const Icon(Icons.search),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            filled: true,
-                            fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          ),
-                          onChanged: (val) {
-                            setState(() {
-                              _localSearchQuery = val;
-                            });
-                          },
-                        ),
-                      ),
                       if (_pickedIndex != null)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 12.0),
@@ -894,14 +891,7 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                               itemsWithOrigIndex.add(itm);
                             }
 
-                            final filteredItems = itemsWithOrigIndex.where((itm) {
-                              final name = (itm['itemDefaultName'] ?? '').toString();
-                              return StringUtils.containsUnaccented(name, _localSearchQuery);
-                            }).toList();
-
-                            if (filteredItems.isEmpty) {
-                              return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('Không tìm thấy sản phẩm phù hợp')));
-                            }
+                            final filteredItems = itemsWithOrigIndex;
 
                             if (_pickedIndex == null) {
                               return ReorderableListView.builder(
@@ -1003,6 +993,18 @@ class _CreatePriceListScreenState extends State<CreatePriceListScreen> {
                         ),
                       ),
                     ],
+                    // Quick-add button at the bottom of the list
+                    const SizedBox(height: 12),
+                    Center(
+                      child: IconButton.filled(
+                        onPressed: _addItem,
+                        icon: const Icon(Icons.add),
+                        tooltip: 'Thêm mặt hàng',
+                        style: IconButton.styleFrom(
+                          padding: const EdgeInsets.all(14),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 80), // Padding to avoid overlap with bottom button
                   ],
                 ),

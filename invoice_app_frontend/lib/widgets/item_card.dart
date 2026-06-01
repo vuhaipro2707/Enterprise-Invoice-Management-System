@@ -10,6 +10,7 @@ class ItemCard extends StatefulWidget {
   final bool showInvoiceButton;
   final bool showEditButton;
   final VoidCallback? onEditPressed;
+  final Function(Map<String, dynamic> unit)? onUnitTap;
 
   const ItemCard({
     super.key,
@@ -19,6 +20,7 @@ class ItemCard extends StatefulWidget {
     this.showInvoiceButton = true,
     this.showEditButton = false,
     this.onEditPressed,
+    this.onUnitTap,
   });
 
   @override
@@ -153,6 +155,56 @@ class _ItemCardState extends State<ItemCard> {
         if (units.isNotEmpty)
           Builder(
             builder: (BuildContext builderContext) {
+              Widget buildUnitWidget(dynamic u) {
+                final name = u['unitName'] ?? '';
+                final price = u['unitPriceDefault'] ?? 0;
+                final formattedPrice = NumberFormat.decimalPattern('vi_VN').format(price);
+                
+                final unitCard = Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: colorScheme.tertiaryContainer,
+                    border: Border.all(color: colorScheme.tertiary.withValues(alpha: 0.2)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        name,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: colorScheme.onTertiaryContainer,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$formattedPriceđ',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (widget.onUnitTap != null) {
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => widget.onUnitTap!(u),
+                      borderRadius: BorderRadius.circular(8),
+                      child: unitCard,
+                    ),
+                  );
+                }
+
+                return unitCard;
+              }
+
               final useCarousel = isDesktop && units.length > 2;
               if (useCarousel) {
                 final totalPages = (units.length / 2).ceil();
@@ -170,42 +222,7 @@ class _ItemCardState extends State<ItemCard> {
                           child: Wrap(
                             spacing: 8,
                             runSpacing: 8,
-                            children: visibleUnits.map((u) {
-                              final name = u['unitName'] ?? '';
-                              final price = u['unitPriceDefault'] ?? 0;
-                              final formattedPrice = NumberFormat.decimalPattern('vi_VN').format(price);
-                              
-                              return Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.tertiaryContainer,
-                                  border: Border.all(color: colorScheme.tertiary.withValues(alpha: 0.2)),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      name,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                        color: colorScheme.onTertiaryContainer,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '$formattedPriceđ',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: colorScheme.primary,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
+                            children: visibleUnits.map((u) => buildUnitWidget(u)).toList(),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -229,9 +246,9 @@ class _ItemCardState extends State<ItemCard> {
                             Text(
                               '${_currentPage + 1}/$totalPages',
                               style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: colorScheme.onSurfaceVariant,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: colorScheme.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(width: 4),
@@ -258,42 +275,7 @@ class _ItemCardState extends State<ItemCard> {
                 return Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: units.map((u) {
-                    final name = u['unitName'] ?? '';
-                    final price = u['unitPriceDefault'] ?? 0;
-                    final formattedPrice = NumberFormat.decimalPattern('vi_VN').format(price);
-                    
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: colorScheme.tertiaryContainer,
-                        border: Border.all(color: colorScheme.tertiary.withValues(alpha: 0.2)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            name,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: colorScheme.onTertiaryContainer,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '$formattedPriceđ',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+                  children: units.map((u) => buildUnitWidget(u)).toList(),
                 );
               }
             },
