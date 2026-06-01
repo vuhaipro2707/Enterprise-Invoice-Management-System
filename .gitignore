@@ -25,6 +25,7 @@ nginx/nginx.conf
 nginx/letsencrypt/
 invoice_app_backend/backups/
 .agents/
+**/copilot-instructions.md
 invoice_app_backend/debug_lines.txt
 invoice_app_backend/prompt
 

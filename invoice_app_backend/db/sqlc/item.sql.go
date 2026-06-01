@@ -776,6 +776,7 @@ SELECT i.item_id, i.item_default_name, i.type_id, i.is_active, i.created_at, i.u
 FROM items i
 LEFT JOIN item_other_names ion ON i.item_id = ion.item_id
 LEFT JOIN units u ON i.item_id = u.item_id AND u.deleted_at IS NULL
+LEFT JOIN types t ON i.type_id = t.type_id AND t.deleted_at IS NULL
 WHERE i.deleted_at IS NULL
 AND ($1::UUID IS NULL OR i.type_id = $1::UUID)
 AND (
@@ -783,7 +784,7 @@ AND (
   (
     SELECT COALESCE(bool_and(
       my_unaccent(i.item_default_name) ILIKE '%' || word || '%'
-      OR word_similarity(word, my_unaccent(i.item_default_name)) > 0.5
+      OR word_similarity(word, my_unaccent(i.item_default_name)) > 0.3
     ), FALSE)
     FROM unnest(string_to_array(my_unaccent($2), ' ')) AS word
     WHERE word <> ''
@@ -797,21 +798,87 @@ AND (
     AND (
       SELECT COALESCE(bool_and(
         my_unaccent(ion2.name_string) ILIKE '%' || word || '%'
-        OR word_similarity(word, my_unaccent(ion2.name_string)) > 0.5
+        OR word_similarity(word, my_unaccent(ion2.name_string)) > 0.3
       ), FALSE)
       FROM unnest(string_to_array(my_unaccent($2), ' ')) AS word
       WHERE word <> ''
     )
   )
+  -- Or type name matches all words from keyword or is highly similar
+  OR (
+    t.type_id IS NOT NULL AND (
+      (
+        SELECT COALESCE(bool_and(
+          my_unaccent(t.type_name) ILIKE '%' || word || '%'
+          OR word_similarity(word, my_unaccent(t.type_name)) > 0.3
+        ), FALSE)
+        FROM unnest(string_to_array(my_unaccent($2), ' ')) AS word
+        WHERE word <> ''
+      )
+      OR my_unaccent(t.type_name) % my_unaccent($2)
+    )
+  )
+  -- Or initials of default name matches the keyword (substring search)
+  OR (length($2) >= 2 AND get_initials(i.item_default_name) ILIKE '%' || my_unaccent($2) || '%')
+  -- Or initials of an other name matches the keyword (substring search)
+  OR EXISTS (
+    SELECT 1 FROM item_other_names ion3
+    WHERE ion3.item_id = i.item_id
+    AND length($2) >= 2
+    AND get_initials(ion3.name_string) ILIKE '%' || my_unaccent($2) || '%'
+  )
 )
-GROUP BY i.item_id
+GROUP BY i.item_id, t.type_id, t.type_name
 ORDER BY
-  -- Rank exact default-name match highest
-  CASE WHEN my_unaccent(i.item_default_name) = my_unaccent($2) THEN 0 ELSE 1 END,
-  -- Then prefix match
-  CASE WHEN my_unaccent(i.item_default_name) ILIKE my_unaccent($2) || '%' THEN 0 ELSE 1 END,
-  -- Then fuzzy relevance for remaining default-name matches
-  similarity(my_unaccent(i.item_default_name), my_unaccent($2)) DESC,
+  -- Rank by dynamic relevance score
+  (
+    -- Exact default-name match boost
+    (CASE WHEN my_unaccent(i.item_default_name) = my_unaccent($2) THEN 10.0 ELSE 0.0 END) +
+    -- Prefix default-name match boost
+    (CASE WHEN my_unaccent(i.item_default_name) ILIKE my_unaccent($2) || '%' THEN 5.0 ELSE 0.0 END) +
+    -- Exact other-name match boost
+    (CASE WHEN EXISTS (
+      SELECT 1 FROM item_other_names ion_score
+      WHERE ion_score.item_id = i.item_id AND my_unaccent(ion_score.name_string) = my_unaccent($2)
+    ) THEN 8.0 ELSE 0.0 END) +
+    -- Exact type-name match boost
+    (CASE WHEN t.type_name IS NOT NULL AND my_unaccent(t.type_name) = my_unaccent($2) THEN 6.0 ELSE 0.0 END) +
+    -- Exact default-name initials match boost
+    (CASE WHEN length($2) >= 2 AND get_initials(i.item_default_name) = my_unaccent($2) THEN 7.0 ELSE 0.0 END) +
+    -- Prefix default-name initials match boost
+    (CASE WHEN length($2) >= 2 AND get_initials(i.item_default_name) ILIKE my_unaccent($2) || '%' THEN 4.0 ELSE 0.0 END) +
+    -- Substring default-name initials match boost
+    (CASE WHEN length($2) >= 2 AND get_initials(i.item_default_name) ILIKE '%' || my_unaccent($2) || '%' THEN 2.0 ELSE 0.0 END) +
+    -- Exact other-name initials match boost
+    (CASE WHEN EXISTS (
+      SELECT 1 FROM item_other_names ion_score3
+      WHERE ion_score3.item_id = i.item_id
+      AND length($2) >= 2
+      AND get_initials(ion_score3.name_string) = my_unaccent($2)
+    ) THEN 6.0 ELSE 0.0 END) +
+    -- Prefix other-name initials match boost
+    (CASE WHEN EXISTS (
+      SELECT 1 FROM item_other_names ion_score4
+      WHERE ion_score4.item_id = i.item_id
+      AND length($2) >= 2
+      AND get_initials(ion_score4.name_string) ILIKE my_unaccent($2) || '%'
+    ) THEN 3.0 ELSE 0.0 END) +
+    -- Substring other-name initials match boost
+    (CASE WHEN EXISTS (
+      SELECT 1 FROM item_other_names ion_score5
+      WHERE ion_score5.item_id = i.item_id
+      AND length($2) >= 2
+      AND get_initials(ion_score5.name_string) ILIKE '%' || my_unaccent($2) || '%'
+    ) THEN 1.0 ELSE 0.0 END) +
+    -- Trigram similarities weights
+    (similarity(my_unaccent(i.item_default_name), my_unaccent($2)) * 4.0) +
+    (COALESCE((
+      SELECT MAX(similarity(my_unaccent(ion_score2.name_string), my_unaccent($2)))
+      FROM item_other_names ion_score2
+      WHERE ion_score2.item_id = i.item_id
+    ), 0.0) * 3.0) +
+    (COALESCE(similarity(my_unaccent(t.type_name), my_unaccent($2)), 0.0) * 2.0)
+  ) DESC,
   i.created_at DESC
 LIMIT $3
 `
