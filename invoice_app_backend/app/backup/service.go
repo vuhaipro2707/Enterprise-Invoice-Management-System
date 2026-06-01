@@ -72,7 +72,11 @@ func (s *BackupService) RunBackupTask(ctx context.Context) error {
 		return fmt.Errorf("failed to create backups directory: %w", err)
 	}
 
-	currentTime := time.Now().Format("20060102-150405")
+	loc, err := time.LoadLocation("Asia/Ho_Chi_Minh")
+	if err != nil {
+		loc = time.Local
+	}
+	currentTime := time.Now().In(loc).Format("20060102-150405")
 	fileName := fmt.Sprintf("backup-%s.sql", currentTime)
 	filePath := fmt.Sprintf("%s/%s", backupsDir, fileName)
 

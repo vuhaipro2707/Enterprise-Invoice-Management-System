@@ -196,3 +196,6 @@ func runDBMigration(migrationURL string, dbURL string) {
 
 	log.Println("Database migration completed (or no change detected)!")
 }
+// Force re-index linguist
+// Global re-index triggers
+// Linguist refresh

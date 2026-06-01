@@ -242,4 +242,13 @@ The repository is secured with strict `.gitignore` filters at both the root and 
 * PostgreSQL database dump storage (`invoice_app_backend/backups/`) is strictly kept out of version control.
 
 ---
+
+## 📊 Database Design (ERD)
+The following diagram provides a high-level overview of the database schema and the relationships between the core entities in the **Invoice App**.
+
+<p align="center">
+  <img src="images/erd.png" alt="Sơ đồ ERD" width="100%">
+</p>
+
+---
 *Happy deploying!* 🚀
