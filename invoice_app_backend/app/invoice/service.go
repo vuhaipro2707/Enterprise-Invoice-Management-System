@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"invoice_backend/app/dbconn"
+	"invoice_backend/app/shared"
 	sqlc "invoice_backend/db/sqlc"
 	"os"
 	"time"
@@ -49,7 +50,7 @@ func (s *InvoiceService) GetInvoiceWithLines(ctx context.Context, id uuid.UUID) 
 func (s *InvoiceService) CreateBuyer(ctx context.Context, code, name string, address, phone, idCard, email, taxID *string, lat, lng *float64) (sqlc.Buyer, error) {
 	arg := sqlc.CreateBuyerParams{
 		BuyerCode:    code,
-		BuyerName:    name,
+		BuyerName:    shared.CleanSpaces(name),
 		Address:      sql.NullString{String: getString(address), Valid: address != nil},
 		PhoneNumber:  sql.NullString{String: getString(phone), Valid: phone != nil},
 		IDCardNumber: sql.NullString{String: getString(idCard), Valid: idCard != nil},
@@ -69,6 +70,11 @@ func getFloat64(f *float64) float64 {
 }
 
 func (s *InvoiceService) CreateInvoice(ctx context.Context, accountID uuid.UUID, buyerID uuid.NullUUID, code string, total int64, deviceID string, editStatus bool, buyerSnap, addrSnap, phoneSnap, idCardSnap, emailSnap, taxIDSnap *string, latSnap, lngSnap *float64) (sqlc.Invoice, error) {
+	var buyerNameSnap sql.NullString
+	if buyerSnap != nil {
+		buyerNameSnap = sql.NullString{String: shared.CleanSpaces(*buyerSnap), Valid: true}
+	}
+
 	arg := sqlc.CreateInvoiceParams{
 		AccountID:            uuid.NullUUID{UUID: accountID, Valid: true},
 		BuyerID:              buyerID,
@@ -76,7 +82,7 @@ func (s *InvoiceService) CreateInvoice(ctx context.Context, accountID uuid.UUID,
 		TotalAmount:          total,
 		DeviceHoldingID:      sql.NullString{String: deviceID, Valid: deviceID != ""},
 		EditStatus:           sql.NullBool{Bool: editStatus, Valid: true},
-		BuyerNameSnapshot:    sql.NullString{String: getString(buyerSnap), Valid: buyerSnap != nil},
+		BuyerNameSnapshot:    buyerNameSnap,
 		AddressSnapshot:      sql.NullString{String: getString(addrSnap), Valid: addrSnap != nil},
 		PhoneNumberSnapshot:  sql.NullString{String: getString(phoneSnap), Valid: phoneSnap != nil},
 		IDCardNumberSnapshot: sql.NullString{String: getString(idCardSnap), Valid: idCardSnap != nil},
@@ -96,7 +102,7 @@ func (s *InvoiceService) CreateLineItem(ctx context.Context, invoiceID, itemID, 
 		Quantity:         qty,
 		UnitPriceCustom:  sql.NullInt64{Int64: getInt64(price), Valid: price != nil},
 		SubTotal:         subTotal,
-		ItemNameSnapshot: sql.NullString{String: itemSnap, Valid: itemSnap != ""},
+		ItemNameSnapshot: sql.NullString{String: shared.CleanSpaces(itemSnap), Valid: itemSnap != ""},
 		UnitNameSnapshot: sql.NullString{String: unitSnap, Valid: unitSnap != ""},
 		PositionKey:      posKey,
 	}
@@ -228,7 +234,7 @@ func (s *InvoiceService) PatchBuyer(ctx context.Context, id uuid.UUID, input Pat
 		buyer.BuyerCode = input.BuyerCode
 	}
 	if input.SetBuyerName {
-		buyer.BuyerName = input.BuyerName
+		buyer.BuyerName = shared.CleanSpaces(input.BuyerName)
 	}
 	if input.SetAddress {
 		buyer.Address = input.Address
@@ -317,7 +323,11 @@ func (s *InvoiceService) PatchInvoice(ctx context.Context, id uuid.UUID, input P
 		invoice.EditStatus = input.EditStatus
 	}
 	if input.SetBuyerNameSnapshot {
-		invoice.BuyerNameSnapshot = input.BuyerNameSnapshot
+		if input.BuyerNameSnapshot.Valid {
+			invoice.BuyerNameSnapshot = sql.NullString{String: shared.CleanSpaces(input.BuyerNameSnapshot.String), Valid: true}
+		} else {
+			invoice.BuyerNameSnapshot = input.BuyerNameSnapshot
+		}
 	}
 	if input.SetAddressSnapshot {
 		invoice.AddressSnapshot = input.AddressSnapshot
@@ -403,7 +413,11 @@ func (s *InvoiceService) PatchLineItem(ctx context.Context, id uuid.UUID, input 
 		lineItem.UnitPriceCustom = input.UnitPriceCustom
 	}
 	if input.SetItemNameSnapshot {
-		lineItem.ItemNameSnapshot = input.ItemNameSnapshot
+		if input.ItemNameSnapshot.Valid {
+			lineItem.ItemNameSnapshot = sql.NullString{String: shared.CleanSpaces(input.ItemNameSnapshot.String), Valid: true}
+		} else {
+			lineItem.ItemNameSnapshot = input.ItemNameSnapshot
+		}
 	}
 	if input.SetUnitNameSnapshot {
 		lineItem.UnitNameSnapshot = input.UnitNameSnapshot
@@ -519,6 +533,11 @@ func (s *InvoiceService) CloneInvoice(ctx context.Context, invoiceParams sqlc.Cr
 
 	qTx := s.Repo.WithTx(tx)
 
+	// Clean BuyerNameSnapshot
+	if invoiceParams.BuyerNameSnapshot.Valid {
+		invoiceParams.BuyerNameSnapshot.String = shared.CleanSpaces(invoiceParams.BuyerNameSnapshot.String)
+	}
+
 	// 1. Create Invoice Header
 	invoice, err := qTx.CreateInvoice(ctx, invoiceParams)
 	if err != nil {
@@ -528,6 +547,9 @@ func (s *InvoiceService) CloneInvoice(ctx context.Context, invoiceParams sqlc.Cr
 	// 2. Create Line Items
 	for _, li := range lineItems {
 		li.InvoiceID = uuid.NullUUID{UUID: invoice.InvoiceID, Valid: true}
+		if li.ItemNameSnapshot.Valid {
+			li.ItemNameSnapshot.String = shared.CleanSpaces(li.ItemNameSnapshot.String)
+		}
 		_, err := qTx.CreateLineItem(ctx, li)
 		if err != nil {
 			return sqlc.Invoice{}, err

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"invoice_backend/app/dbconn"
+	"invoice_backend/app/shared"
 	sqlc "invoice_backend/db/sqlc"
 
 	"github.com/google/uuid"
@@ -93,7 +94,7 @@ func (s *ItemService) CreateItem(ctx context.Context, itemDefaultName string, it
 	qTx := s.Repo.WithTx(tx)
 
 	params := sqlc.CreateItemParams{
-		ItemDefaultName: itemDefaultName,
+		ItemDefaultName: shared.CleanSpaces(itemDefaultName),
 	}
 
 	if typeID != "" {
@@ -111,9 +112,13 @@ func (s *ItemService) CreateItem(ctx context.Context, itemDefaultName string, it
 
 	// Insert other names
 	for _, name := range itemOtherNames {
+		cleanedName := shared.CleanSpaces(name)
+		if cleanedName == "" {
+			continue
+		}
 		_, err := qTx.CreateItemOtherName(ctx, sqlc.CreateItemOtherNameParams{
 			ItemID:     item.ItemID,
-			NameString: name,
+			NameString: cleanedName,
 		})
 		if err != nil {
 			return sqlc.Item{}, err
@@ -198,7 +203,7 @@ func (s *ItemService) CreateItemOtherName(ctx context.Context, itemID string, na
 
 	return s.Repo.CreateItemOtherName(ctx, sqlc.CreateItemOtherNameParams{
 		ItemID:     parsedItemID,
-		NameString: nameString,
+		NameString: shared.CleanSpaces(nameString),
 	})
 }
 
@@ -219,7 +224,7 @@ func (s *ItemService) PatchItem(ctx context.Context, itemID string, input PatchI
 	params := sqlc.PatchItemParams{
 		ItemID:             parsedItemID,
 		SetItemDefaultName: input.SetItemDefaultName,
-		ItemDefaultName:    input.ItemDefaultName,
+		ItemDefaultName:    shared.CleanSpaces(input.ItemDefaultName),
 		SetTypeID:          input.SetTypeID,
 		TypeID:             input.TypeID,
 	}
@@ -410,13 +415,14 @@ func (s *ItemService) BatchCreateItems(ctx context.Context, typeID string, paylo
 	}
 
 	for _, p := range payloads {
-		if strings.TrimSpace(p.ItemName) == "" {
+		cleanedItemName := shared.CleanSpaces(p.ItemName)
+		if cleanedItemName == "" {
 			return errors.New("itemName must not be empty")
 		}
 
 		// 1. Create item
 		itemParams := sqlc.CreateItemParams{
-			ItemDefaultName: p.ItemName,
+			ItemDefaultName: cleanedItemName,
 			TypeID:          parsedTypeID,
 		}
 		item, err := qTx.CreateItem(ctx, itemParams)
@@ -426,7 +432,7 @@ func (s *ItemService) BatchCreateItems(ctx context.Context, typeID string, paylo
 
 		// 2. Create other names
 		for _, oName := range p.OtherNames {
-			trimmed := strings.TrimSpace(oName)
+			trimmed := shared.CleanSpaces(oName)
 			if trimmed == "" {
 				continue
 			}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 )
@@ -174,3 +175,11 @@ func EnrichAddress(fullAddress string) string {
 
 	return fullAddress
 }
+
+var spaceRegex = regexp.MustCompile(`\s+`)
+
+// CleanSpaces collapses multiple whitespaces into a single space and trims leading/trailing spaces.
+func CleanSpaces(s string) string {
+	return strings.TrimSpace(spaceRegex.ReplaceAllString(s, " "))
+}
+
