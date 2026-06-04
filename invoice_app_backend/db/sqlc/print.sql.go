@@ -146,15 +146,22 @@ WHERE
     )
 ORDER BY 
     CASE pq.print_status::text
-        WHEN 'Failed' THEN 1
-        WHEN 'Printing' THEN 2
-        WHEN 'Pending' THEN 3
+        WHEN 'Printing' THEN 1
+        WHEN 'Pending' THEN 2
+        WHEN 'Failed' THEN 3
         WHEN 'Cancelled' THEN 4
         WHEN 'Completed' THEN 5
         ELSE 6
     END ASC,
-    pq.priority_num DESC, 
-    pq.created_at ASC
+    CASE 
+        WHEN pq.print_status::text IN ('Pending', 'Printing') THEN pq.priority_num 
+    END DESC,
+    CASE 
+        WHEN pq.print_status::text IN ('Pending', 'Printing') THEN pq.created_at 
+    END ASC,
+    CASE 
+        WHEN pq.print_status::text NOT IN ('Pending', 'Printing') THEN pq.created_at 
+    END DESC
 LIMIT $6::integer
 OFFSET $5::integer
 `
