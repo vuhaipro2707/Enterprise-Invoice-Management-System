@@ -133,7 +133,7 @@ func main() {
 			c.Set("Access-Control-Allow-Origin", "*")
 			c.Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS")
 			c.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Device-Holding-ID")
-			c.Set("Access-Control-Expose-Headers", "X-Polled-Jobs-Count")
+			c.Set("Access-Control-Expose-Headers", "X-Polled-Jobs-Count, X-Printer-IP, X-Printing-Stuck")
 
 			if c.Method() == "OPTIONS" {
 				return c.SendStatus(204)

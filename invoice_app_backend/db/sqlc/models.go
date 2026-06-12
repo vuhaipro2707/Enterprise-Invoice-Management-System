@@ -134,6 +134,7 @@ type PrintQueue struct {
 	PriorityNum         sql.NullInt32 `json:"priority_num"`
 	CreatedAt           sql.NullTime  `json:"created_at"`
 	PrintedAt           sql.NullTime  `json:"printed_at"`
+	StartedPrintingAt   sql.NullTime  `json:"started_printing_at"`
 }
 
 type Type struct {

@@ -28,7 +28,7 @@ INSERT INTO print_queue (
     $4::print_part_enum,
     COALESCE($5::integer, 0),
     'Pending'
-) RETURNING print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at
+) RETURNING print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at, started_printing_at
 `
 
 type CreatePrintJobParams struct {
@@ -59,12 +59,13 @@ func (q *Queries) CreatePrintJob(ctx context.Context, arg CreatePrintJobParams) 
 		&i.PriorityNum,
 		&i.CreatedAt,
 		&i.PrintedAt,
+		&i.StartedPrintingAt,
 	)
 	return i, err
 }
 
 const getLatestPrintingJob = `-- name: GetLatestPrintingJob :one
-SELECT print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at FROM print_queue
+SELECT print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at, started_printing_at FROM print_queue
 WHERE print_status = 'Printing'
 ORDER BY created_at DESC
 LIMIT 1
@@ -84,12 +85,13 @@ func (q *Queries) GetLatestPrintingJob(ctx context.Context) (PrintQueue, error) 
 		&i.PriorityNum,
 		&i.CreatedAt,
 		&i.PrintedAt,
+		&i.StartedPrintingAt,
 	)
 	return i, err
 }
 
 const getPrintJobByID = `-- name: GetPrintJobByID :one
-SELECT print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at FROM print_queue
+SELECT print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at, started_printing_at FROM print_queue
 WHERE print_job_id = $1::uuid
 `
 
@@ -107,6 +109,7 @@ func (q *Queries) GetPrintJobByID(ctx context.Context, printJobID uuid.UUID) (Pr
 		&i.PriorityNum,
 		&i.CreatedAt,
 		&i.PrintedAt,
+		&i.StartedPrintingAt,
 	)
 	return i, err
 }
@@ -148,9 +151,9 @@ ORDER BY
     CASE pq.print_status::text
         WHEN 'Printing' THEN 1
         WHEN 'Pending' THEN 2
-        WHEN 'Failed' THEN 3
-        WHEN 'Cancelled' THEN 4
-        WHEN 'Completed' THEN 5
+        WHEN 'Completed' THEN 3
+        WHEN 'Failed' THEN 4
+        WHEN 'Cancelled' THEN 5
         ELSE 6
     END ASC,
     CASE 
@@ -326,7 +329,7 @@ func (q *Queries) GetPrintJobsAfterTimestamp(ctx context.Context, arg GetPrintJo
 }
 
 const pollPrintJob = `-- name: PollPrintJob :one
-SELECT print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at FROM print_queue
+SELECT print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at, started_printing_at FROM print_queue
 WHERE print_status = 'Pending'
 ORDER BY priority_num DESC, created_at ASC
 LIMIT 1
@@ -346,6 +349,7 @@ func (q *Queries) PollPrintJob(ctx context.Context) (PrintQueue, error) {
 		&i.PriorityNum,
 		&i.CreatedAt,
 		&i.PrintedAt,
+		&i.StartedPrintingAt,
 	)
 	return i, err
 }
@@ -356,9 +360,10 @@ SET
     print_status = COALESCE($1::print_status_enum, print_status),
     retry_count = COALESCE($2::integer, retry_count),
     priority_num = COALESCE($3::integer, priority_num),
-    printed_at = CASE WHEN $1::print_status_enum = 'Completed' THEN NOW() ELSE printed_at END
+    printed_at = CASE WHEN $1::print_status_enum = 'Completed' THEN NOW() ELSE printed_at END,
+    started_printing_at = CASE WHEN $1::print_status_enum = 'Printing' THEN NOW() ELSE started_printing_at END
 WHERE print_job_id = $4::uuid
-RETURNING print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at
+RETURNING print_job_id, invoice_id, customer_price_list_id, print_status, print_type, print_part, retry_count, priority_num, created_at, printed_at, started_printing_at
 `
 
 type UpdatePrintJobStatusParams struct {
@@ -387,6 +392,7 @@ func (q *Queries) UpdatePrintJobStatus(ctx context.Context, arg UpdatePrintJobSt
 		&i.PriorityNum,
 		&i.CreatedAt,
 		&i.PrintedAt,
+		&i.StartedPrintingAt,
 	)
 	return i, err
 }

@@ -3,6 +3,9 @@ package print
 import (
 	"database/sql"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	sqlc "invoice_backend/db/sqlc"
 	"strconv"
 	"time"
@@ -375,3 +378,65 @@ func flattenPrintJobsRow(row sqlc.GetPrintJobsRow) fiber.Map {
 		"priceListBuyerName":   priceListBuyerName,
 	}
 }
+
+func (h *PrintHandler) GetPrinterInfo(c *fiber.Ctx) error {
+	ip := c.Query("ip")
+	if ip == "" {
+		ip = os.Getenv("PRINTER_IP")
+	}
+	if ip == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Missing printer IP. Configure PRINTER_IP in backend env or provide ?ip= query parameter",
+		})
+	}
+
+	url := fmt.Sprintf("http://%s/general/information.html", ip)
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	req, err := http.NewRequestWithContext(c.Context(), "GET", url, nil)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to create request: %v", err),
+		})
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return c.Status(502).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to connect to printer at %s: %v", ip, err),
+		})
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return c.Status(resp.StatusCode).JSON(fiber.Map{
+			"error": fmt.Sprintf("Printer returned status: %s", resp.Status),
+		})
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to read printer response: %v", err),
+		})
+	}
+
+	// Check if there is any printing job stuck for more than 30 seconds
+	isStuck := "false"
+	latestJob, err := h.Repo.GetLatestPrintingJob(c.Context())
+	if err == nil && latestJob.StartedPrintingAt.Valid {
+		if time.Since(latestJob.StartedPrintingAt.Time) > 30*time.Second {
+			isStuck = "true"
+		}
+	}
+
+	c.Set("Content-Type", "text/html; charset=iso-8859-1")
+	c.Set("X-Printer-IP", ip)
+	c.Set("X-Printing-Stuck", isStuck)
+	return c.SendString(string(bodyBytes))
+}
+
+

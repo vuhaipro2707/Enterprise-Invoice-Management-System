@@ -476,6 +476,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
       {'title': 'Hàng chờ in', 'icon': Icons.print, 'color': Colors.indigo},
       {'title': 'Quản lý Thiết bị', 'icon': Icons.devices, 'color': Colors.purple},
       {'title': 'Cấu hình hệ thống', 'icon': Icons.settings, 'color': Colors.blueGrey},
+      {'title': 'Troubleshoot Máy in', 'icon': Icons.build_circle_outlined, 'color': Colors.deepOrange},
     ];
 
     return Scaffold(
@@ -686,6 +687,8 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
                             Navigator.pushNamed(context, '/print_management');
                           } else if (item['title'] == 'Cấu hình hệ thống') {
                             Navigator.pushNamed(context, '/settings');
+                          } else if (item['title'] == 'Troubleshoot Máy in') {
+                            Navigator.pushNamed(context, '/printer_troubleshoot');
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Chức năng ${item['title']} đang phát triển')),

@@ -52,9 +52,9 @@ ORDER BY
     CASE pq.print_status::text
         WHEN 'Printing' THEN 1
         WHEN 'Pending' THEN 2
-        WHEN 'Failed' THEN 3
-        WHEN 'Cancelled' THEN 4
-        WHEN 'Completed' THEN 5
+        WHEN 'Completed' THEN 3
+        WHEN 'Failed' THEN 4
+        WHEN 'Cancelled' THEN 5
         ELSE 6
     END ASC,
     CASE 
@@ -81,7 +81,8 @@ SET
     print_status = COALESCE(sqlc.narg('print_status')::print_status_enum, print_status),
     retry_count = COALESCE(sqlc.narg('retry_count')::integer, retry_count),
     priority_num = COALESCE(sqlc.narg('priority_num')::integer, priority_num),
-    printed_at = CASE WHEN sqlc.narg('print_status')::print_status_enum = 'Completed' THEN NOW() ELSE printed_at END
+    printed_at = CASE WHEN sqlc.narg('print_status')::print_status_enum = 'Completed' THEN NOW() ELSE printed_at END,
+    started_printing_at = CASE WHEN sqlc.narg('print_status')::print_status_enum = 'Printing' THEN NOW() ELSE started_printing_at END
 WHERE print_job_id = sqlc.arg('print_job_id')::uuid
 RETURNING *;
 

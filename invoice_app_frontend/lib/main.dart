@@ -31,6 +31,8 @@ import 'screens/pricelist/pricelist_trash_screen.dart';
 import 'screens/pricelist/export_pricelist_screen.dart';
 import 'screens/print/print_queue_management_screen.dart';
 import 'screens/settings/settings_screen.dart';
+import 'screens/print/printer_troubleshoot_screen.dart';
+
 
 /// Global RouteObserver to allow screens to detect when they are returned to.
 final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
@@ -238,6 +240,8 @@ class MyApp extends StatelessWidget {
         '/export_pricelist': (context) => const ExportPriceListScreen(),
         '/print_management': (context) => const PrintQueueManagementScreen(),
         '/settings': (context) => const SettingsScreen(),
+        '/printer_troubleshoot': (context) => const PrinterTroubleshootScreen(),
+
       },
     );
   }

@@ -113,6 +113,8 @@ func SetupRoutes(app *fiber.App, repo *sqlc.Queries) {
 	printGroup.Get("/poll", printHandler.PollPrintJob)
 	printGroup.Post("/poll-all", printHandler.PollAllQueue)
 	printGroup.Patch("/id/:printJobId", printHandler.UpdatePrintJobStatus)
+	printGroup.Get("/printer/info", printHandler.GetPrinterInfo)
+
 
 	settingsGroup := app.Group("/settings", auth.JWTMiddleware())
 	settingsGroup.Get("", globalsettingsHandler.GetSettings)
