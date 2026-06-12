@@ -227,6 +227,76 @@ docker compose -f docker-compose.prod.yml down && docker compose -f docker-compo
 
 ---
 
+## 🖨️ Automated PDF Printing Architecture (Decoupled Sync Queue)
+
+The application features a decoupled, robust, and highly reliable asynchronous PDF printing system designed to connect cloud-deployed backend services with local physical printers on Windows machines.
+
+### 🔄 Architectural Flow Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client App
+    participant DB as DB: print_queue
+    participant BE as Go Backend Daemon
+    participant Dir as Shared / Synced Folder
+    participant Agent as Windows Print Agent
+    participant Spooler as Windows Spooler / Printer
+
+    User->>DB: Create Invoice & Queue Print Job (Pending)
+    loop Every 2 Seconds
+        BE->>Dir: Scan directory (Must be empty)
+        Note over BE,Dir: Ensures one job is printed at a time
+        BE->>DB: Fetch highest priority Pending job
+        BE->>DB: Update status to "Printing"
+        BE->>Dir: Generate PDF & write print_job_[ID].pdf
+    end
+
+    loop fsnotify Directory Watcher
+        Agent->>Dir: Detect new PDF file
+        Agent->>Agent: Wait for file write release (lock check)
+        Agent->>Spooler: Wait until printer is idle (len(jobs) == 0)
+        Agent->>Spooler: Send print job (via PDFtoPrinter.exe / PowerShell)
+        
+        loop Monitor Print Spooler
+            Agent->>Spooler: Check job queue status
+            alt Print Job Completed Successfully
+                Agent->>Dir: Delete print_job_[ID].pdf
+            else Print Job Stuck / Failed (Offline, Paper Out, Blocked)
+                Agent->>Spooler: Cancel failed print job via PowerShell
+                Agent->>Spooler: Retry / Send new print command
+            end
+        end
+    end
+
+    loop Every 2 Seconds
+        BE->>Dir: Scan directory (Sees file is gone / empty)
+        BE->>DB: Update status to "Completed"
+    end
+```
+
+### 📦 Key Components
+
+#### 1. Database Queue (`print_queue`)
+* Serves as the source of truth for print state tracking.
+* Each print job holds metadata: status (`Pending`, `Printing`, `Completed`, `Failed`), `priority_num`, `print_type` (e.g. Invoices, Price Lists), and references (`invoice_id`).
+
+#### 2. Go Backend Print Daemon (`invoice_app_backend/app/print`)
+* Runs continuously in the background, polling the database and target directory (`./printing_folder`) every 2 seconds.
+* **State Check:** If the target directory contains a PDF file, it waits (indicating the printer agent is still processing the current job).
+* **Completion Handler:** If the directory is empty but the database shows a job is currently `Printing`, it infers the local print agent has successfully printed and deleted the file. It then marks that job as `Completed`.
+* **Job Despatch:** When the folder is free, it grabs the next highest priority `Pending` job, flags it as `Printing`, compiles the invoice/item data into a PDF document, and writes it to the shared directory.
+
+#### 3. Windows Print Agent Daemon (`invoice_app_printing_daemon`)
+* A lightweight, compiled Go utility running locally on the Windows machine connected to the physical receipt/document printer.
+* **Directory Watching:** Uses `fsnotify` to listen for `Create` and `Write` events on the watched directory (`watch_dir`).
+* **Active Queue Check:** Before dispatching a document, it queries the Windows Spooler API to ensure the printer is online and not jammed.
+* **Silent Printing:** Uses `PDFtoPrinter.exe` for silent background printing (with a PowerShell pipeline fallback: `Start-Process ... -Verb PrintTo`).
+* **Printer Jam & Error Recovery:** Actively monitors individual job codes (offline, paper out, blocked). If a job fails or remains stuck for over 1 minute, it issues a command to cancel the job (`Remove-PrintJob`) and automatically triggers a retry.
+* **Success Cleanup:** Once the Spooler queue clears successfully, it deletes the local PDF file. This deletion signals the backend to mark the job completed and proceed to the next invoice.
+
+---
+
 ## 💾 Automated Database Backups (Cloudflare R2 Cronjob)
 * The Go backend starts an asynchronous cron job runner at bootstrap. It is scheduled to dump the database **every 10 minutes** (`*/10 * * * *`).
 * The job connects to the PostgreSQL container, compiles a gzip compressed `.sql` archive, uploads it securely to **Cloudflare R2** via an S3-compatible channel, and cleans up local temporary files immediately.

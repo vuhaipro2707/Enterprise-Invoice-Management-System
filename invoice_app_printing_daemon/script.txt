@@ -1,0 +1,40 @@
+// --- COMPILE COMMANDS ---
+// Standard build with console window (for debugging):
+// GOOS=windows GOARCH=amd64 go build -o printer_agent.exe main.go
+
+// Silent build (hides CMD console window at startup):
+// GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" -o printer_agent.exe main.go
+
+// --- WINDOWS PRINTER COMMANDS ---
+// Get printer name
+Get-Printer | Format-Table Name
+
+// View logs in real-time (shows last 20 lines and listens for new updates, -Encoding utf8 avoids garbled Vietnamese text)
+Get-Content -Path ".\logs\agent_log.txt" -Encoding utf8 -Wait -Tail 20
+
+// Read the entire log file once in PowerShell
+Get-Content -Path ".\logs\agent_log.txt" -Encoding utf8
+
+// Read the entire log file once in CMD (chcp 65001 changes terminal codepage to UTF-8 to display accents correctly)
+chcp 65001 && type .\logs\agent_log.txt
+
+// --- DOCKER VOLUME COMMANDS ---
+// List all existing Docker volumes
+// docker volume ls
+
+// 1. Delete a specific Docker volume
+// docker volume rm <volume_name>
+
+// 2. Delete all unused Docker volumes (clean up memory)
+// docker volume prune -f
+
+// 3. Stop Docker Compose containers and completely remove all associated volumes
+// docker compose down -v
+
+// --- WINDOWS BACKGROUND AGENT SERVICE COMMANDS ---
+// Start the agent task immediately:
+// Start-ScheduledTask -TaskName "PrinterAgentService"
+// Stop the agent task:
+// Stop-ScheduledTask -TaskName "PrinterAgentService"
+// Check task status:
+// Get-ScheduledTask -TaskName "PrinterAgentService"
