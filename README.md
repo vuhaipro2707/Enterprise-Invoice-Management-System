@@ -12,6 +12,9 @@ Welcome to **Invoice App**, a premium multi-platform (Web & Android) invoice man
 * **ORM & Query Gen:** **SQLC** (ensuring maximum performance, strict type-safety, and raw query speeds).
 * **Migrations:** **Golang-Migrate** (automating database schema tracking and syncing).
 * **AI Integration:** **Google Gemini API** (generates advanced contextual item naming and dynamic packaging variation structures automatically).
+* **Concurrency Control:** Token-based collaborative edit locking middleware (`CheckHoldingDevice`) prevents concurrent conflicts on the same invoice.
+* **Dynamic PDF/Excel Generator & SMTP Mailer:** Built-in PDF and Excel generation engines integrated with Gmail SMTP to compile and email quotations with attachments on the fly.
+* **OTA App Release Delivery:** Dynamically reads versioning from `pubspec.yaml` and serves target `.apk` packages via `/release/download` to automate mobile application updates.
 * **Cronjobs & Cloud Backups:** `robfig/cron` schedules database exports every 10 minutes (`*/10 * * * *`). The system invokes containerized `pg_dump`, compresses the output using gzip, uploads the backup archive directly to **Cloudflare R2** (S3-compatible API) utilizing official AWS SDK v2, and cleans up temporary local files.
 * **Hot Reload:** `air` for a seamless local development experience.
 
@@ -22,6 +25,8 @@ Welcome to **Invoice App**, a premium multi-platform (Web & Android) invoice man
   * **🧠 Gemini AI Smart Product Autocomplete:** Seamless contextual product variation generator (Users input a keyword like 'Sting', and Gemini generates correct packaging variations, base unit prices, and unit ratios like crates or cans, enabling one-tap batch creation!).
   * Real-time business lookup by tax ID utilizing the **VietQR API**.
   * Address autocomplete and interactive maps via a secure **Google Maps API Proxy** (protects API keys by storing and invoking them strictly on the Go backend).
+  * **Interactive Reordering:** Seamless Drag & Drop sorting for invoices and price lists, synchronized with backend midpoint-sorting string updates.
+  * **Automatic OTA App Update:** Automated checks on boot against the backend's release version to download and install application updates directly.
   * Automated cleanup of downloaded update APKs at startup to preserve user storage space.
 
 ### 3. Gateway & DevOps (Production)
@@ -294,6 +299,80 @@ sequenceDiagram
 * **Silent Printing:** Uses `PDFtoPrinter.exe` for silent background printing (with a PowerShell pipeline fallback: `Start-Process ... -Verb PrintTo`).
 * **Printer Jam & Error Recovery:** Actively monitors individual job codes (offline, paper out, blocked). If a job fails or remains stuck for over 1 minute, it issues a command to cancel the job (`Remove-PrintJob`) and automatically triggers a retry.
 * **Success Cleanup:** Once the Spooler queue clears successfully, it deletes the local PDF file. This deletion signals the backend to mark the job completed and proceed to the next invoice.
+
+---
+
+## 💡 Core System Highlights & Advanced Engineering Patterns
+
+### 🔒 1. Collaborative Edit Locking & Concurrency Control
+To prevent data loss and split-brain scenarios when multiple users attempt to modify the same invoice concurrently, the backend enforces a robust, token-based **Edit Lock** mechanism:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User1 as User A (iPad/Phone)
+    actor User2 as User B (Laptop)
+    participant BE as Go Backend (Edit Lock Middleware)
+    participant DB as PostgreSQL
+
+    User1->>BE: POST /invoice/takeTurn/invoiceId (Request Edit Lock)
+    BE->>DB: Set locked_by = User A & locked_at = NOW()
+    BE-->>User1: 200 OK (Lock Granted)
+
+    Note over User1,BE: Heartbeat loop starts: POST /invoice/ping/invoiceId every 5s
+
+    User2->>BE: PATCH /invoice/id/invoiceId (Try to update details)
+    BE->>BE: Check holding device (User B != User A)
+    BE-->>User2: 403 Forbidden (Invoice is currently locked by User A)
+
+    Note over User1,BE: User A finishes editing
+    User1->>BE: POST /invoice/finish/invoiceId (Release Lock)
+    BE->>DB: Clear lock fields (locked_by = NULL)
+    BE-->>User1: 200 OK (Invoice Saved & Unlocked)
+```
+
+* **Acquiring a Lock (`TakeTurn`):** Before a client device can access any write operations on an invoice, it must explicitly call the `/invoice/takeTurn` endpoint to register as the current active editor.
+* **Keep-Alive Heartbeat:** The client maintains this edit lease by sending frequent pings (`/invoice/ping/invoiceId`). If no ping is received within a timeout period, the lease automatically expires.
+* **Middleware Verification:** All destructive or mutative endpoints (updating items, updating invoice summaries, deleting lines) are wrapped behind the `CheckHoldingDevice` middleware. If a non-holding device attempts to call them, the server rejects the request with a detailed error.
+
+### 🔀 2. High-Performance Drag & Drop Sorting (Lexorank-Like Algorithm)
+Instead of relying on heavy array manipulations or rebuilding/incrementing order index columns (`1, 2, 3...`) across hundreds of records on every drag-and-drop event, the system implements a **fractional sorting algorithm** using a string-based midpoint generation (similar to JIRA's Lexorank):
+
+```mermaid
+graph TD
+    subgraph "Traditional Indexing (N Database Writes)"
+        direction TB
+        I1["Item A (idx: 0)"]
+        I2["Item B (idx: 1)"]
+        I3["Item C (idx: 2)"]
+        I4["Item D (idx: 3)"]
+        I3 -.->|"Move C to idx 1"| I2
+        Note1["⚠️ Must update idx of B, C, and D in the DB"]
+    end
+    subgraph "Lexorank-style Midpoint (1 Database Write)"
+        direction TB
+        L1["Item A (pos: 'a')"]
+        L2["Item B (pos: 'c')"]
+        L3["Item C (pos: 'd')"]
+        L3 -.->|"Move C between A & B"| L1
+        Note2["✓ Only update C to pos: 'b'"]
+    end
+```
+
+* **Single-Write Reordering:** When an item is dragged between Item A and Item B, the client fetches the `positionKey` of the preceding and succeeding elements.
+* **String Midpoint Calculation:** The backend computes a new midpoint string using `GenerateMidString(prevKey, nextKey)` (e.g. the midpoint between `"a"` and `"c"` is `"b"`; between `"a"` and `"b"` is `"an"`, and so on).
+* **Database Performance:** The database updates a single record with this new `positionKey`. Lists are retrieved using `ORDER BY position_key ASC`, resulting in instant updates and zero performance overhead.
+
+### ✉️ 3. Gmail SMTP & Dynamic Document Export (Excel / PDF)
+The platform features native data serialization into high-quality print and spreadsheet documents:
+* **Export Engines:** Converts customer price lists and quotations dynamically into structured PDF documents (supporting A4/A5 layouts) or Excel spreadsheets (`.xlsx`) via the Go backend.
+* **Gmail SMTP Relay:** Integrated with `net/smtp` to send multi-part MIME emails. The app securely compiles HTML bodies and translates generated binary buffers into Base64 attachment chunks, delivering them straight to customer inboxes in one action.
+
+### 📲 4. Dynamic Android Over-the-Air (OTA) Application Updates
+Maintains continuous deployment parity between the server and the Android client app:
+* **Dynamic Versioning:** The Go backend reads and parses the version string directly from the frontend's raw `pubspec.yaml` on compile/run, eliminating manual hardcoding of version states in the API.
+* **OTA Downloads:** The mobile app queries `/release/version` on boot. If a newer build number is detected, it prompts the user to download the update package. The backend serves the updated binary package directly from the target volume path via `/release/download`.
+* **Storage Optimization:** At startup, the client application proactively sweeps the local directory to delete any temporary install `.apk` fragments left over from previous updates.
 
 ---
 
