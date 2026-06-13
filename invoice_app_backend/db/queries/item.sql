@@ -228,7 +228,8 @@ ORDER BY
     (COALESCE(similarity(my_unaccent(t.type_name), my_unaccent(sqlc.arg('keyword'))), 0.0) * 2.0)
   ) DESC,
   i.created_at DESC
-LIMIT sqlc.arg('limit_val');
+LIMIT sqlc.arg('limit_val')
+OFFSET sqlc.arg('offset_val');
 
 -- name: PatchItem :one
 UPDATE items

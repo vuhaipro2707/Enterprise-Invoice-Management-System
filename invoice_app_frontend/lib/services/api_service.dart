@@ -143,10 +143,11 @@ class ApiService {
     throw Exception('Failed to load items: ${response.body}');
   }
 
-  Future<List<dynamic>> searchItems(String keyword, {String? typeId, int? limit}) async {
+  Future<List<dynamic>> searchItems(String keyword, {String? typeId, int? limit, int? offset}) async {
     final queryParams = <String, String>{'keyword': keyword};
     if (typeId != null) queryParams['typeId'] = typeId;
     if (limit != null) queryParams['limit'] = limit.toString();
+    if (offset != null) queryParams['offset'] = offset.toString();
 
     final uri = Uri.parse('$baseUrl/item/search').replace(queryParameters: queryParams);
     final response = await http.get(uri, headers: _headers);

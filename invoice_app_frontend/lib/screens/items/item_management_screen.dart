@@ -46,7 +46,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
 
   void _onScroll() {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      if (!_isLoading && !_isLoadingMore && _hasMore && !_isSearching) {
+      if (!_isLoading && !_isLoadingMore && _hasMore) {
         _fetchMoreItems();
       }
     }
@@ -121,9 +121,16 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
         items = await _apiService.searchItems(
           _searchController.text,
           typeId: _selectedTypeId,
+          limit: _limit,
+          offset: 0,
         );
         _isSearching = true;
-        _hasMore = false;
+        if (!isQuiet) {
+          _offset = items.length;
+          _hasMore = items.length == _limit;
+        } else {
+          _offset = items.length;
+        }
       } else {
         String? sortBy;
         String? sortOrder;
@@ -238,24 +245,34 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
   Future<void> _fetchMoreItems() async {
     setState(() => _isLoadingMore = true);
     try {
-      String? sortBy;
-      String? sortOrder;
-      
-      if (_sortState == SortState.az) {
-        sortBy = 'item_default_name';
-        sortOrder = 'asc';
-      } else if (_sortState == SortState.za) {
-        sortBy = 'item_default_name';
-        sortOrder = 'desc';
-      }
+      List<dynamic> moreItems;
+      if (_isSearching) {
+        moreItems = await _apiService.searchItems(
+          _searchController.text,
+          typeId: _selectedTypeId,
+          limit: _limit,
+          offset: _offset,
+        );
+      } else {
+        String? sortBy;
+        String? sortOrder;
+        
+        if (_sortState == SortState.az) {
+          sortBy = 'item_default_name';
+          sortOrder = 'asc';
+        } else if (_sortState == SortState.za) {
+          sortBy = 'item_default_name';
+          sortOrder = 'desc';
+        }
 
-      final moreItems = await _apiService.getItems(
-        typeId: _selectedTypeId,
-        limit: _limit,
-        offset: _offset,
-        sortBy: sortBy,
-        sortOrder: sortOrder,
-      );
+        moreItems = await _apiService.getItems(
+          typeId: _selectedTypeId,
+          limit: _limit,
+          offset: _offset,
+          sortBy: sortBy,
+          sortOrder: sortOrder,
+        );
+      }
       
       setState(() {
         if (moreItems.isEmpty) {

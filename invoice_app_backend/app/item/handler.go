@@ -185,14 +185,21 @@ func (h *ItemHandler) SearchItems(c *fiber.Ctx) error {
 	}
 
 	typeIDStr := c.Query("typeId")
-	limitStr := c.Query("limit", "10")
+	limitStr := c.Query("limit", "20")
 	parsedLimit, err := strconv.ParseInt(limitStr, 10, 32)
 	limit := int32(parsedLimit)
 	if err != nil || limit <= 0 {
-		limit = 10
+		limit = 20
 	}
 	if limit > 100 {
 		limit = 100
+	}
+
+	offsetStr := c.Query("offset", "0")
+	parsedOffset, err := strconv.ParseInt(offsetStr, 10, 32)
+	offset := int32(parsedOffset)
+	if err != nil || offset < 0 {
+		offset = 0
 	}
 
 	var typeID *uuid.UUID
@@ -203,7 +210,7 @@ func (h *ItemHandler) SearchItems(c *fiber.Ctx) error {
 		}
 	}
 
-	items, err := h.service.SearchItems(context.Background(), keyword, typeID, limit)
+	items, err := h.service.SearchItems(context.Background(), keyword, typeID, limit, offset)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to search items"})
 	}

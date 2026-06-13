@@ -880,13 +880,15 @@ ORDER BY
     (COALESCE(similarity(my_unaccent(t.type_name), my_unaccent($2)), 0.0) * 2.0)
   ) DESC,
   i.created_at DESC
-LIMIT $3
+LIMIT $4
+OFFSET $3
 `
 
 type SearchItemsParams struct {
-	TypeID   uuid.NullUUID `json:"type_id"`
-	Keyword  string        `json:"keyword"`
-	LimitVal int32         `json:"limit_val"`
+	TypeID    uuid.NullUUID `json:"type_id"`
+	Keyword   string        `json:"keyword"`
+	OffsetVal int32         `json:"offset_val"`
+	LimitVal  int32         `json:"limit_val"`
 }
 
 type SearchItemsRow struct {
@@ -902,7 +904,12 @@ type SearchItemsRow struct {
 }
 
 func (q *Queries) SearchItems(ctx context.Context, arg SearchItemsParams) ([]SearchItemsRow, error) {
-	rows, err := q.db.QueryContext(ctx, searchItems, arg.TypeID, arg.Keyword, arg.LimitVal)
+	rows, err := q.db.QueryContext(ctx, searchItems,
+		arg.TypeID,
+		arg.Keyword,
+		arg.OffsetVal,
+		arg.LimitVal,
+	)
 	if err != nil {
 		return nil, err
 	}

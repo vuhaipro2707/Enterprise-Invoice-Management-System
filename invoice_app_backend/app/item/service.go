@@ -173,19 +173,24 @@ func (s *ItemService) GetUnits(ctx context.Context) ([]sqlc.Unit, error) {
 	return s.Repo.ListUnits(ctx)
 }
 
-func (s *ItemService) SearchItems(ctx context.Context, keyword string, typeID *uuid.UUID, limit int32) ([]sqlc.SearchItemsRow, error) {
+func (s *ItemService) SearchItems(ctx context.Context, keyword string, typeID *uuid.UUID, limit int32, offset int32) ([]sqlc.SearchItemsRow, error) {
 	if keyword == "" {
 		return []sqlc.SearchItemsRow{}, nil
 	}
 
-	// Default limit to 10 if not specified or invalid
+	// Default limit to 20 if not specified or invalid
 	if limit <= 0 || limit > 100 {
-		limit = 10
+		limit = 20
+	}
+
+	if offset < 0 {
+		offset = 0
 	}
 
 	params := sqlc.SearchItemsParams{
-		Keyword:  keyword,
-		LimitVal: limit,
+		Keyword:   keyword,
+		LimitVal:  limit,
+		OffsetVal: offset,
 	}
 
 	if typeID != nil {

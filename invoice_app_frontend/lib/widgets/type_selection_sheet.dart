@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/string_utils.dart';
 
 class TypeSelectionSheet extends StatefulWidget {
   final List<dynamic> initialTypes;
@@ -43,10 +44,10 @@ class _TypeSelectionSheetState extends State<TypeSelectionSheet> {
   void _filterTypes(String query) {
     setState(() {
       _filteredTypes = widget.initialTypes
-          .where((t) => t['typeName']
-              .toString()
-              .toLowerCase()
-              .contains(query.toLowerCase()))
+          .where((t) => StringUtils.containsUnaccented(
+                t['typeName'].toString(),
+                query,
+              ))
           .toList();
     });
   }
