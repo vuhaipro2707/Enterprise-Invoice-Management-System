@@ -112,7 +112,7 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> with 
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
+    _debounce = Timer(const Duration(milliseconds: 150), () {
       _fetchInitialInvoices();
     });
   }
@@ -687,7 +687,7 @@ class _BuyerSearchFilterSheetState extends State<_BuyerSearchFilterSheet> {
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
+    _debounce = Timer(const Duration(milliseconds: 150), () {
       _fetchBuyers(query);
     });
   }

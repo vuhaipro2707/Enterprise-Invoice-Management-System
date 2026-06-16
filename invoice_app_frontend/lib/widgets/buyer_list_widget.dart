@@ -65,7 +65,7 @@ class BuyerListWidgetState extends State<BuyerListWidget> {
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
+    _debounce = Timer(const Duration(milliseconds: 150), () {
       _offset = 0;
       _hasMore = true;
       _fetchBuyers();

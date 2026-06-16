@@ -1030,17 +1030,51 @@ const searchBuyers = `-- name: SearchBuyers :many
 SELECT buyer_id, buyer_code, buyer_name, address, phone_number, id_card_number, email, tax_id, lat, lng, is_active, created_at, updated_at, deleted_at FROM buyers
 WHERE deleted_at IS NULL
 AND (
-    my_unaccent(buyer_name) ILIKE '%' || my_unaccent($2) || '%'
-    OR my_unaccent(buyer_code) ILIKE '%' || my_unaccent($2) || '%'
-    OR phone_number ILIKE '%' || $2 || '%'
-    OR id_card_number ILIKE '%' || $2 || '%'
-    OR my_unaccent(address) ILIKE '%' || my_unaccent($2) || '%'
+  -- Check if all words from keyword are present in relevant fields
+  (
+    SELECT COALESCE(bool_and(
+      my_unaccent(buyer_name) ILIKE '%' || word || '%'
+      OR my_unaccent(buyer_code) ILIKE '%' || word || '%'
+      OR phone_number ILIKE '%' || word || '%'
+      OR id_card_number ILIKE '%' || word || '%'
+      OR my_unaccent(address) ILIKE '%' || word || '%'
+      OR get_initials(address) ILIKE '%' || word || '%'
+      OR get_initials(buyer_name) ILIKE '%' || word || '%'
+    ), FALSE)
+    FROM unnest(string_to_array(my_unaccent($2), ' ')) AS word
+    WHERE word <> ''
+  )
+  -- Or similarity is close enough on name/address (for fuzzy matching)
+  OR my_unaccent(buyer_name) % my_unaccent($2)
+  OR my_unaccent(address) % my_unaccent($2)
+  -- Or exact code / phone / id match
+  OR buyer_code = $2
+  OR phone_number = $2
+  OR id_card_number = $2
+  -- Or get_initials matches the entire keyword
+  OR (length($2) >= 2 AND get_initials(buyer_name) ILIKE '%' || my_unaccent($2) || '%')
+  OR (length($2) >= 2 AND get_initials(address) ILIKE '%' || my_unaccent($2) || '%')
 )
 ORDER BY
-    CASE WHEN buyer_code = $2 THEN 0 ELSE 1 END,
-    CASE WHEN phone_number = $2 THEN 0 ELSE 1 END,
-    CASE WHEN id_card_number = $2 THEN 0 ELSE 1 END,
-    similarity(my_unaccent(buyer_name), my_unaccent($2)) DESC
+    -- Boost exact matches first
+    (CASE WHEN buyer_code = $2 THEN 20.0 ELSE 0.0 END) +
+    (CASE WHEN phone_number = $2 THEN 20.0 ELSE 0.0 END) +
+    (CASE WHEN id_card_number = $2 THEN 20.0 ELSE 0.0 END) +
+    (CASE WHEN my_unaccent(buyer_name) = my_unaccent($2) THEN 15.0 ELSE 0.0 END) +
+    (CASE WHEN my_unaccent(buyer_name) ILIKE my_unaccent($2) || '%' THEN 8.0 ELSE 0.0 END) +
+    (CASE WHEN my_unaccent(address) = my_unaccent($2) THEN 10.0 ELSE 0.0 END) +
+    (CASE WHEN my_unaccent(address) ILIKE my_unaccent($2) || '%' THEN 5.0 ELSE 0.0 END) +
+    -- Initials match boosts
+    (CASE WHEN length($2) >= 2 AND get_initials(buyer_name) = my_unaccent($2) THEN 7.0 ELSE 0.0 END) +
+    (CASE WHEN length($2) >= 2 AND get_initials(buyer_name) ILIKE my_unaccent($2) || '%' THEN 4.0 ELSE 0.0 END) +
+    (CASE WHEN length($2) >= 2 AND get_initials(buyer_name) ILIKE '%' || my_unaccent($2) || '%' THEN 2.0 ELSE 0.0 END) +
+    (CASE WHEN length($2) >= 2 AND get_initials(address) = my_unaccent($2) THEN 6.0 ELSE 0.0 END) +
+    (CASE WHEN length($2) >= 2 AND get_initials(address) ILIKE my_unaccent($2) || '%' THEN 3.0 ELSE 0.0 END) +
+    (CASE WHEN length($2) >= 2 AND get_initials(address) ILIKE '%' || my_unaccent($2) || '%' THEN 1.0 ELSE 0.0 END) +
+    -- Trigram similarity
+    (similarity(my_unaccent(buyer_name), my_unaccent($2)) * 5.0) +
+    (COALESCE(similarity(my_unaccent(address), my_unaccent($2)), 0.0) * 3.0) DESC,
+    created_at DESC
 LIMIT $1
 `
 

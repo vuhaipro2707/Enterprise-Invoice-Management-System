@@ -184,17 +184,51 @@ LIMIT $1 OFFSET $2;
 SELECT * FROM buyers
 WHERE deleted_at IS NULL
 AND (
-    my_unaccent(buyer_name) ILIKE '%' || my_unaccent(sqlc.arg('keyword')) || '%'
-    OR my_unaccent(buyer_code) ILIKE '%' || my_unaccent(sqlc.arg('keyword')) || '%'
-    OR phone_number ILIKE '%' || sqlc.arg('keyword') || '%'
-    OR id_card_number ILIKE '%' || sqlc.arg('keyword') || '%'
-    OR my_unaccent(address) ILIKE '%' || my_unaccent(sqlc.arg('keyword')) || '%'
+  -- Check if all words from keyword are present in relevant fields
+  (
+    SELECT COALESCE(bool_and(
+      my_unaccent(buyer_name) ILIKE '%' || word || '%'
+      OR my_unaccent(buyer_code) ILIKE '%' || word || '%'
+      OR phone_number ILIKE '%' || word || '%'
+      OR id_card_number ILIKE '%' || word || '%'
+      OR my_unaccent(address) ILIKE '%' || word || '%'
+      OR get_initials(address) ILIKE '%' || word || '%'
+      OR get_initials(buyer_name) ILIKE '%' || word || '%'
+    ), FALSE)
+    FROM unnest(string_to_array(my_unaccent(sqlc.arg('keyword')), ' ')) AS word
+    WHERE word <> ''
+  )
+  -- Or similarity is close enough on name/address (for fuzzy matching)
+  OR my_unaccent(buyer_name) % my_unaccent(sqlc.arg('keyword'))
+  OR my_unaccent(address) % my_unaccent(sqlc.arg('keyword'))
+  -- Or exact code / phone / id match
+  OR buyer_code = sqlc.arg('keyword')
+  OR phone_number = sqlc.arg('keyword')
+  OR id_card_number = sqlc.arg('keyword')
+  -- Or get_initials matches the entire keyword
+  OR (length(sqlc.arg('keyword')) >= 2 AND get_initials(buyer_name) ILIKE '%' || my_unaccent(sqlc.arg('keyword')) || '%')
+  OR (length(sqlc.arg('keyword')) >= 2 AND get_initials(address) ILIKE '%' || my_unaccent(sqlc.arg('keyword')) || '%')
 )
 ORDER BY
-    CASE WHEN buyer_code = sqlc.arg('keyword') THEN 0 ELSE 1 END,
-    CASE WHEN phone_number = sqlc.arg('keyword') THEN 0 ELSE 1 END,
-    CASE WHEN id_card_number = sqlc.arg('keyword') THEN 0 ELSE 1 END,
-    similarity(my_unaccent(buyer_name), my_unaccent(sqlc.arg('keyword'))) DESC
+    -- Boost exact matches first
+    (CASE WHEN buyer_code = sqlc.arg('keyword') THEN 20.0 ELSE 0.0 END) +
+    (CASE WHEN phone_number = sqlc.arg('keyword') THEN 20.0 ELSE 0.0 END) +
+    (CASE WHEN id_card_number = sqlc.arg('keyword') THEN 20.0 ELSE 0.0 END) +
+    (CASE WHEN my_unaccent(buyer_name) = my_unaccent(sqlc.arg('keyword')) THEN 15.0 ELSE 0.0 END) +
+    (CASE WHEN my_unaccent(buyer_name) ILIKE my_unaccent(sqlc.arg('keyword')) || '%' THEN 8.0 ELSE 0.0 END) +
+    (CASE WHEN my_unaccent(address) = my_unaccent(sqlc.arg('keyword')) THEN 10.0 ELSE 0.0 END) +
+    (CASE WHEN my_unaccent(address) ILIKE my_unaccent(sqlc.arg('keyword')) || '%' THEN 5.0 ELSE 0.0 END) +
+    -- Initials match boosts
+    (CASE WHEN length(sqlc.arg('keyword')) >= 2 AND get_initials(buyer_name) = my_unaccent(sqlc.arg('keyword')) THEN 7.0 ELSE 0.0 END) +
+    (CASE WHEN length(sqlc.arg('keyword')) >= 2 AND get_initials(buyer_name) ILIKE my_unaccent(sqlc.arg('keyword')) || '%' THEN 4.0 ELSE 0.0 END) +
+    (CASE WHEN length(sqlc.arg('keyword')) >= 2 AND get_initials(buyer_name) ILIKE '%' || my_unaccent(sqlc.arg('keyword')) || '%' THEN 2.0 ELSE 0.0 END) +
+    (CASE WHEN length(sqlc.arg('keyword')) >= 2 AND get_initials(address) = my_unaccent(sqlc.arg('keyword')) THEN 6.0 ELSE 0.0 END) +
+    (CASE WHEN length(sqlc.arg('keyword')) >= 2 AND get_initials(address) ILIKE my_unaccent(sqlc.arg('keyword')) || '%' THEN 3.0 ELSE 0.0 END) +
+    (CASE WHEN length(sqlc.arg('keyword')) >= 2 AND get_initials(address) ILIKE '%' || my_unaccent(sqlc.arg('keyword')) || '%' THEN 1.0 ELSE 0.0 END) +
+    -- Trigram similarity
+    (similarity(my_unaccent(buyer_name), my_unaccent(sqlc.arg('keyword'))) * 5.0) +
+    (COALESCE(similarity(my_unaccent(address), my_unaccent(sqlc.arg('keyword'))), 0.0) * 3.0) DESC,
+    created_at DESC
 LIMIT $1;
 
 -- name: GetLastBuyerCode :one

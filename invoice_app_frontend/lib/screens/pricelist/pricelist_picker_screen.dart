@@ -65,7 +65,7 @@ class _PriceListPickerScreenState extends State<PriceListPickerScreen> {
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
+    _debounce = Timer(const Duration(milliseconds: 150), () {
       _fetchInitialPriceLists();
     });
   }
