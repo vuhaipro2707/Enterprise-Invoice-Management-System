@@ -382,6 +382,36 @@ Maintains continuous deployment parity between the server and the Android client
 * You can manually trigger a backup to test and verify status logs by requesting:
   `GET https://api.yourdomain.com:<DEPLOY_HTTPS_PORT>/api/trigger-backup` (Requires a valid Authorization header).
 
+### 🔄 Manual Database Restoration
+If you need to restore the database from a backup file (e.g., `~/backup.sql`), follow these steps. It is recommended to start **only** the database container to avoid conflicts with moving parts from the backend or other services.
+
+```bash
+# 0. Start ONLY the database service
+docker compose -f docker-compose.prod.yml up -d db
+
+# 1. Drop and Recreate the Database
+docker exec -i invoice_db dropdb -U admin invoice_db
+docker exec -i invoice_db createdb -U admin invoice_db
+
+# 2. Re-enable unaccent extension and helper functions
+docker exec -i invoice_db psql -U admin -d invoice_db -c "
+CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
+
+CREATE OR REPLACE FUNCTION pg_catalog.unaccent(text, text) 
+RETURNS text AS \$body\$
+  SELECT public.unaccent(\$2);
+\$body\$ LANGUAGE sql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION pg_catalog.my_unaccent(text) 
+RETURNS text AS \$body\$
+  SELECT public.unaccent(\$1);
+\$body\$ LANGUAGE sql IMMUTABLE;
+"
+
+# 3. Restore data from the backup file
+docker exec -i invoice_db psql -U admin -d invoice_db < ~/backup.sql
+```
+
 ---
 
 ## 🛡️ Security & Privacy Policies

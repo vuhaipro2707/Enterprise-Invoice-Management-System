@@ -14,6 +14,8 @@ server {
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
 
+    error_page 497 https://$host:27443$request_uri;
+
     # Reverse Proxy to forward requests to the Go Fiber Backend Container
     location / {
         # --- CORS Configuration for Production ---
@@ -71,6 +73,8 @@ server {
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
 
+    error_page 497 https://$host:27443$request_uri;
+
     # Root directory for Flutter Web static files (mounted via docker-compose)
     root /usr/share/nginx/html;
     index index.html index.htm;
@@ -81,6 +85,10 @@ server {
     }
 
     # Reverse proxy to access the internal pgAdmin dashboard (Securely LAN-restricted!)
+    location = /pgadmin {
+        return 301 $scheme://$http_host/pgadmin/$is_args$args;
+    }
+
     location /pgadmin/ {
 
         # Proxy to pgadmin container (Standard port is 80)
