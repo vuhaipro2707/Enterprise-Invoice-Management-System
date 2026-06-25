@@ -55,7 +55,7 @@ SELECT i.*,
          'itemId', li.item_id,
          'unitId', li.unit_id,
          'quantity', li.quantity,
-         'unitPriceCustom', li.unit_price_custom,
+         'unitPriceCustom', COALESCE(li.unit_price_custom, u.unit_price_default, 0),
          'subTotal', li.sub_total,
          'itemNameSnapshot', li.item_name_snapshot,
          'unitNameSnapshot', li.unit_name_snapshot,
@@ -64,6 +64,7 @@ SELECT i.*,
 FROM invoices i
 LEFT JOIN buyers b ON i.buyer_id = b.buyer_id
 LEFT JOIN line_items li ON i.invoice_id = li.invoice_id
+LEFT JOIN units u ON li.unit_id = u.unit_id
 WHERE i.invoice_id = $1
 GROUP BY i.invoice_id, b.buyer_code;
 

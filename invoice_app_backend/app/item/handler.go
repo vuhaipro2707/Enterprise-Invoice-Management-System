@@ -255,6 +255,14 @@ func (h *ItemHandler) CreateUnitForItem(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: unitName, ratio, isBaseUnit, unitPriceDefault(optional)"})
 	}
 
+	if req.UnitPriceDefault != nil && *req.UnitPriceDefault < 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "unitPriceDefault must be non-negative"})
+	}
+
+	if *req.Ratio <= 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "ratio must be greater than zero"})
+	}
+
 	unit, err := h.service.CreateUnitForItem(context.Background(), itemID, req.UnitName, req.UnitPriceDefault, *req.Ratio, *req.IsBaseUnit)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
@@ -499,6 +507,9 @@ func (h *ItemHandler) PatchUnit(c *fiber.Ctx) error {
 		if err := json.Unmarshal(raw, &value); err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: unitPriceDefault (must be number)"})
 		}
+		if value < 0 {
+			return c.Status(400).JSON(fiber.Map{"error": "unitPriceDefault must be non-negative"})
+		}
 		input.SetUnitPriceDefault = true
 		input.UnitPriceDefault = value
 	}
@@ -507,6 +518,9 @@ func (h *ItemHandler) PatchUnit(c *fiber.Ctx) error {
 		var value int64
 		if err := json.Unmarshal(raw, &value); err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": "Invalid value for key: ratio (must be number)"})
+		}
+		if value <= 0 {
+			return c.Status(400).JSON(fiber.Map{"error": "ratio must be greater than zero"})
 		}
 		input.SetRatio = true
 		input.Ratio = value

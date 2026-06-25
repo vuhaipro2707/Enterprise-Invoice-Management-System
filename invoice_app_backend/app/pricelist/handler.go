@@ -57,6 +57,11 @@ func (h *PriceListHandler) CreatePriceList(c *fiber.Ctx) error {
 				"error": fmt.Sprintf("Missing required key in items[%d]: itemId, unitId(optional)", idx),
 			})
 		}
+		if itm.UnitPriceCustom < 0 {
+			return c.Status(400).JSON(fiber.Map{
+				"error": fmt.Sprintf("Invalid value in items[%d]: unitPriceCustom must be non-negative", idx),
+			})
+		}
 	}
 
 	cpl, err := h.service.CreatePriceList(c.UserContext(), req)
@@ -187,6 +192,11 @@ func (h *PriceListHandler) UpdatePriceList(c *fiber.Ctx) error {
 		if itm.ItemID == "" {
 			return c.Status(400).JSON(fiber.Map{
 				"error": fmt.Sprintf("Missing required key in items[%d]: itemId, unitId(optional)", idx),
+			})
+		}
+		if itm.UnitPriceCustom < 0 {
+			return c.Status(400).JSON(fiber.Map{
+				"error": fmt.Sprintf("Invalid value in items[%d]: unitPriceCustom must be non-negative", idx),
 			})
 		}
 	}

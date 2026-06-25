@@ -220,6 +220,10 @@ func (h *InvoiceHandler) CreateLineItem(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Missing required keys: quantity(>0), itemId(optional if itemNameSnapshot provided), unitId(optional if unitNameSnapshot provided)"})
 	}
 
+	if req.UnitPriceCustom != nil && *req.UnitPriceCustom < 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "unitPriceCustom must be non-negative"})
+	}
+
 	invID, err := uuid.Parse(invoiceIDStr)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid invoiceId (must be UUID)"})
@@ -1361,12 +1365,18 @@ func (h *InvoiceHandler) PatchLineItem(c *fiber.Ctx) error {
 	if raw, ok := body["quantity"]; ok {
 		var val int32
 		json.Unmarshal(raw, &val)
+		if val <= 0 {
+			return c.Status(400).JSON(fiber.Map{"error": "quantity must be greater than zero"})
+		}
 		input.Quantity = val
 		input.SetQuantity = true
 	}
 	if raw, ok := body["unitPriceCustom"]; ok {
 		var val *int64
 		json.Unmarshal(raw, &val)
+		if val != nil && *val < 0 {
+			return c.Status(400).JSON(fiber.Map{"error": "unitPriceCustom must be non-negative"})
+		}
 		input.UnitPriceCustom = sql.NullInt64{Int64: getInt64(val), Valid: val != nil}
 		input.SetUnitPriceCustom = true
 	}
@@ -1550,7 +1560,24 @@ func (h *InvoiceHandler) DeleteInvoice(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Missing path param: invoiceId"})
 	}
 
-	err := h.service.DeleteInvoice(context.Background(), invoiceID)
+	invUUID, err := uuid.Parse(invoiceID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid invoiceId format"})
+	}
+
+	invoice, err := h.service.GetInvoiceByID(context.Background(), invUUID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.Status(404).JSON(fiber.Map{"error": "Invoice not found"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Failed to retrieve invoice: %v", err)})
+	}
+
+	if invoice.PaidLocked.Valid && invoice.PaidLocked.Bool {
+		return c.Status(403).JSON(fiber.Map{"error": "Cannot delete a locked invoice"})
+	}
+
+	err = h.service.DeleteInvoice(context.Background(), invoiceID)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": fmt.Sprintf("Failed to soft delete invoice: %v", err)})
 	}

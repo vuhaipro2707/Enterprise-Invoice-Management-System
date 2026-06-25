@@ -117,6 +117,9 @@ func ensureFontsExist() error {
 
 // Format currency in VND (e.g. 1.500.000)
 func formatVND(amount int) string {
+	if amount < 0 {
+		return "-" + formatVND(-amount)
+	}
 	str := fmt.Sprintf("%d", amount)
 	var parts []string
 	for len(str) > 3 {

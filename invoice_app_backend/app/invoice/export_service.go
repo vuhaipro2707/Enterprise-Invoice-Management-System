@@ -164,6 +164,9 @@ func ensureFontsExist() error {
 
 // Format currency in VND (e.g. 1.500.000)
 func formatVND(amount int64) string {
+	if amount < 0 {
+		return "-" + formatVND(-amount)
+	}
 	str := fmt.Sprintf("%d", amount)
 	var parts []string
 	for len(str) > 3 {
@@ -312,11 +315,6 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 			price = int64(p)
 		}
 
-		wUp := pdf.GetStringWidth(formatVND(price))
-		if wUp > wUnitPriceMin {
-			wUnitPriceMin = wUp
-		}
-
 		// Subtotal (T.Tiền)
 		var subTotal int64
 		if s, ok := itm["subTotal"].(float64); ok {
@@ -325,6 +323,15 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 			subTotal = s
 		} else if s, ok := itm["subTotal"].(int); ok {
 			subTotal = int64(s)
+		}
+
+		if price == 0 && qty > 0 {
+			price = subTotal / int64(qty)
+		}
+
+		wUp := pdf.GetStringWidth(formatVND(price))
+		if wUp > wUnitPriceMin {
+			wUnitPriceMin = wUp
 		}
 
 		wSt := pdf.GetStringWidth(formatVND(subTotal))
@@ -642,6 +649,10 @@ func GenerateInvoicePDF(inv map[string]interface{}, printType string, printPart 
 						subTotal = s
 					} else if s, ok := row.Item["subTotal"].(int); ok {
 						subTotal = int64(s)
+					}
+
+					if price == 0 && qty > 0 {
+						price = subTotal / int64(qty)
 					}
 
 					x := pdf.GetX()
